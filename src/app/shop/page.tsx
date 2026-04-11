@@ -11,7 +11,7 @@ export const metadata: Metadata = {
     "Browse the full Charmistry collection — rings, necklaces, earrings, bracelets and jewellery boxes.",
 };
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type SearchParams = { category?: string };
 

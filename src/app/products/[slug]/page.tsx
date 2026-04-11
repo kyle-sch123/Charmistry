@@ -5,25 +5,12 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductDetail from "@/components/product/ProductDetail";
 import ProductCard from "@/components/ui/ProductCard";
-import {
-  getAllProductSlugs,
-  getProductBySlug,
-  getRelatedProducts,
-} from "@/lib/queries";
+import { getProductBySlug, getRelatedProducts } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 
-export const revalidate = 300;
+export const dynamic = "force-dynamic";
 
 type Params = { slug: string };
-
-export async function generateStaticParams(): Promise<Params[]> {
-  try {
-    const slugs = await getAllProductSlugs();
-    return slugs.map((slug) => ({ slug }));
-  } catch {
-    return [];
-  }
-}
 
 export async function generateMetadata(
   { params }: { params: Promise<Params> },

@@ -1,3 +1,5 @@
+export const runtime = "edge";
+
 import { Resend } from "resend";
 import { welcomeEmailHtml } from "@/lib/email-templates";
 
