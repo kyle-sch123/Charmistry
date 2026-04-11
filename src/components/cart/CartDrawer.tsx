@@ -175,12 +175,13 @@ export default function CartDrawer() {
                   <p className="text-xs text-ink/50">
                     Shipping &amp; taxes calculated at checkout.
                   </p>
-                  <button
-                    className="w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors cursor-pointer"
-                    type="button"
+                  <Link
+                    href="/checkout"
+                    onClick={closeCart}
+                    className="block w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors text-center cursor-pointer"
                   >
                     Checkout
-                  </button>
+                  </Link>
                   <Link
                     href="/shop"
                     onClick={closeCart}

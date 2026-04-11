@@ -1,3 +1,118 @@
+import type { Order, OrderItem } from "@/types";
+
+function formatZar(amount: number): string {
+  return `R${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+export function orderConfirmationHtml(order: Order, items: OrderItem[]): string {
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charmistry.co.za";
+  const shortId = order.id.slice(0, 8).toUpperCase();
+
+  const itemRows = items
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding:16px 0;border-bottom:1px solid #E0DDD8;">
+          <p style="margin:0;font-family:'Gilda Display','Georgia',serif;font-size:15px;color:#0A0A0A;">${escapeHtml(item.product_name)}</p>
+          <p style="margin:4px 0 0;font-size:11px;color:#6B6B6B;letter-spacing:0.05em;">Qty ${item.quantity} &middot; ${formatZar(Number(item.unit_price))}</p>
+        </td>
+        <td style="padding:16px 0;border-bottom:1px solid #E0DDD8;text-align:right;font-size:13px;color:#0A0A0A;">
+          ${formatZar(Number(item.line_total))}
+        </td>
+      </tr>`,
+    )
+    .join("");
+
+  const shippingLines = [
+    `${order.first_name} ${order.last_name}`,
+    order.shipping_address_line1,
+    order.shipping_address_line2 ?? "",
+    `${order.shipping_city}, ${order.shipping_postal_code}`,
+    order.shipping_country,
+  ]
+    .filter(Boolean)
+    .map((line) => escapeHtml(line))
+    .join("<br/>");
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Order confirmation &middot; Charmistry</title>
+</head>
+<body style="margin:0;padding:0;background:#FAFAF8;font-family:'Outfit',sans-serif;color:#0A0A0A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#FAFAF8;">
+    <tr>
+      <td align="center" style="padding:48px 16px;">
+        <table width="560" cellpadding="0" cellspacing="0" role="presentation" style="max-width:560px;width:100%;background:#FFFFFF;border:1px solid #E0DDD8;">
+          <tr>
+            <td style="padding:40px 48px 32px;border-bottom:1px solid #E0DDD8;text-align:center;">
+              <p style="margin:0;font-family:'Gilda Display','Georgia',serif;font-size:22px;letter-spacing:0.15em;text-transform:uppercase;color:#0A0A0A;">Charmistry</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:48px 48px 24px;">
+              <p style="margin:0 0 8px;font-family:'Gilda Display','Georgia',serif;font-size:28px;line-height:1.2;color:#0A0A0A;">Thank you for your order.</p>
+              <p style="margin:16px 0 0;font-size:13px;line-height:1.8;color:#6B6B6B;letter-spacing:0.05em;">
+                Your payment has been received and your pieces are being prepared with care. We'll follow up with tracking details as soon as your order ships.
+              </p>
+              <p style="margin:24px 0 0;font-size:11px;color:#6B6B6B;letter-spacing:0.15em;text-transform:uppercase;">Order #${shortId}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 48px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                ${itemRows}
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:0 48px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Subtotal</td>
+                  <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">${formatZar(Number(order.subtotal))}</td>
+                </tr>
+                <tr>
+                  <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Shipping</td>
+                  <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 0 0;border-top:1px solid #0A0A0A;font-size:13px;color:#0A0A0A;letter-spacing:0.1em;text-transform:uppercase;">Total</td>
+                  <td style="padding:12px 0 0;border-top:1px solid #0A0A0A;text-align:right;font-family:'Gilda Display','Georgia',serif;font-size:22px;color:#0A0A0A;">${formatZar(Number(order.total))}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 48px;border-top:1px solid #E0DDD8;">
+              <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Shipping to</p>
+              <p style="margin:0;font-size:13px;line-height:1.7;color:#0A0A0A;">${shippingLines}</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 48px;border-top:1px solid #E0DDD8;text-align:center;">
+              <a href="${siteUrl}" style="display:inline-block;padding:14px 36px;background:#0A0A0A;font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FAFAF8;text-decoration:none;">Continue Shopping</a>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+function escapeHtml(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 export function welcomeEmailHtml(discountCode: string): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charmistry.co.za";
 

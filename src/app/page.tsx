@@ -1,36 +1,47 @@
 import Navbar from "@/components/layout/Navbar";
 import HeroSection from "@/components/sections/HeroSection";
+import CategoriesGrid from "@/components/sections/CategoriesGrid";
 import BestSellers from "@/components/sections/BestSellers";
 import AboutSection from "@/components/sections/AboutSection";
 import Testimonials from "@/components/sections/Testimonials";
 import ShippingPayments from "@/components/sections/ShippingPayments";
-import NewsletterCTA from "@/components/sections/NewsletterCTA";
+import EmailClub from "@/components/sections/EmailClub";
 import SectionDivider from "@/components/ui/SectionDivider";
 import Footer from "@/components/layout/Footer";
 
 export default function Home() {
   return (
     <>
-      <Navbar />
+      <Navbar overHero />
       <main className="flex-1">
-        {/* Dark hero → light collection */}
+        {/* 1. Brand hook — full-screen hero */}
         <HeroSection />
 
+        {/* 2. Discovery — what we sell */}
+        <CategoriesGrid />
+
+        <SectionDivider />
+
+        {/* 3. Social proof through product — bestsellers */}
         <BestSellers />
 
-        {/* Light → dark break */}
         <SectionDivider />
 
+        {/* 4. Brand story + mid-page email capture */}
         <AboutSection />
 
-        {/* Light → dark break */}
         <SectionDivider />
 
+        {/* 5. Customer social proof */}
         <Testimonials />
 
         <SectionDivider />
 
+        {/* 6. Trust signals — shipping & payments */}
         <ShippingPayments />
+
+        {/* 7. Final conversion — email club */}
+        <EmailClub />
       </main>
       <Footer />
     </>

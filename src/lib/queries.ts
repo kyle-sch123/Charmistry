@@ -51,6 +51,22 @@ export async function getFeaturedProducts(
   return data as ProductWithCategory[];
 }
 
+export async function getBestsellers(
+  limit = 5
+): Promise<ProductWithCategory[]> {
+  // True bestsellers: most-reviewed in-stock pieces, tie-broken by rating.
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .eq("in_stock", true)
+    .order("review_count", { ascending: false })
+    .order("rating", { ascending: false, nullsFirst: false })
+    .limit(limit);
+
+  if (error) throw error;
+  return data as ProductWithCategory[];
+}
+
 export async function getProductBySlug(
   slug: string
 ): Promise<ProductWithCategory | null> {

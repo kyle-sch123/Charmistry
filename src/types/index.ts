@@ -63,3 +63,55 @@ export interface NavLink {
   label: string;
   href: string;
 }
+
+export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
+
+export interface CheckoutFormData {
+  email: string;
+  firstName: string;
+  lastName: string;
+  phone: string;
+  addressLine1: string;
+  addressLine2?: string;
+  city: string;
+  postalCode: string;
+  country: string;
+  notes?: string;
+}
+
+export interface Order {
+  id: string;
+  email: string;
+  first_name: string;
+  last_name: string;
+  phone: string | null;
+  shipping_address_line1: string;
+  shipping_address_line2: string | null;
+  shipping_city: string;
+  shipping_postal_code: string;
+  shipping_country: string;
+  subtotal: number;
+  shipping_cost: number;
+  total: number;
+  currency: string;
+  status: OrderStatus;
+  payfast_payment_id: string | null;
+  payfast_pf_payment_id: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+  paid_at: string | null;
+}
+
+export interface OrderItem {
+  id: string;
+  order_id: string;
+  product_id: string | null;
+  product_name: string;
+  product_slug: string;
+  product_image_url: string | null;
+  unit_price: number;
+  quantity: number;
+  line_total: number;
+  created_at: string;
+}

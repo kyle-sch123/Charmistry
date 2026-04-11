@@ -29,7 +29,7 @@ export default function NewsletterCTA() {
     <section
       ref={sectionRef}
       id="contact"
-      className="py-24 md:py-36 px-6 md:px-8 relative overflow-hidden"
+      className="py-24 md:py-36 px-6 md:px-10 lg:px-16 relative overflow-hidden"
     >
       {/* Background accent */}
       <motion.div
@@ -89,7 +89,7 @@ export default function NewsletterCTA() {
             placeholder="Your email address"
             aria-label="Email address"
             disabled={status === "loading" || status === "success"}
-            className="flex-1 bg-transparent border border-graphite px-5 py-3.5 text-ivory font-body text-sm placeholder:text-smoke/50 focus:outline-none focus:border-gold transition-colors duration-300 disabled:opacity-50"
+            className="flex-1 bg-transparent px-5 py-3.5 text-ivory font-body text-sm placeholder:text-smoke/50 focus:outline-none transition-colors duration-300 disabled:opacity-50"
           />
           <motion.button
             type="submit"

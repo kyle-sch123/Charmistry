@@ -77,12 +77,12 @@ export default function ShippingPayments() {
   return (
     <section
       ref={sectionRef}
-      className="bg-paper relative py-16 md:py-24 lg:py-32 overflow-hidden"
+      className="bg-paper relative py-16 md:py-24 overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto px-6 md:px-8">
+      <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Left: parallax image */}
-          <div className="relative lg:w-3/4">
+          <div className="relative">
             <motion.div
               className="relative aspect-[3/4] overflow-hidden"
               style={{ y: imageY }}

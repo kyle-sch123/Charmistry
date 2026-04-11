@@ -31,10 +31,10 @@ export default function BrandStory() {
       id="about"
       className="relative py-16 md:py-24 lg:py-36 overflow-hidden"
     >
-      <div className="max-w-7xl mx-auto px-6 md:px-8">
+      <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           {/* Left: Images */}
-          <div className="relative mb-16 lg:mb-0 lg:w-3/4">
+          <div className="relative mb-16 lg:mb-0">
             <motion.div
               className="relative aspect-[3/4] overflow-hidden"
               style={{ y: imageY }}

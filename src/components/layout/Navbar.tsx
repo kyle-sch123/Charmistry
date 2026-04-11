@@ -9,16 +9,38 @@ import SearchOverlay from "@/components/search/SearchOverlay";
 import { navLinks } from "@/data/navigation";
 import { useCart, selectCartCount } from "@/stores/cart";
 
-export default function Navbar() {
+interface NavbarProps {
+  /**
+   * When true, the navbar starts transparent with white text (for pages
+   * that open on a dark full-bleed hero, e.g. the home page) and transitions
+   * to the solid paper background on scroll. When false, the navbar is
+   * always solid — correct default for shop/PDP/content pages.
+   */
+  overHero?: boolean;
+}
+
+export default function Navbar({ overHero = false }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const { scrollY } = useScroll();
-  const bgOpacity = useTransform(scrollY, [0, 80], [0, 1]);
-  const atTop = useTransform(scrollY, [0, 80], [1, 0]);
+  // When not over a hero, keep the bar fully solid and text dark at all times.
+  const bgOpacity = useTransform(scrollY, [0, 80], overHero ? [0, 1] : [1, 1]);
+  const atTop = useTransform(scrollY, [0, 80], overHero ? [1, 0] : [0, 0]);
 
   const openCart = useCart((s) => s.openCart);
   const cartCount = useCart(selectCartCount);
   const hasHydrated = useCart((s) => s.hasHydrated);
+
+  // Hoist all transforms so no hook is called inside a callback (react-hooks/rules-of-hooks)
+  const headerBg = useTransform(bgOpacity, (v) => `rgba(250,250,248,${v})`);
+  const headerBorder = useTransform(bgOpacity, (v) => `rgba(10,10,10,${v * 0.08})`);
+  const logoColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`);
+  const linkColor = useTransform(atTop, (v) =>
+    `rgba(${v > 0.5 ? "255,255,255,0.75" : "10,10,10,0.65"})`,
+  );
+  const iconColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.6" : "10,10,10,0.5"})`);
+  const mobileIconColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.85" : "10,10,10,0.75"})`);
+  const barColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`);
 
   useEffect(() => {
     const onResize = () => {
@@ -33,15 +55,15 @@ export default function Navbar() {
       <motion.header
         className="fixed top-0 left-0 right-0 z-50"
         style={{
-          backgroundColor: useTransform(bgOpacity, (v) => `rgba(250,250,248,${v})`),
+          backgroundColor: headerBg,
           borderBottomWidth: "1px",
-          borderBottomColor: useTransform(bgOpacity, (v) => `rgba(10,10,10,${v * 0.08})`),
+          borderBottomColor: headerBorder,
           backdropFilter: "blur(16px)",
         }}
       >
         <nav className="max-w-7xl mx-auto px-6 md:px-8 h-16 md:h-20 flex items-center justify-between">
           {/* Logo — white on hero, dark on scroll */}
-          <motion.div style={{ color: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`) }}>
+          <motion.div style={{ color: logoColor }}>
             <Link href="/" aria-label="Charmistry home">
               <Logo />
             </Link>
@@ -51,13 +73,7 @@ export default function Navbar() {
           <ul className="hidden md:flex items-center gap-8">
             {navLinks.map((link) => (
               <li key={link.href}>
-                <motion.div
-                  style={{
-                    color: useTransform(atTop, (v) =>
-                      `rgba(${v > 0.5 ? "255,255,255,0.75" : "10,10,10,0.65"})`,
-                    ),
-                  }}
-                >
+                <motion.div style={{ color: linkColor }}>
                   <Link
                     href={link.href}
                     className="text-sm tracking-[0.1em] uppercase font-body transition-colors duration-300"
@@ -75,7 +91,7 @@ export default function Navbar() {
             <motion.button
               onClick={() => setSearchOpen(true)}
               className="hidden md:flex w-11 h-11 items-center justify-center transition-colors cursor-pointer"
-              style={{ color: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.6" : "10,10,10,0.5"})`) }}
+              style={{ color: iconColor }}
               aria-label="Open search"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -87,7 +103,7 @@ export default function Navbar() {
             <motion.button
               onClick={() => setSearchOpen(true)}
               className="md:hidden w-11 h-11 flex items-center justify-center cursor-pointer"
-              style={{ color: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.85" : "10,10,10,0.75"})`) }}
+              style={{ color: mobileIconColor }}
               aria-label="Open search"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -99,7 +115,7 @@ export default function Navbar() {
             <motion.button
               onClick={openCart}
               className="relative w-11 h-11 flex items-center justify-center transition-colors cursor-pointer"
-              style={{ color: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.6" : "10,10,10,0.5"})`) }}
+              style={{ color: iconColor }}
               aria-label={`Open cart${hasHydrated && cartCount > 0 ? `, ${cartCount} items` : ""}`}
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -118,14 +134,8 @@ export default function Navbar() {
               onClick={() => setMobileOpen(true)}
               aria-label="Open menu"
             >
-              <motion.span
-                className="w-6 h-px block"
-                style={{ backgroundColor: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`) }}
-              />
-              <motion.span
-                className="w-4 h-px block"
-                style={{ backgroundColor: useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`) }}
-              />
+              <motion.span className="w-6 h-px block" style={{ backgroundColor: barColor }} />
+              <motion.span className="w-4 h-px block" style={{ backgroundColor: barColor }} />
             </button>
           </div>
         </nav>
