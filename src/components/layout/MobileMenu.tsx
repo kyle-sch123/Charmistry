@@ -1,0 +1,62 @@
+"use client";
+
+import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
+import { navLinks } from "@/data/navigation";
+import Logo from "@/components/icons/Logo";
+
+interface MobileMenuProps {
+  open: boolean;
+  onClose: () => void;
+}
+
+export default function MobileMenu({ open, onClose }: MobileMenuProps) {
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          className="fixed inset-0 z-[60] bg-obsidian flex flex-col"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.3 }}
+        >
+          <div className="flex items-center justify-between px-6 h-20">
+            <Logo />
+            <button
+              onClick={onClose}
+              className="w-11 h-11 flex items-center justify-center text-ivory"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <nav className="flex-1 flex flex-col items-center justify-center gap-8">
+            {navLinks.map((link, i) => (
+              <motion.div
+                key={link.href}
+                initial={{ opacity: 0, y: 30 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.4, delay: 0.1 + i * 0.08 }}
+              >
+                <Link
+                  href={link.href}
+                  onClick={onClose}
+                  className="font-display text-3xl sm:text-4xl text-ivory font-light tracking-wide hover:text-gold transition-colors py-1.5"
+                >
+                  {link.label}
+                </Link>
+              </motion.div>
+            ))}
+          </nav>
+          <div className="px-6 pb-8 text-center">
+            <p className="text-smoke text-xs tracking-[0.15em] uppercase font-body">
+              Luxury Redefined
+            </p>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}

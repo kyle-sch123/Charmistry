@@ -1,0 +1,106 @@
+@import "tailwindcss";
+
+@theme inline {
+  /* Monochrome base */
+  --color-ink: #0A0A0A;
+  --color-ink-secondary: #3D3D3D;
+  --color-ink-tertiary: #6B6B6B;
+  --color-paper: #FAFAF8;
+  --color-paper-warm: #F5F3EF;
+  --color-stone: #E0DDD8;
+  --color-ash: #B8B5B0;
+
+  /* Dark surface (for sections that stay dark) */
+  --color-obsidian: #0A0A0A;
+  --color-onyx: #111111;
+  --color-charcoal: #1C1C1E;
+  --color-graphite: #2C2C2E;
+
+  /* Kept for accents */
+  --color-gold: #C9A84C;
+  --color-gold-light: #E8D48B;
+  --color-gold-dark: #9A7B2F;
+  --color-gold-muted: #C9A84C33;
+  --color-champagne: #F5E6C8;
+  --color-ivory: #FAF7F0;
+  --color-pearl: #E8E4DD;
+  --color-smoke: #8A8A8E;
+
+  --font-display: var(--font-cormorant), "Cormorant Garamond", serif;
+  --font-heading: var(--font-gilda), "Gilda Display", serif;
+  --font-body: var(--font-outfit), "Outfit", sans-serif;
+
+  --animate-float: float 6s ease-in-out infinite;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-grain: grain 0.5s steps(1) infinite;
+  --animate-pulse-gold: pulse-gold 2s ease-in-out infinite;
+
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-20px); }
+  }
+
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+
+  @keyframes grain {
+    0%, 100% { transform: translate(0, 0); }
+    25% { transform: translate(2%, 2%); }
+    50% { transform: translate(-1%, 1%); }
+    75% { transform: translate(1%, -1%); }
+  }
+
+  @keyframes pulse-gold {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 0.8; }
+  }
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    background-color: var(--color-paper);
+    color: var(--color-ink);
+    font-family: var(--font-body);
+  }
+
+  ::selection {
+    background-color: rgba(10, 10, 10, 0.12);
+    color: var(--color-ink);
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: var(--color-paper);
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ash);
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background: var(--color-ink-secondary);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

@@ -1,0 +1,58 @@
+import { Testimonial } from "@/types";
+
+export const testimonials: Testimonial[] = [
+  {
+    id: "test-001",
+    customerName: "Naledi M.",
+    rating: 5,
+    text: "We believe in pieces that keep up with your everyday",
+    productName: "waterproof",
+    date: "2025-12-15",
+    verified: true,
+  },
+  {
+    id: "test-002",
+    customerName: "Thando K.",
+    rating: 5,
+    text: "The Celia necklace hasn't left my neck since the day it arrived",
+    productName: "Celia Necklace",
+    date: "2026-01-08",
+    verified: true,
+  },
+  {
+    id: "test-003",
+    customerName: "Lerato S.",
+    rating: 5,
+    text: "I shower, swim and sleep in my Charmistry pieces — still perfect",
+    productName: "tarnish-free",
+    date: "2026-02-20",
+    verified: true,
+  },
+  {
+    id: "test-004",
+    customerName: "Zanele D.",
+    rating: 5,
+    text: "Bought the Mila bracelet as a gift for my sister. She wears it every single day",
+    productName: "Mila Bracelet",
+    date: "2026-03-05",
+    verified: true,
+  },
+  {
+    id: "test-005",
+    customerName: "Amahle V.",
+    rating: 5,
+    text: "Quality that rivals pieces ten times the price. Charmistry just gets it",
+    productName: "everyday luxury",
+    date: "2026-02-10",
+    verified: true,
+  },
+  {
+    id: "test-006",
+    customerName: "Sipho N.",
+    rating: 5,
+    text: "Got the Seren ring set for my girlfriend — she hasn't taken them off since",
+    productName: "Seren Ring",
+    date: "2026-01-20",
+    verified: true,
+  },
+];

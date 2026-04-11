@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "mcp__magic__21st_magic_component_inspiration",
+      "Bash(npx next:*)",
+      "mcp__plugin_supabase_supabase__execute_sql"
+    ]
+  }
+}
