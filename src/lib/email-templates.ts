@@ -104,6 +104,155 @@ export function orderConfirmationHtml(order: Order, items: OrderItem[]): string 
 </html>`;
 }
 
+export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]): string {
+  const shortId = order.id.slice(0, 8).toUpperCase();
+  const createdAt = new Date(order.created_at).toLocaleString("en-ZA", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+  const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0);
+
+  const itemRows = items
+    .map(
+      (item) => `
+      <tr>
+        <td style="padding:12px 8px;border-bottom:1px solid #E0DDD8;vertical-align:top;">
+          <p style="margin:0;font-size:14px;color:#0A0A0A;font-weight:600;">${escapeHtml(item.product_name)}</p>
+          <p style="margin:4px 0 0;font-size:11px;color:#6B6B6B;">SKU: ${escapeHtml(item.product_slug)}</p>
+        </td>
+        <td style="padding:12px 8px;border-bottom:1px solid #E0DDD8;text-align:center;font-size:14px;color:#0A0A0A;">${item.quantity}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #E0DDD8;text-align:right;font-size:13px;color:#6B6B6B;">${formatZar(Number(item.unit_price))}</td>
+        <td style="padding:12px 8px;border-bottom:1px solid #E0DDD8;text-align:right;font-size:14px;color:#0A0A0A;font-weight:600;">${formatZar(Number(item.line_total))}</td>
+      </tr>`,
+    )
+    .join("");
+
+  const addressLines = [
+    `${order.first_name} ${order.last_name}`,
+    order.shipping_address_line1,
+    order.shipping_address_line2 ?? "",
+    `${order.shipping_city}, ${order.shipping_postal_code}`,
+    order.shipping_country,
+  ]
+    .filter(Boolean)
+    .map((line) => escapeHtml(line))
+    .join("<br/>");
+
+  const notesBlock = order.notes
+    ? `<tr>
+        <td style="padding:16px 24px;border-top:1px solid #E0DDD8;background:#FFF8E1;">
+          <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#7A5D00;">Customer Notes</p>
+          <p style="margin:0;font-size:13px;color:#0A0A0A;line-height:1.6;">${escapeHtml(order.notes)}</p>
+        </td>
+      </tr>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>New order #${shortId}</title>
+</head>
+<body style="margin:0;padding:0;background:#F4F4F2;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#0A0A0A;">
+  <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#F4F4F2;">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <table width="640" cellpadding="0" cellspacing="0" role="presentation" style="max-width:640px;width:100%;background:#FFFFFF;border:1px solid #E0DDD8;">
+
+          <tr>
+            <td style="padding:24px 32px;background:#0A0A0A;color:#FAFAF8;">
+              <p style="margin:0;font-size:11px;letter-spacing:0.25em;text-transform:uppercase;opacity:0.7;">Charmistry &middot; New Order</p>
+              <p style="margin:6px 0 0;font-size:22px;font-weight:600;">Order #${shortId}</p>
+              <p style="margin:6px 0 0;font-size:12px;opacity:0.7;">${escapeHtml(createdAt)}</p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 32px;background:#E8F5E9;border-bottom:1px solid #E0DDD8;">
+              <p style="margin:0;font-size:13px;color:#1B5E20;">
+                <strong>Payment received.</strong> This order is ready to pack and ship.
+              </p>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:24px 32px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td width="50%" style="vertical-align:top;padding-right:12px;">
+                    <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Ship To</p>
+                    <p style="margin:0;font-size:13px;line-height:1.7;color:#0A0A0A;">${addressLines}</p>
+                  </td>
+                  <td width="50%" style="vertical-align:top;padding-left:12px;border-left:1px solid #E0DDD8;">
+                    <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Customer</p>
+                    <p style="margin:0;font-size:13px;line-height:1.7;color:#0A0A0A;">
+                      <a href="mailto:${escapeHtml(order.email)}" style="color:#0A0A0A;">${escapeHtml(order.email)}</a>
+                      ${order.phone ? `<br/><a href="tel:${escapeHtml(order.phone)}" style="color:#0A0A0A;">${escapeHtml(order.phone)}</a>` : ""}
+                    </p>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:0 32px 16px;">
+              <p style="margin:0 0 12px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Items (${totalUnits})</p>
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="border-top:1px solid #0A0A0A;">
+                <thead>
+                  <tr>
+                    <th style="padding:10px 8px;text-align:left;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#6B6B6B;font-weight:600;">Item</th>
+                    <th style="padding:10px 8px;text-align:center;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#6B6B6B;font-weight:600;">Qty</th>
+                    <th style="padding:10px 8px;text-align:right;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#6B6B6B;font-weight:600;">Unit</th>
+                    <th style="padding:10px 8px;text-align:right;font-size:10px;letter-spacing:0.15em;text-transform:uppercase;color:#6B6B6B;font-weight:600;">Line</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${itemRows}
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:8px 32px 24px;">
+              <table width="100%" cellpadding="0" cellspacing="0" role="presentation">
+                <tr>
+                  <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Subtotal</td>
+                  <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">${formatZar(Number(order.subtotal))}</td>
+                </tr>
+                <tr>
+                  <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Shipping</td>
+                  <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
+                </tr>
+                <tr>
+                  <td style="padding:12px 8px 0;border-top:2px solid #0A0A0A;font-size:13px;color:#0A0A0A;text-transform:uppercase;letter-spacing:0.1em;font-weight:600;">Total (${escapeHtml(order.currency)})</td>
+                  <td style="padding:12px 8px 0;border-top:2px solid #0A0A0A;text-align:right;font-size:20px;color:#0A0A0A;font-weight:700;">${formatZar(Number(order.total))}</td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          ${notesBlock}
+
+          <tr>
+            <td style="padding:16px 32px;background:#FAFAF8;border-top:1px solid #E0DDD8;">
+              <p style="margin:0;font-size:11px;color:#6B6B6B;line-height:1.6;">
+                PayFast reference: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.payfast_pf_payment_id ?? "—")}</code><br/>
+                Order ID: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.id)}</code>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
 function escapeHtml(value: string): string {
   return value
     .replace(/&/g, "&amp;")

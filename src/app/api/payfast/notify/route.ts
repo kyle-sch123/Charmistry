@@ -1,7 +1,7 @@
 import { Resend } from "resend";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { verifyItnSignature, validateItnWithPayFast } from "@/lib/payfast";
-import { orderConfirmationHtml } from "@/lib/email-templates";
+import { orderConfirmationHtml, merchantOrderNotificationHtml } from "@/lib/email-templates";
 import type { Order, OrderItem } from "@/types";
 
 export const runtime = "nodejs";
@@ -153,10 +153,33 @@ async function sendConfirmationEmail(orderId: string): Promise<void> {
   if (!order || !items) return;
 
   const resend = new Resend(process.env.RESEND_API_KEY);
-  await resend.emails.send({
-    from: process.env.RESEND_FROM_EMAIL,
-    to: order.email,
-    subject: `Order confirmed — Charmistry #${order.id.slice(0, 8).toUpperCase()}`,
-    html: orderConfirmationHtml(order, items),
-  });
+  const shortId = order.id.slice(0, 8).toUpperCase();
+  const merchantEmail = process.env.MERCHANT_NOTIFICATION_EMAIL ?? "kyleschaffner39@gmail.com";
+
+  // Customer confirmation + merchant notification fire in parallel. Each is
+  // wrapped so one failure doesn't block the other.
+  const sendCustomer = resend.emails
+    .send({
+      from: process.env.RESEND_FROM_EMAIL!,
+      to: order.email,
+      subject: `Order confirmed — Charmistry #${shortId}`,
+      html: orderConfirmationHtml(order, items),
+    })
+    .catch((err) => {
+      console.error("PayFast ITN: customer email failed", err);
+    });
+
+  const sendMerchant = resend.emails
+    .send({
+      from: process.env.RESEND_FROM_EMAIL!,
+      to: merchantEmail,
+      replyTo: order.email,
+      subject: `New order #${shortId} — ${order.first_name} ${order.last_name} — R${Number(order.total).toFixed(2)}`,
+      html: merchantOrderNotificationHtml(order, items),
+    })
+    .catch((err) => {
+      console.error("PayFast ITN: merchant email failed", err);
+    });
+
+  await Promise.all([sendCustomer, sendMerchant]);
 }

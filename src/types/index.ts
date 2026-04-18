@@ -26,8 +26,10 @@ export interface CartLine {
   id: string;
   slug: string;
   name: string;
+  description: string | null;
   price: number;
   image_url: string | null;
+  metal: MetalType | null;
   quantity: number;
   maxQuantity: number;
 }

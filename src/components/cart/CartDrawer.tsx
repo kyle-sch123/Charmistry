@@ -6,6 +6,23 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
+import type { MetalType } from "@/types";
+
+const metalLabels: Record<MetalType, string> = {
+  gold: "Gold",
+  silver: "Silver",
+  rose_gold: "Rose Gold",
+  white_gold: "White Gold",
+  platinum: "Platinum",
+};
+
+const metalSwatch: Record<MetalType, string> = {
+  gold: "linear-gradient(135deg, #F5E6C8 0%, #C9A84C 55%, #9A7B2F 100%)",
+  silver: "linear-gradient(135deg, #F5F5F5 0%, #C8C8C8 55%, #8A8A8E 100%)",
+  rose_gold: "linear-gradient(135deg, #FFD7CC 0%, #E0A899 55%, #B4735F 100%)",
+  white_gold: "linear-gradient(135deg, #FAFAFA 0%, #E4E4E4 55%, #B4B4B4 100%)",
+  platinum: "linear-gradient(135deg, #F0F0F0 0%, #D2D2D2 55%, #9A9A9A 100%)",
+};
 
 export default function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
@@ -117,17 +134,31 @@ export default function CartDrawer() {
                       </Link>
                       <div className="flex-1 min-w-0 flex flex-col">
                         <div className="flex items-start justify-between gap-3">
-                          <Link
-                            href={`/products/${line.slug}`}
-                            onClick={closeCart}
-                            className="font-display text-base leading-snug hover:text-ink/70 transition-colors line-clamp-2"
-                          >
-                            {line.name}
-                          </Link>
+                          <div className="min-w-0">
+                            <Link
+                              href={`/products/${line.slug}`}
+                              onClick={closeCart}
+                              className="block font-display text-base leading-snug hover:text-ink/70 transition-colors line-clamp-2"
+                            >
+                              {line.name}
+                            </Link>
+                            {line.metal && (
+                              <div className="mt-1 flex items-center gap-1.5">
+                                <span
+                                  className="w-3 h-3 rounded-full ring-1 ring-ink/15"
+                                  style={{ background: metalSwatch[line.metal] }}
+                                  aria-hidden
+                                />
+                                <span className="text-[10px] tracking-[0.18em] uppercase text-ink/55 font-body">
+                                  {metalLabels[line.metal]}
+                                </span>
+                              </div>
+                            )}
+                          </div>
                           <button
                             onClick={() => removeItem(line.id)}
                             className="text-ink/40 hover:text-ink transition-colors cursor-pointer shrink-0"
-                            aria-label={`Remove ${line.name}`}
+                            aria-label={`Remove ${line.name}${line.metal ? ` (${metalLabels[line.metal]})` : ""}`}
                           >
                             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M6 18L18 6M6 6l12 12" />

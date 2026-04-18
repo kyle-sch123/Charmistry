@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import type { ProductWithCategory, CategoryWithCount } from "@/types";
+import type { MetalType, ProductWithCategory, CategoryWithCount } from "@/types";
 
 const PRODUCT_SELECT = "*, categories(name, slug)";
 
@@ -24,6 +24,92 @@ export async function getProductsByCategory(
 
   if (error) throw error;
   return data as ProductWithCategory[];
+}
+
+export type ShopSort =
+  | "best-selling"
+  | "price-asc"
+  | "price-desc"
+  | "newest"
+  | "name-asc";
+
+export interface ShopQuery {
+  categorySlug?: string;
+  sort?: ShopSort;
+  inStockOnly?: boolean;
+  minPrice?: number;
+  maxPrice?: number;
+  metals?: MetalType[];
+}
+
+/**
+ * Single entry point for the /shop page. Applies category, availability and
+ * price filters then sorts server-side via Supabase so pagination/total count
+ * stay correct.
+ */
+export async function getShopProducts(
+  opts: ShopQuery = {},
+): Promise<ProductWithCategory[]> {
+  const {
+    categorySlug,
+    sort = "best-selling",
+    inStockOnly,
+    minPrice,
+    maxPrice,
+    metals,
+  } = opts;
+
+  // categories!inner is required only when filtering by slug; otherwise leave
+  // the join optional so products without a category still come through.
+  const select = categorySlug
+    ? "*, categories!inner(name, slug)"
+    : PRODUCT_SELECT;
+
+  let query = supabase.from("products").select(select);
+
+  if (categorySlug) query = query.eq("categories.slug", categorySlug);
+  if (inStockOnly) query = query.eq("in_stock", true);
+  if (typeof minPrice === "number") query = query.gte("price", minPrice);
+  if (typeof maxPrice === "number") query = query.lte("price", maxPrice);
+  if (metals && metals.length > 0) query = query.in("metal", metals);
+
+  switch (sort) {
+    case "price-asc":
+      query = query.order("price", { ascending: true });
+      break;
+    case "price-desc":
+      query = query.order("price", { ascending: false });
+      break;
+    case "newest":
+      query = query.order("created_at", { ascending: false });
+      break;
+    case "name-asc":
+      query = query.order("name", { ascending: true });
+      break;
+    case "best-selling":
+    default:
+      query = query
+        .order("review_count", { ascending: false })
+        .order("rating", { ascending: false, nullsFirst: false });
+      break;
+  }
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return data as unknown as ProductWithCategory[];
+}
+
+/** Min/max price across the catalogue — used to seed the price filter UI. */
+export async function getPriceBounds(): Promise<{ min: number; max: number }> {
+  const { data, error } = await supabase
+    .from("products")
+    .select("price")
+    .order("price", { ascending: true });
+
+  if (error) throw error;
+  if (!data || data.length === 0) return { min: 0, max: 0 };
+  const prices = data.map((r) => Number(r.price));
+  return { min: Math.floor(prices[0]), max: Math.ceil(prices[prices.length - 1]) };
 }
 
 export async function getInStockProducts(): Promise<ProductWithCategory[]> {
@@ -84,6 +170,28 @@ export async function getAllProductSlugs(): Promise<string[]> {
   const { data, error } = await supabase.from("products").select("slug");
   if (error) throw error;
   return (data ?? []).map((r) => r.slug as string);
+}
+
+/**
+ * Fetch every product sharing the same (trimmed) name + category — i.e. the
+ * metal variants of the same piece. The current product is included so the
+ * caller can key off it.
+ */
+export async function getProductVariants(
+  name: string,
+  categoryId: string | null,
+): Promise<ProductWithCategory[]> {
+  if (!categoryId) return [];
+  const trimmed = name.trim();
+  const { data, error } = await supabase
+    .from("products")
+    .select(PRODUCT_SELECT)
+    .ilike("name", trimmed)
+    .eq("category_id", categoryId)
+    .order("metal", { ascending: true, nullsFirst: false });
+
+  if (error) throw error;
+  return data as ProductWithCategory[];
 }
 
 export async function getRelatedProducts(

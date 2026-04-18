@@ -1,9 +1,17 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/ui/ProductCard";
-import { getCategories, getProducts, getProductsByCategory } from "@/lib/queries";
+import ShopFilterBar from "@/components/shop/ShopFilterBar";
+import {
+  getCategories,
+  getPriceBounds,
+  getShopProducts,
+  type ShopSort,
+} from "@/lib/queries";
+import type { MetalType } from "@/types";
 
 export const metadata: Metadata = {
   title: "Shop | Charmistry",
@@ -13,79 +21,161 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = { category?: string };
+type SearchParams = {
+  category?: string;
+  sort?: string;
+  in_stock?: string;
+  min_price?: string;
+  max_price?: string;
+  metals?: string;
+};
 
-export default async function ShopPage(
-  { searchParams }: { searchParams: Promise<SearchParams> },
-) {
-  const { category } = await searchParams;
-  const [categories, products] = await Promise.all([
+const ALLOWED_SORTS: ShopSort[] = [
+  "best-selling",
+  "price-asc",
+  "price-desc",
+  "newest",
+  "name-asc",
+];
+
+const ALLOWED_METALS: MetalType[] = [
+  "gold",
+  "silver",
+  "rose_gold",
+  "white_gold",
+  "platinum",
+];
+
+const parseMetals = (v: string | undefined): MetalType[] => {
+  if (!v) return [];
+  const set = new Set<MetalType>();
+  for (const raw of v.split(",")) {
+    const candidate = raw.trim() as MetalType;
+    if (ALLOWED_METALS.includes(candidate)) set.add(candidate);
+  }
+  return [...set];
+};
+
+const parsePrice = (v: string | undefined): number | undefined => {
+  if (v == null) return undefined;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : undefined;
+};
+
+export default async function ShopPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  const params = await searchParams;
+  const category = params.category || undefined;
+  const sort = (ALLOWED_SORTS as string[]).includes(params.sort ?? "")
+    ? (params.sort as ShopSort)
+    : "best-selling";
+  const inStockOnly = params.in_stock === "1";
+  const minPrice = parsePrice(params.min_price);
+  const maxPrice = parsePrice(params.max_price);
+  const metals = parseMetals(params.metals);
+
+  const [categories, products, priceBounds] = await Promise.all([
     getCategories(),
-    category ? getProductsByCategory(category) : getProducts(),
+    getShopProducts({
+      categorySlug: category,
+      sort,
+      inStockOnly,
+      minPrice,
+      maxPrice,
+      metals: metals.length > 0 ? metals : undefined,
+    }),
+    getPriceBounds(),
   ]);
 
-  const activeCategory =
-    category && categories.find((c) => c.slug === category);
+  const activeCategory = category && categories.find((c) => c.slug === category);
 
   return (
     <>
       <Navbar />
-      <main className="flex-1 bg-paper text-ink pt-28 pb-24">
-        <div className="max-w-7xl mx-auto px-6 md:px-8">
-          {/* Header */}
-          <header className="mb-14 text-center">
-            <p className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body mb-4">
-              The Collection
-            </p>
-            <h1 className="font-heading text-5xl md:text-7xl font-light leading-[0.95]">
-              {activeCategory ? activeCategory.name : "Shop"}
-            </h1>
-            <p className="mt-5 max-w-xl mx-auto text-ink/60">
-              {activeCategory
-                ? activeCategory.description ??
-                  "Pieces made to become a part of you."
-                : "Every piece is a quiet declaration. Browse the full collection."}
-            </p>
+      <main className="flex-1 bg-paper text-ink">
+        <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16 pt-32 pb-24">
+          {/* ── Header ── */}
+          <header>
+            <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6 pb-8 border-b border-ink/10">
+              <div>
+                <p
+                  className="text-ink/40 uppercase mb-3"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "10px",
+                    letterSpacing: "0.35em",
+                  }}
+                >
+                  The Collection
+                </p>
+                <h1
+                  className="text-ink uppercase leading-[0.92]"
+                  style={{
+                    fontFamily: "var(--font-heading)",
+                    fontSize: "clamp(3rem, 7vw, 6rem)",
+                    letterSpacing: "0.02em",
+                  }}
+                >
+                  {activeCategory ? activeCategory.name : "All Pieces"}
+                </h1>
+              </div>
+
+              <p
+                className="text-ink/50 max-w-xs lg:text-right pb-1"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "12px",
+                  letterSpacing: "0.08em",
+                  lineHeight: 1.7,
+                }}
+              >
+                {activeCategory
+                  ? (activeCategory.description ?? "Pieces made to become a part of you.")
+                  : "Every piece is a quiet declaration.\nBrowse the full collection."}
+              </p>
+            </div>
           </header>
 
-          {/* Category filter */}
-          <nav className="flex flex-wrap items-center justify-center gap-2 md:gap-3 mb-14">
-            <FilterChip href="/shop" active={!category} label="All" />
-            {categories.map((c) => (
-              <FilterChip
-                key={c.id}
-                href={`/shop?category=${c.slug}`}
-                active={category === c.slug}
-                label={c.name}
-                count={c.product_count}
-              />
-            ))}
-          </nav>
+          {/* ── Filter + Sort bar ── */}
+          <Suspense fallback={<div className="py-5 border-y border-ink/10" />}>
+            <ShopFilterBar total={products.length} priceBounds={priceBounds} />
+          </Suspense>
 
+          {/* ── Products ── */}
           {products.length === 0 ? (
-            <div className="text-center py-20">
-              <p className="font-display text-2xl mb-3">Nothing here yet</p>
-              <p className="text-ink/55 text-sm mb-8">
-                This category is being curated. Check back soon.
+            <div className="mt-8 py-28 flex flex-col items-center gap-5">
+              <p
+                className="text-ink/30 uppercase"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  letterSpacing: "0.3em",
+                }}
+              >
+                No pieces match your filters
+              </p>
+              <p
+                className="text-ink/50"
+                style={{ fontFamily: "var(--font-body)", fontSize: "13px" }}
+              >
+                Try loosening the filters or clearing them.
               </p>
               <Link
                 href="/shop"
-                className="inline-block px-8 py-3 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors"
+                className="mt-2 inline-block px-8 py-3 bg-ink text-paper text-[10px] tracking-[0.25em] uppercase font-body hover:opacity-80 transition-opacity cursor-pointer"
               >
-                View all
+                Clear all
               </Link>
             </div>
           ) : (
-            <>
-              <p className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body mb-6">
-                {products.length} {products.length === 1 ? "piece" : "pieces"}
-              </p>
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 md:gap-8">
-                {products.map((p) => (
-                  <ProductCard key={p.id} product={p} variant="light" />
-                ))}
-              </div>
-            </>
+            <div className="mt-8 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-x-5 gap-y-10 md:gap-x-7 md:gap-y-14">
+              {products.map((p) => (
+                <ProductCard key={p.id} product={p} variant="light" />
+              ))}
+            </div>
           )}
         </div>
       </main>
@@ -94,32 +184,3 @@ export default async function ShopPage(
   );
 }
 
-function FilterChip({
-  href,
-  label,
-  count,
-  active,
-}: {
-  href: string;
-  label: string;
-  count?: number;
-  active: boolean;
-}) {
-  return (
-    <Link
-      href={href}
-      className={`px-4 py-2 text-[11px] tracking-[0.2em] uppercase font-body transition-colors border ${
-        active
-          ? "bg-ink text-paper border-ink"
-          : "border-ink/15 text-ink/70 hover:text-ink hover:border-ink/40"
-      }`}
-    >
-      {label}
-      {count != null && (
-        <span className={`ml-2 ${active ? "text-paper/60" : "text-ink/40"}`}>
-          {count}
-        </span>
-      )}
-    </Link>
-  );
-}

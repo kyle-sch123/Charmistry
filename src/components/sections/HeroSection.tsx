@@ -5,8 +5,6 @@ import { motion, useScroll, useTransform } from "framer-motion";
 import Image from "next/image";
 import heroImage from "@/assets/images/hero-section.webp";
 
-const LETTERS = "Charmistry".split("");
-
 export default function HeroSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -58,56 +56,48 @@ export default function HeroSection() {
         {/* Top accent */}
         <motion.div
           className="flex items-center gap-5 mb-10"
-          initial={{ opacity: 0, scaleX: 0 }}
-          animate={{ opacity: 1, scaleX: 1 }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.1 }}
-          style={{ transformOrigin: "center" }}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
         >
           <div className="h-px w-12 sm:w-20 bg-white/60" />
           <span
             className="text-white/80 text-[10px] tracking-[0.35em] sm:tracking-[0.55em] uppercase"
             style={{ fontFamily: "var(--font-body)" }}
           >
-            Est. 2024
+            Est. 2025
           </span>
           <div className="h-px w-12 sm:w-20 bg-white/60" />
         </motion.div>
 
-        {/* Brand name — Gilda Display, letter by letter */}
-        <h1
-          className="flex items-baseline overflow-hidden pb-[0.2em]"
+        {/* Brand name — single blur-dissolve reveal */}
+        <motion.h1
+          className="text-white"
           style={{
             fontFamily: "var(--font-heading)",
             fontSize: "clamp(2.2rem, 13vw, 11.5rem)",
             lineHeight: 0.88,
-            letterSpacing: "0.06em",
+            letterSpacing: "0.05em",
             fontWeight: 400,
+            textTransform: "uppercase",
           }}
-          aria-label="Charmistry"
+          initial={{ opacity: 0, filter: "blur(18px)", y: 14 }}
+          animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
+          transition={{
+            duration: 0.5,
+            ease: [0.25, 0.46, 0.45, 0.94],
+            delay: 0.025,
+          }}
         >
-          {LETTERS.map((char, i) => (
-            <motion.span
-              key={i}
-              className="inline-block text-white"
-              initial={{ y: "110%", opacity: 0, rotateX: 45 }}
-              animate={{ y: "0%", opacity: 1, rotateX: 0 }}
-              transition={{
-                duration: 0.85,
-                delay: 0.35 + i * 0.055,
-                ease: [0.22, 1, 0.36, 1],
-              }}
-            >
-              {char}
-            </motion.span>
-          ))}
-        </h1>
+          Charmistry
+        </motion.h1>
 
         {/* Bottom accent */}
         <motion.div
           className="flex items-center gap-5 mt-10"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
-          transition={{ duration: 1, delay: 1.3 }}
+          transition={{ duration: 0.6, ease: "easeOut", delay: 0.35 }}
         >
           <div className="h-px w-8 sm:w-12 bg-white/55" />
           <span
@@ -125,7 +115,7 @@ export default function HeroSection() {
         className="absolute bottom-9 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        transition={{ delay: 2 }}
+        transition={{ delay: 2.2, duration: 1.2, ease: "easeOut" }}
         style={{ opacity: contentOpacity }}
       >
         <motion.div
@@ -146,7 +136,7 @@ export default function HeroSection() {
         className="absolute top-28 left-7 z-20 hidden lg:block"
         initial={{ opacity: 0, x: -10 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, delay: 1.8 }}
+        transition={{ duration: 1.2, delay: 2.0, ease: "easeOut" }}
       >
         <span
           className="text-white/55 text-[9px] tracking-[0.35em] uppercase [writing-mode:vertical-rl] rotate-180"
@@ -161,7 +151,7 @@ export default function HeroSection() {
         className="absolute top-28 right-7 z-20 hidden lg:block"
         initial={{ opacity: 0, x: 10 }}
         animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 0.8, delay: 1.8 }}
+        transition={{ duration: 1.2, delay: 2.0, ease: "easeOut" }}
       >
         <span
           className="text-white/55 text-[9px] tracking-[0.35em] uppercase [writing-mode:vertical-rl]"

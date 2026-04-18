@@ -62,12 +62,12 @@ export default function ProductCard({
 
   const titleClass =
     variant === "light"
-      ? "font-display text-lg text-ink font-light tracking-wide"
-      : "font-display text-lg text-ivory font-light tracking-wide";
+      ? "font-display text-xl text-ink font-semibold tracking-wide"
+      : "font-display text-xl text-ivory font-semibold tracking-wide";
   const priceClass =
     variant === "light"
-      ? "text-ink font-body text-sm font-medium"
-      : "text-gold font-body text-sm font-medium";
+      ? "text-ink font-body text-sm font-light"
+      : "text-gold font-body text-sm font-light";
   const ratingLabelClass = variant === "light" ? "text-ink/50" : "text-smoke";
   const hoverBtn =
     variant === "light"

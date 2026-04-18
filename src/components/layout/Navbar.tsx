@@ -1,12 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { motion, useScroll, useTransform } from "framer-motion";
+import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Logo from "@/components/icons/Logo";
 import MobileMenu from "./MobileMenu";
 import SearchOverlay from "@/components/search/SearchOverlay";
-import { navLinks } from "@/data/navigation";
+import { navLinks, shopCategories } from "@/data/navigation";
 import { useCart, selectCartCount } from "@/stores/cart";
 
 interface NavbarProps {
@@ -22,8 +22,10 @@ interface NavbarProps {
 export default function Navbar({ overHero = false }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
+
   const { scrollY } = useScroll();
-  // When not over a hero, keep the bar fully solid and text dark at all times.
   const bgOpacity = useTransform(scrollY, [0, 80], overHero ? [0, 1] : [1, 1]);
   const atTop = useTransform(scrollY, [0, 80], overHero ? [1, 0] : [0, 0]);
 
@@ -31,7 +33,6 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   const cartCount = useCart(selectCartCount);
   const hasHydrated = useCart((s) => s.hasHydrated);
 
-  // Hoist all transforms so no hook is called inside a callback (react-hooks/rules-of-hooks)
   const headerBg = useTransform(bgOpacity, (v) => `rgba(250,250,248,${v})`);
   const headerBorder = useTransform(bgOpacity, (v) => `rgba(10,10,10,${v * 0.08})`);
   const logoColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`);
@@ -42,6 +43,15 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   const mobileIconColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255,0.85" : "10,10,10,0.75"})`);
   const barColor = useTransform(atTop, (v) => `rgba(${v > 0.5 ? "255,255,255" : "10,10,10"},1)`);
 
+  const openShop = () => {
+    clearTimeout(closeTimer.current);
+    setShopOpen(true);
+  };
+
+  const scheduleClose = () => {
+    closeTimer.current = setTimeout(() => setShopOpen(false), 150);
+  };
+
   useEffect(() => {
     const onResize = () => {
       if (window.innerWidth >= 768) setMobileOpen(false);
@@ -49,6 +59,9 @@ export default function Navbar({ overHero = false }: NavbarProps) {
     window.addEventListener("resize", onResize);
     return () => window.removeEventListener("resize", onResize);
   }, []);
+
+  // Clean up timeout on unmount
+  useEffect(() => () => clearTimeout(closeTimer.current), []);
 
   return (
     <>
@@ -62,7 +75,7 @@ export default function Navbar({ overHero = false }: NavbarProps) {
         }}
       >
         <nav className="max-w-7xl mx-auto px-6 md:px-8 h-16 md:h-20 flex items-center justify-between">
-          {/* Logo — white on hero, dark on scroll */}
+          {/* Logo */}
           <motion.div style={{ color: logoColor }}>
             <Link href="/" aria-label="Charmistry home">
               <Logo />
@@ -71,18 +84,65 @@ export default function Navbar({ overHero = false }: NavbarProps) {
 
           {/* Desktop nav */}
           <ul className="hidden md:flex items-center gap-8">
-            {navLinks.map((link) => (
-              <li key={link.href}>
-                <motion.div style={{ color: linkColor }}>
-                  <Link
-                    href={link.href}
-                    className="text-sm tracking-[0.1em] uppercase font-body transition-colors duration-300"
+            {navLinks.map((link) => {
+              if (link.href === "/shop") {
+                return (
+                  <li
+                    key={link.href}
+                    className="relative"
+                    onMouseEnter={openShop}
+                    onMouseLeave={scheduleClose}
                   >
-                    {link.label}
-                  </Link>
-                </motion.div>
-              </li>
-            ))}
+                    <motion.div style={{ color: linkColor }}>
+                      <Link
+                        href={link.href}
+                        className="text-sm tracking-[0.1em] uppercase font-body transition-colors duration-300"
+                      >
+                        {link.label}
+                      </Link>
+                    </motion.div>
+
+                    {/* Vertical dropdown anchored under "Shop" */}
+                    <AnimatePresence>
+                      {shopOpen && (
+                        <motion.div
+                          onMouseEnter={openShop}
+                          onMouseLeave={scheduleClose}
+                          className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-44 bg-paper border border-ink/10 shadow-lg py-2"
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                        >
+                          {shopCategories.map((cat) => (
+                            <Link
+                              key={cat.href}
+                              href={cat.href}
+                              onClick={() => setShopOpen(false)}
+                              className="block px-5 py-2.5 text-[11px] tracking-[0.18em] uppercase font-body text-ink/55 hover:text-ink hover:bg-ink/[0.03] transition-colors duration-150 cursor-pointer"
+                            >
+                              {cat.label}
+                            </Link>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </li>
+                );
+              }
+              return (
+                <li key={link.href}>
+                  <motion.div style={{ color: linkColor }}>
+                    <Link
+                      href={link.href}
+                      className="text-sm tracking-[0.1em] uppercase font-body transition-colors duration-300"
+                    >
+                      {link.label}
+                    </Link>
+                  </motion.div>
+                </li>
+              );
+            })}
           </ul>
 
           {/* Right side */}
@@ -139,6 +199,7 @@ export default function Navbar({ overHero = false }: NavbarProps) {
             </button>
           </div>
         </nav>
+
       </motion.header>
 
       <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} />

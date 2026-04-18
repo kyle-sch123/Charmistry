@@ -54,8 +54,10 @@ export const useCart = create<CartState>()(
             id: product.id,
             slug: product.slug,
             name: product.name,
+            description: product.description ?? null,
             price: Number(product.price),
             image_url: product.image_url,
+            metal: product.metal ?? null,
             quantity: clampQty(quantity, max),
             maxQuantity: max,
           };

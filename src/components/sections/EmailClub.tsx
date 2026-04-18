@@ -11,8 +11,10 @@ export default function EmailClub() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (email) subscribe(email);
-    if (status === "success") setEmail("");
+    if (email) {
+      subscribe(email);
+      setEmail("");
+    }
   }
 
   return (

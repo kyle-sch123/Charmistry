@@ -34,24 +34,36 @@ export async function POST(request: Request) {
 
   const resend = new Resend(process.env.RESEND_API_KEY);
 
-  // Add contact to Resend Audiences
-  const { error: contactError } = await resend.contacts.create({
+  const discountCode = generateDiscountCode();
+
+  // Add contact to Resend Audiences. Resend's contacts.create is effectively
+  // an upsert — it won't error on duplicates, it just returns the existing one.
+  const { data: contactData, error: contactError } = await resend.contacts.create({
     email,
     audienceId: process.env.RESEND_AUDIENCE_ID,
     unsubscribed: false,
   });
 
   if (contactError) {
-    // Resend returns 422 for existing contacts (not 409 — varies by SDK version)
-    const statusCode = (contactError as { statusCode?: number }).statusCode ?? 0;
-    if (statusCode === 409 || statusCode === 422) {
+    const err = contactError as { message?: string; name?: string; statusCode?: number };
+    console.error("Resend contacts error:", {
+      name: err.name,
+      message: err.message,
+      statusCode: err.statusCode,
+      audienceId: process.env.RESEND_AUDIENCE_ID,
+    });
+    // Only treat as duplicate if the message actually says so
+    const msg = (err.message ?? "").toLowerCase();
+    if (msg.includes("already") || msg.includes("exist")) {
       return Response.json({ error: "already_subscribed" }, { status: 409 });
     }
-    console.error("Resend contacts error:", contactError);
-    return Response.json({ error: "service_error" }, { status: 500 });
+    return Response.json({ error: "service_error", detail: err.message }, { status: 500 });
   }
 
-  const discountCode = generateDiscountCode();
+  if (!contactData?.id) {
+    console.error("Resend contacts: no id returned", contactData);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
 
   // Send welcome email — non-fatal if this fails
   const { error: emailError } = await resend.emails.send({

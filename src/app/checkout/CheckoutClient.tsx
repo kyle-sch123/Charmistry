@@ -260,8 +260,13 @@ export default function CheckoutClient() {
                     {line.quantity}
                   </span>
                 </div>
-                <div className="flex-1 min-w-0 flex flex-col">
-                  <p className="font-display text-sm leading-snug line-clamp-2">{line.name}</p>
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <p className="font-display text-sm leading-snug">{line.name}</p>
+                  {line.description && (
+                    <p className="text-ink/45 line-clamp-2 leading-snug" style={{ fontFamily: "var(--font-body)", fontSize: "11px", letterSpacing: "0.04em" }}>
+                      {line.description}
+                    </p>
+                  )}
                   <span className="mt-auto text-sm font-body">
                     {formatPrice(line.price * line.quantity)}
                   </span>

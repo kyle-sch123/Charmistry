@@ -5,7 +5,11 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductDetail from "@/components/product/ProductDetail";
 import ProductCard from "@/components/ui/ProductCard";
-import { getProductBySlug, getRelatedProducts } from "@/lib/queries";
+import {
+  getProductBySlug,
+  getProductVariants,
+  getRelatedProducts,
+} from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 
 export const dynamic = "force-dynamic";
@@ -38,7 +42,15 @@ export default async function ProductPage(
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const related = await getRelatedProducts(product.category_id, product.id, 4);
+  const [variants, related] = await Promise.all([
+    getProductVariants(product.name, product.category_id),
+    getRelatedProducts(product.category_id, product.id, 4),
+  ]);
+
+  // Exclude siblings from "You may also like" to avoid duplication with the
+  // variant selector.
+  const variantIds = new Set(variants.map((v) => v.id));
+  const filteredRelated = related.filter((r) => !variantIds.has(r.id));
 
   return (
     <>
@@ -66,9 +78,9 @@ export default async function ProductPage(
             )}
           </nav>
 
-          <ProductDetail product={product} />
+          <ProductDetail product={product} variants={variants} />
 
-          {related.length > 0 && (
+          {filteredRelated.length > 0 && (
             <section className="mt-28 border-t border-ink/10 pt-16">
               <div className="flex items-end justify-between mb-10">
                 <div>
@@ -87,7 +99,7 @@ export default async function ProductPage(
                 </Link>
               </div>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-6 md:gap-8">
-                {related.map((p) => (
+                {filteredRelated.map((p) => (
                   <ProductCard key={p.id} product={p} variant="light" />
                 ))}
               </div>
