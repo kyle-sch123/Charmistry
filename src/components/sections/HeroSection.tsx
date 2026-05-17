@@ -104,7 +104,7 @@ export default function HeroSection() {
             className="text-white/75 text-[10px] tracking-[0.3em] sm:tracking-[0.55em] uppercase"
             style={{ fontFamily: "var(--font-body)" }}
           >
-            Luxury Jewellery
+            WATERPROOF JEWELLERY YOU’LL ACTUALLY WEAR
           </span>
           <div className="h-px w-8 sm:w-12 bg-white/55" />
         </motion.div>

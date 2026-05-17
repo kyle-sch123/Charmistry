@@ -1,6 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  allowedDevOrigins: ["*.trycloudflare.com"],
   images: {
     // Cloudflare Pages does not run Next.js image optimization — serve originals directly
     unoptimized: true,

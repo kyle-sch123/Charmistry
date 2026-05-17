@@ -37,61 +37,63 @@ export default function BestSellers() {
       className="bg-paper pt-14 md:pt-20 pb-6 md:pb-8 scroll-mt-24"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
-      {/* Header */}
-      <motion.div
-        className="flex items-start justify-between mb-10 md:mb-14"
-        initial={{ opacity: 0, y: 16 }}
-        whileInView={{ opacity: 1, y: 0 }}
-        viewport={{ once: true }}
-        transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
-      >
-        <h2
-          className="text-ink uppercase"
-          style={{
-            fontFamily: "var(--font-heading)",
-            fontSize: "clamp(2rem, 5vw, 4rem)",
-            letterSpacing: "-0.01em",
-            lineHeight: 1,
-          }}
+        {/* Header */}
+        <motion.div
+          className="flex items-start justify-between mb-10 md:mb-14"
+          initial={{ opacity: 0, y: 16 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
         >
-          Bestsellers
-        </h2>
+          <h2
+            className="text-ink uppercase"
+            style={{
+              fontFamily: "var(--font-heading)",
+              fontSize: "clamp(2rem, 5vw, 4rem)",
+              letterSpacing: "-0.01em",
+              lineHeight: 1,
+            }}
+          >
+            Bestsellers
+          </h2>
 
-        <motion.div className="hidden sm:flex w-full flex-col items-end">
-          <p
-            className="text-ink-tertiary"
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "16px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-              marginTop: "6px",
-            }}
-          >
-            Shop the pieces people are
-          </p>
-          <p
-            className="text-ink-tertiary italic"
-            style={{
-              fontFamily: "var(--font-body)",
-              fontSize: "16px",
-              letterSpacing: "0.18em",
-              textTransform: "uppercase",
-            }}
-          >
-            loving
-          </p>
+          <motion.div className="hidden sm:flex w-full flex-col items-end">
+            <p
+              className="text-ink-tertiary"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "16px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+                marginTop: "6px",
+              }}
+            >
+              Shop the pieces people are
+            </p>
+            <p
+              className="text-ink-tertiary italic"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "16px",
+                letterSpacing: "0.18em",
+                textTransform: "uppercase",
+              }}
+            >
+              loving
+            </p>
+          </motion.div>
         </motion.div>
-      </motion.div>
 
-      {/* Product grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5 lg:gap-7">
-        {loading
-          ? Array.from({ length: 5 }).map((_, i) => <BestSellerSkeleton key={i} />)
-          : products.map((item, i) => (
-              <BestSellerCard key={item.id} item={item} index={i} />
-            ))}
-      </div>
+        {/* Product grid */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5 lg:gap-7">
+          {loading
+            ? Array.from({ length: 5 }).map((_, i) => (
+                <BestSellerSkeleton key={i} />
+              ))
+            : products.map((item, i) => (
+                <BestSellerCard key={item.id} item={item} index={i} />
+              ))}
+        </div>
       </div>
     </section>
   );
@@ -117,7 +119,11 @@ function BestSellerCard({
       whileHover={{ scale: 1.04 }}
       style={{ transformOrigin: "bottom center" }}
     >
-      <Link href={`/products/${item.slug}`} className="block group" aria-label={item.name}>
+      <Link
+        href={`/products/${item.slug}`}
+        className="block group"
+        aria-label={item.name}
+      >
         {/* Image */}
         <div className="relative overflow-hidden aspect-[3/4] bg-stone">
           <Image
@@ -137,10 +143,10 @@ function BestSellerCard({
         {/* Info */}
         <div className="mt-3 space-y-0.5">
           <p
-            className="text-ink truncate"
+            className="text-ink truncate font-extrabold"
             style={{
               fontFamily: "var(--font-body)",
-              fontSize: "10px",
+              fontSize: "12px",
               letterSpacing: "0.2em",
               textTransform: "uppercase",
             }}
@@ -148,11 +154,12 @@ function BestSellerCard({
             {item.name}
           </p>
           <p
-            className="text-ink font-semibold"
+            className="text-ink"
             style={{
               fontFamily: "var(--font-body)",
-              fontSize: "13px",
+              fontSize: "12px",
               letterSpacing: "0.05em",
+              fontWeight: "300",
             }}
           >
             {formatPrice(item.price)}

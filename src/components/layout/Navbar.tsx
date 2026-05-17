@@ -23,7 +23,7 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
-  const closeTimer = useRef<ReturnType<typeof setTimeout>>();
+  const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { scrollY } = useScroll();
   const bgOpacity = useTransform(scrollY, [0, 80], overHero ? [0, 1] : [1, 1]);

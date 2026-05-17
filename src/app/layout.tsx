@@ -25,7 +25,7 @@ const gilda = Gilda_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Charmistry | Luxury Jewelry",
+  title: "Chamristry | Water & Tarnish Resistant Jewellery",
   description:
     "Discover exquisite handcrafted jewelry. From diamond solitaires to statement pieces, Charmistry brings you luxury redefined.",
 };

@@ -1,7 +1,8 @@
-export const runtime = "edge";
+export const runtime = "nodejs";
 
 import { Resend } from "resend";
 import { welcomeEmailHtml } from "@/lib/email-templates";
+import { createServerSupabase } from "@/lib/supabase-server";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -33,8 +34,28 @@ export async function POST(request: Request) {
   }
 
   const resend = new Resend(process.env.RESEND_API_KEY);
+  const supabase = createServerSupabase();
 
   const discountCode = generateDiscountCode();
+
+  // Persist the welcome code in the DB so it's actually redeemable at checkout.
+  // Tied to this email, single-use, 10% off, 90-day expiry.
+  const expiresAt = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString();
+  const { error: codeError } = await supabase.from("discount_codes").insert({
+    code: discountCode,
+    discount_type: "percentage",
+    discount_value: 10,
+    min_order_amount: 0,
+    max_uses: 1,
+    email,
+    expires_at: expiresAt,
+    active: true,
+  });
+
+  if (codeError) {
+    console.error("subscribe: discount_codes insert failed", codeError);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
 
   // Add contact to Resend Audiences. Resend's contacts.create is effectively
   // an upsert — it won't error on duplicates, it just returns the existing one.

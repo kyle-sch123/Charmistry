@@ -103,6 +103,24 @@ export interface Order {
   created_at: string;
   updated_at: string;
   paid_at: string | null;
+  discount_code: string | null;
+  discount_amount: number;
+}
+
+export type DiscountType = "percentage" | "fixed";
+
+export interface DiscountCode {
+  id: string;
+  code: string;
+  discount_type: DiscountType;
+  discount_value: number;
+  min_order_amount: number;
+  max_uses: number | null;
+  uses_count: number;
+  expires_at: string | null;
+  active: boolean;
+  email: string | null;
+  created_at: string;
 }
 
 export interface OrderItem {

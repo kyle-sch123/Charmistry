@@ -47,7 +47,7 @@ const tags = [
   },
   {
     label: "Secure Payments",
-    sub: "Powered by YOCO — safe & encrypted",
+    sub: "Powered by PAYSTACK — safe & encrypted",
     icon: (
       <svg
         width="18"

@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { buildCheckoutPayload } from "@/lib/payfast";
+import { consumeDiscount, refundDiscount, resolveDiscount } from "@/lib/discounts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,6 +28,7 @@ interface CheckoutBody {
     notes?: string;
   };
   lines?: ClientCartLine[];
+  discountCode?: string;
 }
 
 function str(value: unknown): string {
@@ -157,7 +159,28 @@ export async function POST(request: Request) {
 
   subtotal = Number(subtotal.toFixed(2));
   const shippingCost = 0; // Free shipping for now
-  const total = Number((subtotal + shippingCost).toFixed(2));
+
+  // Resolve + atomically consume discount code server-side. Never trust the
+  // client's claim about discount amount.
+  let discountAmount = 0;
+  let discountCodeText: string | null = null;
+  let discountCodeId: string | null = null;
+  const rawDiscount = typeof body.discountCode === "string" ? body.discountCode.trim() : "";
+  if (rawDiscount) {
+    const resolved = await resolveDiscount(supabase, rawDiscount, subtotal, email);
+    if (typeof resolved === "string") {
+      return Response.json({ error: "discount_invalid", reason: resolved }, { status: 400 });
+    }
+    const consumed = await consumeDiscount(supabase, resolved.code.id);
+    if (!consumed) {
+      return Response.json({ error: "discount_invalid", reason: "max_uses_reached" }, { status: 400 });
+    }
+    discountAmount = resolved.amount;
+    discountCodeText = resolved.code.code;
+    discountCodeId = resolved.code.id;
+  }
+
+  const total = Number(Math.max(0, subtotal + shippingCost - discountAmount).toFixed(2));
 
   if (total <= 0) {
     return Response.json({ error: "invalid_total" }, { status: 400 });
@@ -178,6 +201,8 @@ export async function POST(request: Request) {
       shipping_country: country,
       subtotal,
       shipping_cost: shippingCost,
+      discount_code: discountCodeText,
+      discount_amount: discountAmount,
       total,
       currency: "ZAR",
       status: "pending",
@@ -188,6 +213,7 @@ export async function POST(request: Request) {
 
   if (orderError || !order) {
     console.error("Checkout: order insert failed", orderError);
+    if (discountCodeId) await refundDiscount(supabase, discountCodeId);
     return Response.json({ error: "service_error" }, { status: 500 });
   }
 
@@ -208,6 +234,7 @@ export async function POST(request: Request) {
     console.error("Checkout: order_items insert failed", itemsError);
     // Roll back the order so we don't leave orphans
     await supabase.from("orders").delete().eq("id", order.id);
+    if (discountCodeId) await refundDiscount(supabase, discountCodeId);
     return Response.json({ error: "service_error" }, { status: 500 });
   }
 

@@ -38,8 +38,17 @@ export default function CheckoutClient() {
     fields: Record<string, string>;
   } | null>(null);
 
+  const [discountInput, setDiscountInput] = useState("");
+  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [discountError, setDiscountError] = useState<string | null>(null);
+  const [discountLoading, setDiscountLoading] = useState(false);
+
   const shippingCost = 0;
-  const total = useMemo(() => subtotal + shippingCost, [subtotal]);
+  const discountAmount = appliedDiscount?.amount ?? 0;
+  const total = useMemo(
+    () => Math.max(0, subtotal + shippingCost - discountAmount),
+    [subtotal, discountAmount],
+  );
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)
   useEffect(() => {
@@ -75,6 +84,39 @@ export default function CheckoutClient() {
     return Object.keys(next).length === 0;
   }
 
+  async function applyDiscount() {
+    const code = discountInput.trim();
+    if (!code || discountLoading) return;
+    setDiscountLoading(true);
+    setDiscountError(null);
+    try {
+      const res = await fetch("/api/discount/validate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code, subtotal, email: form.email.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        const reason: string = data?.error ?? "not_found";
+        setDiscountError(discountErrorMessage(reason));
+        setAppliedDiscount(null);
+        return;
+      }
+      setAppliedDiscount({ code: data.code, amount: Number(data.amount) });
+      setDiscountInput(data.code);
+    } catch {
+      setDiscountError("Network error. Try again.");
+    } finally {
+      setDiscountLoading(false);
+    }
+  }
+
+  function removeDiscount() {
+    setAppliedDiscount(null);
+    setDiscountInput("");
+    setDiscountError(null);
+  }
+
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submitting) return;
@@ -91,6 +133,7 @@ export default function CheckoutClient() {
         body: JSON.stringify({
           customer: form,
           lines: lines.map((l) => ({ id: l.id, quantity: l.quantity })),
+          discountCode: appliedDiscount?.code,
         }),
       });
 
@@ -105,7 +148,13 @@ export default function CheckoutClient() {
               ? `Only ${data.available} of ${data.product} available`
               : data?.error === "product_unavailable"
                 ? "One or more items in your bag are no longer available"
-                : "Something went wrong. Please try again.";
+                : data?.error === "discount_invalid"
+                  ? `Discount code is no longer valid (${discountErrorMessage(data?.reason ?? "not_found")}). Please remove it and try again.`
+                  : "Something went wrong. Please try again.";
+        if (data?.error === "discount_invalid") {
+          setAppliedDiscount(null);
+          setDiscountError(discountErrorMessage(data?.reason ?? "not_found"));
+        }
         setErrors({ form: msg });
         setSubmitting(false);
         return;
@@ -275,11 +324,70 @@ export default function CheckoutClient() {
             ))}
           </ul>
 
+          <div className="mt-6 pt-6 border-t border-ink/10">
+            <label className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
+              Discount code
+            </label>
+            {appliedDiscount ? (
+              <div className="flex items-center justify-between gap-3 border border-ink/15 bg-paper px-4 py-3">
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-body truncate">{appliedDiscount.code}</span>
+                  <span className="text-[11px] text-ink/55">
+                    −{formatPrice(appliedDiscount.amount)} applied
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={removeDiscount}
+                  className="text-[11px] tracking-[0.15em] uppercase text-ink/55 hover:text-ink transition-colors cursor-pointer"
+                >
+                  Remove
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={discountInput}
+                  onChange={(e) => {
+                    setDiscountInput(e.target.value.toUpperCase());
+                    if (discountError) setDiscountError(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      applyDiscount();
+                    }
+                  }}
+                  placeholder="CHARM-XXXXXX"
+                  className="flex-1 min-w-0 border border-ink/15 bg-paper px-4 py-3 text-sm font-body tracking-[0.1em] focus:outline-none focus:border-ink transition-colors"
+                />
+                <button
+                  type="button"
+                  onClick={applyDiscount}
+                  disabled={!discountInput.trim() || discountLoading}
+                  className="px-5 border border-ink text-ink text-[11px] tracking-[0.2em] uppercase font-body hover:bg-ink hover:text-paper transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {discountLoading ? "…" : "Apply"}
+                </button>
+              </div>
+            )}
+            {discountError && (
+              <p className="mt-2 text-[11px] text-red-600">{discountError}</p>
+            )}
+          </div>
+
           <div className="mt-6 pt-6 border-t border-ink/10 space-y-2">
             <div className="flex justify-between text-sm text-ink/60">
               <span>Subtotal</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
+            {appliedDiscount && (
+              <div className="flex justify-between text-sm text-ink/60">
+                <span>Discount ({appliedDiscount.code})</span>
+                <span>−{formatPrice(appliedDiscount.amount)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-sm text-ink/60">
               <span>Shipping</span>
               <span>{shippingCost === 0 ? "Free" : formatPrice(shippingCost)}</span>
@@ -309,6 +417,18 @@ export default function CheckoutClient() {
       )}
     </div>
   );
+}
+
+function discountErrorMessage(reason: string): string {
+  switch (reason) {
+    case "not_found": return "Code not found";
+    case "inactive": return "Code is no longer active";
+    case "expired": return "Code has expired";
+    case "max_uses_reached": return "Code has already been used";
+    case "min_order_not_met": return "Your order doesn't meet the minimum";
+    case "email_mismatch": return "Code is tied to a different email";
+    default: return "Code is invalid";
+  }
 }
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
