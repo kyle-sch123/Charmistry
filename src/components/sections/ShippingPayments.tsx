@@ -28,7 +28,7 @@ const tags = [
     ),
   },
   {
-    label: "Free Delivery on Orders R800+",
+    label: "Free Delivery on Orders R600+",
     sub: "Complimentary shipping on qualifying orders",
     icon: (
       <svg

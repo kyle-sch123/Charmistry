@@ -2,29 +2,29 @@
 
 @theme inline {
   /* Monochrome base */
-  --color-ink: #0A0A0A;
-  --color-ink-secondary: #3D3D3D;
-  --color-ink-tertiary: #6B6B6B;
-  --color-paper: #FAFAF8;
-  --color-paper-warm: #F5F3EF;
-  --color-stone: #E0DDD8;
-  --color-ash: #B8B5B0;
+  --color-ink: #0a0a0a;
+  --color-ink-secondary: #3d3d3d;
+  --color-ink-tertiary: #6b6b6b;
+  --color-paper: #fafaf8;
+  --color-paper-warm: #f5f3ef;
+  --color-stone: #e0ddd8;
+  --color-ash: #b8b5b0;
 
   /* Dark surface (for sections that stay dark) */
-  --color-obsidian: #0A0A0A;
+  --color-obsidian: #0a0a0a;
   --color-onyx: #111111;
-  --color-charcoal: #1C1C1E;
-  --color-graphite: #2C2C2E;
+  --color-charcoal: #1c1c1e;
+  --color-graphite: #2c2c2e;
 
   /* Kept for accents */
-  --color-gold: #C9A84C;
-  --color-gold-light: #E8D48B;
-  --color-gold-dark: #9A7B2F;
-  --color-gold-muted: #C9A84C33;
-  --color-champagne: #F5E6C8;
-  --color-ivory: #FAF7F0;
-  --color-pearl: #E8E4DD;
-  --color-smoke: #8A8A8E;
+  --color-gold: #c9a84c;
+  --color-gold-light: #e8d48b;
+  --color-gold-dark: #9a7b2f;
+  --color-gold-muted: #c9a84c33;
+  --color-champagne: #f5e6c8;
+  --color-ivory: #faf7f0;
+  --color-pearl: #e8e4dd;
+  --color-smoke: #8a8a8e;
 
   --font-display: var(--font-cormorant), "Cormorant Garamond", serif;
   --font-heading: var(--font-gilda), "Gilda Display", serif;
@@ -36,25 +36,48 @@
   --animate-pulse-gold: pulse-gold 2s ease-in-out infinite;
 
   @keyframes float {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-20px); }
+    0%,
+    100% {
+      transform: translateY(0);
+    }
+    50% {
+      transform: translateY(-20px);
+    }
   }
 
   @keyframes shimmer {
-    0% { background-position: -200% 0; }
-    100% { background-position: 200% 0; }
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
   }
 
   @keyframes grain {
-    0%, 100% { transform: translate(0, 0); }
-    25% { transform: translate(2%, 2%); }
-    50% { transform: translate(-1%, 1%); }
-    75% { transform: translate(1%, -1%); }
+    0%,
+    100% {
+      transform: translate(0, 0);
+    }
+    25% {
+      transform: translate(2%, 2%);
+    }
+    50% {
+      transform: translate(-1%, 1%);
+    }
+    75% {
+      transform: translate(1%, -1%);
+    }
   }
 
   @keyframes pulse-gold {
-    0%, 100% { opacity: 0.4; }
-    50% { opacity: 0.8; }
+    0%,
+    100% {
+      opacity: 0.4;
+    }
+    50% {
+      opacity: 0.8;
+    }
   }
 }
 
@@ -73,7 +96,7 @@
 
   ::selection {
     background-color: rgba(10, 10, 10, 0.12);
-    color: var(--color-ink);
+    color: currentColor;
   }
 
   ::-webkit-scrollbar {

@@ -239,7 +239,7 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
           <tr>
             <td style="padding:16px 32px;background:#FAFAF8;border-top:1px solid #E0DDD8;">
               <p style="margin:0;font-size:11px;color:#6B6B6B;line-height:1.6;">
-                PayFast reference: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.payfast_pf_payment_id ?? "—")}</code><br/>
+                Payment reference: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.payfast_pf_payment_id ?? "—")}</code><br/>
                 Order ID: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.id)}</code>
               </p>
             </td>

@@ -1,5 +1,9 @@
 import { supabase } from "./supabase";
-import type { MetalType, ProductWithCategory, CategoryWithCount } from "@/types";
+import type {
+  MetalType,
+  ProductWithCategory,
+  CategoryWithCount,
+} from "@/types";
 
 const PRODUCT_SELECT = "*, categories(name, slug)";
 
@@ -14,7 +18,7 @@ export async function getProducts(): Promise<ProductWithCategory[]> {
 }
 
 export async function getProductsByCategory(
-  categorySlug: string
+  categorySlug: string,
 ): Promise<ProductWithCategory[]> {
   const { data, error } = await supabase
     .from("products")
@@ -96,7 +100,18 @@ export async function getShopProducts(
 
   const { data, error } = await query;
   if (error) throw error;
-  return data as unknown as ProductWithCategory[];
+
+  const uniqueProducts: ProductWithCategory[] = [];
+  const seenKeys = new Set<string>();
+
+  for (const product of (data ?? []) as ProductWithCategory[]) {
+    const key = `${product.name.trim().toLowerCase()}|${product.category_id ?? ""}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    uniqueProducts.push(product);
+  }
+
+  return uniqueProducts;
 }
 
 /** Min/max price across the catalogue — used to seed the price filter UI. */
@@ -109,7 +124,10 @@ export async function getPriceBounds(): Promise<{ min: number; max: number }> {
   if (error) throw error;
   if (!data || data.length === 0) return { min: 0, max: 0 };
   const prices = data.map((r) => Number(r.price));
-  return { min: Math.floor(prices[0]), max: Math.ceil(prices[prices.length - 1]) };
+  return {
+    min: Math.floor(prices[0]),
+    max: Math.ceil(prices[prices.length - 1]),
+  };
 }
 
 export async function getInStockProducts(): Promise<ProductWithCategory[]> {
@@ -124,7 +142,7 @@ export async function getInStockProducts(): Promise<ProductWithCategory[]> {
 }
 
 export async function getFeaturedProducts(
-  limit = 8
+  limit = 8,
 ): Promise<ProductWithCategory[]> {
   const { data, error } = await supabase
     .from("products")
@@ -138,7 +156,7 @@ export async function getFeaturedProducts(
 }
 
 export async function getBestsellers(
-  limit = 5
+  limit = 5,
 ): Promise<ProductWithCategory[]> {
   // True bestsellers: most-reviewed in-stock pieces, tie-broken by rating.
   const { data, error } = await supabase
@@ -154,7 +172,7 @@ export async function getBestsellers(
 }
 
 export async function getProductBySlug(
-  slug: string
+  slug: string,
 ): Promise<ProductWithCategory | null> {
   const { data, error } = await supabase
     .from("products")
@@ -197,7 +215,7 @@ export async function getProductVariants(
 export async function getRelatedProducts(
   categoryId: string | null,
   excludeId: string,
-  limit = 4
+  limit = 4,
 ): Promise<ProductWithCategory[]> {
   if (!categoryId) return [];
   const { data, error } = await supabase
@@ -214,7 +232,7 @@ export async function getRelatedProducts(
 
 export async function searchProducts(
   term: string,
-  limit = 8
+  limit = 8,
 ): Promise<ProductWithCategory[]> {
   const trimmed = term.trim();
   if (!trimmed) return [];
@@ -256,4 +274,27 @@ export async function getCategories(): Promise<CategoryWithCount[]> {
     ...cat,
     product_count: countMap.get(cat.id) || 0,
   })) as CategoryWithCount[];
+}
+
+export async function getProductImages(productName: string): Promise<string[]> {
+  const bucketName = process.env.S3_BUCKET_NAME ?? "Charmistry Assets";
+
+  const { data, error } = await supabase.storage
+    .from(bucketName)
+    .list("", { limit: 100 });
+
+  if (error || !data) return [];
+
+  const slug = productName.toLowerCase().replace(/\s+/g, "-");
+
+  const matched = data
+    .filter((file) => file.name.toLowerCase().includes(slug))
+    .map((file) => {
+      const { data: urlData } = supabase.storage
+        .from(bucketName)
+        .getPublicUrl(file.name);
+      return urlData.publicUrl;
+    });
+
+  return matched;
 }

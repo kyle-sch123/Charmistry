@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Cormorant_Garamond, Outfit, Gilda_Display } from "next/font/google";
 import CartDrawer from "@/components/cart/CartDrawer";
+import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -41,6 +42,7 @@ export default function RootLayout({
       className={`${cormorant.variable} ${outfit.variable} ${gilda.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        <GoogleAnalytics />
         {children}
         <CartDrawer />
       </body>

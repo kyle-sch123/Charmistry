@@ -1,6 +1,10 @@
 import { createServerSupabase } from "@/lib/supabase-server";
-import { buildCheckoutPayload } from "@/lib/payfast";
-import { consumeDiscount, refundDiscount, resolveDiscount } from "@/lib/discounts";
+import { initializeTransaction } from "@/lib/paystack";
+import {
+  consumeDiscount,
+  refundDiscount,
+  resolveDiscount,
+} from "@/lib/discounts";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -92,7 +96,10 @@ export async function POST(request: Request) {
   }
 
   if (errors.length > 0) {
-    return Response.json({ error: "validation_failed", details: errors }, { status: 400 });
+    return Response.json(
+      { error: "validation_failed", details: errors },
+      { status: 400 },
+    );
   }
 
   const productIds = Array.from(lineMap.keys());
@@ -142,7 +149,10 @@ export async function POST(request: Request) {
     }
     const unitPrice = Number(product.price);
     if (!Number.isFinite(unitPrice) || unitPrice <= 0) {
-      return Response.json({ error: "invalid_price", product: product.name }, { status: 500 });
+      return Response.json(
+        { error: "invalid_price", product: product.name },
+        { status: 500 },
+      );
     }
     const lineTotal = Number((unitPrice * qty).toFixed(2));
     subtotal += lineTotal;
@@ -165,22 +175,36 @@ export async function POST(request: Request) {
   let discountAmount = 0;
   let discountCodeText: string | null = null;
   let discountCodeId: string | null = null;
-  const rawDiscount = typeof body.discountCode === "string" ? body.discountCode.trim() : "";
+  const rawDiscount =
+    typeof body.discountCode === "string" ? body.discountCode.trim() : "";
   if (rawDiscount) {
-    const resolved = await resolveDiscount(supabase, rawDiscount, subtotal, email);
+    const resolved = await resolveDiscount(
+      supabase,
+      rawDiscount,
+      subtotal,
+      email,
+    );
     if (typeof resolved === "string") {
-      return Response.json({ error: "discount_invalid", reason: resolved }, { status: 400 });
+      return Response.json(
+        { error: "discount_invalid", reason: resolved },
+        { status: 400 },
+      );
     }
     const consumed = await consumeDiscount(supabase, resolved.code.id);
     if (!consumed) {
-      return Response.json({ error: "discount_invalid", reason: "max_uses_reached" }, { status: 400 });
+      return Response.json(
+        { error: "discount_invalid", reason: "max_uses_reached" },
+        { status: 400 },
+      );
     }
     discountAmount = resolved.amount;
     discountCodeText = resolved.code.code;
     discountCodeId = resolved.code.id;
   }
 
-  const total = Number(Math.max(0, subtotal + shippingCost - discountAmount).toFixed(2));
+  const total = Number(
+    Math.max(0, subtotal + shippingCost - discountAmount).toFixed(2),
+  );
 
   if (total <= 0) {
     return Response.json({ error: "invalid_total" }, { status: 400 });
@@ -238,39 +262,44 @@ export async function POST(request: Request) {
     return Response.json({ error: "service_error" }, { status: 500 });
   }
 
-  // Build PayFast payload
+  // Initialize Paystack transaction
   const siteUrl = getSiteUrl(request);
-  const itemName = orderLines.length === 1
-    ? orderLines[0].product_name
-    : `Charmistry order (${orderLines.reduce((acc, l) => acc + l.quantity, 0)} items)`;
+  const itemName =
+    orderLines.length === 1
+      ? orderLines[0].product_name
+      : `Charmistry order (${orderLines.reduce((acc, l) => acc + l.quantity, 0)} items)`;
 
-  let payload;
+  let initialization;
   try {
-    payload = buildCheckoutPayload({
+    initialization = await initializeTransaction({
       orderId: order.id,
-      amount: total,
-      itemName,
-      itemDescription: `Order #${order.id.slice(0, 8).toUpperCase()}`,
-      firstName,
-      lastName,
       email,
-      cellNumber: phone || undefined,
-      returnUrl: `${siteUrl}/checkout/success?order=${order.id}`,
-      cancelUrl: `${siteUrl}/checkout/cancelled?order=${order.id}`,
-      notifyUrl: `${siteUrl}/api/payfast/notify`,
+      amountZar: total,
+      callbackUrl: `${siteUrl}/checkout/success?order=${order.id}`,
+      metadata: {
+        orderId: order.id,
+      },
     });
   } catch (err) {
-    console.error("Checkout: PayFast payload build failed", err);
-    await supabase.from("orders").update({ status: "failed" }).eq("id", order.id);
+    console.error("Checkout: Paystack initialize failed", err);
+    await supabase
+      .from("orders")
+      .update({ status: "failed" })
+      .eq("id", order.id);
     return Response.json({ error: "payment_misconfigured" }, { status: 500 });
   }
+
+  await supabase
+    .from("orders")
+    .update({ payfast_payment_id: initialization.reference })
+    .eq("id", order.id);
 
   return Response.json(
     {
       success: true,
       orderId: order.id,
-      action: payload.action,
-      fields: payload.fields,
+      authorizationUrl: initialization.authorizationUrl,
+      reference: initialization.reference,
     },
     { status: 200 },
   );

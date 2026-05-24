@@ -9,6 +9,7 @@ import {
   getProductBySlug,
   getProductVariants,
   getRelatedProducts,
+  getProductImages,
 } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 
@@ -16,9 +17,11 @@ export const dynamic = "force-dynamic";
 
 type Params = { slug: string };
 
-export async function generateMetadata(
-  { params }: { params: Promise<Params> },
-): Promise<Metadata> {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<Params>;
+}): Promise<Metadata> {
   const { slug } = await params;
   const product = await getProductBySlug(slug).catch(() => null);
   if (!product) return { title: "Product not found | Charmistry" };
@@ -35,16 +38,19 @@ export async function generateMetadata(
   };
 }
 
-export default async function ProductPage(
-  { params }: { params: Promise<Params> },
-) {
+export default async function ProductPage({
+  params,
+}: {
+  params: Promise<Params>;
+}) {
   const { slug } = await params;
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [variants, related] = await Promise.all([
+  const [variants, related, bucketImages] = await Promise.all([
     getProductVariants(product.name, product.category_id),
     getRelatedProducts(product.category_id, product.id, 4),
+    getProductImages(product.name),
   ]);
 
   // Exclude siblings from "You may also like" to avoid duplication with the
@@ -78,7 +84,11 @@ export default async function ProductPage(
             )}
           </nav>
 
-          <ProductDetail product={product} variants={variants} />
+          <ProductDetail
+            product={product}
+            variants={variants}
+            bucketImages={bucketImages}
+          />
 
           {filteredRelated.length > 0 && (
             <section className="mt-28 border-t border-ink/10 pt-16">

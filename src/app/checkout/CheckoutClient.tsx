@@ -8,7 +8,9 @@ import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import type { CheckoutFormData } from "@/types";
 
-type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & { form?: string };
+type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & {
+  form?: string;
+};
 
 const initialForm: CheckoutFormData = {
   email: "",
@@ -32,14 +34,13 @@ export default function CheckoutClient() {
   const [form, setForm] = useState<CheckoutFormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
-  const payfastFormRef = useRef<HTMLFormElement>(null);
-  const [payfastPayload, setPayfastPayload] = useState<{
-    action: string;
-    fields: Record<string, string>;
-  } | null>(null);
+  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
 
   const [discountInput, setDiscountInput] = useState("");
-  const [appliedDiscount, setAppliedDiscount] = useState<{ code: string; amount: number } | null>(null);
+  const [appliedDiscount, setAppliedDiscount] = useState<{
+    code: string;
+    amount: number;
+  } | null>(null);
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [discountLoading, setDiscountLoading] = useState(false);
 
@@ -52,19 +53,21 @@ export default function CheckoutClient() {
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)
   useEffect(() => {
-    if (hasHydrated && lines.length === 0 && !payfastPayload) {
+    if (hasHydrated && lines.length === 0 && !paymentUrl) {
       router.replace("/shop");
     }
-  }, [hasHydrated, lines.length, payfastPayload, router]);
+  }, [hasHydrated, lines.length, paymentUrl, router]);
 
-  // Once we have PayFast fields, auto-submit the hidden form to redirect.
   useEffect(() => {
-    if (payfastPayload && payfastFormRef.current) {
-      payfastFormRef.current.submit();
+    if (paymentUrl) {
+      window.location.assign(paymentUrl);
     }
-  }, [payfastPayload]);
+  }, [paymentUrl]);
 
-  function update<K extends keyof CheckoutFormData>(key: K, value: CheckoutFormData[K]) {
+  function update<K extends keyof CheckoutFormData>(
+    key: K,
+    value: CheckoutFormData[K],
+  ) {
     setForm((prev) => ({ ...prev, [key]: value }));
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
@@ -74,7 +77,8 @@ export default function CheckoutClient() {
   function validate(): boolean {
     const next: FormErrors = {};
     if (!form.email.trim()) next.email = "Required";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim())) next.email = "Invalid email";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email.trim()))
+      next.email = "Invalid email";
     if (!form.firstName.trim()) next.firstName = "Required";
     if (!form.lastName.trim()) next.lastName = "Required";
     if (!form.addressLine1.trim()) next.addressLine1 = "Required";
@@ -140,17 +144,18 @@ export default function CheckoutClient() {
       const data = await res.json();
 
       if (!res.ok) {
-        const msg = Array.isArray(data?.details) && data.details.length > 0
-          ? data.details.join(". ")
-          : data?.error === "out_of_stock"
-            ? `${data.product ?? "An item"} is out of stock`
-            : data?.error === "insufficient_stock"
-              ? `Only ${data.available} of ${data.product} available`
-              : data?.error === "product_unavailable"
-                ? "One or more items in your bag are no longer available"
-                : data?.error === "discount_invalid"
-                  ? `Discount code is no longer valid (${discountErrorMessage(data?.reason ?? "not_found")}). Please remove it and try again.`
-                  : "Something went wrong. Please try again.";
+        const msg =
+          Array.isArray(data?.details) && data.details.length > 0
+            ? data.details.join(". ")
+            : data?.error === "out_of_stock"
+              ? `${data.product ?? "An item"} is out of stock`
+              : data?.error === "insufficient_stock"
+                ? `Only ${data.available} of ${data.product} available`
+                : data?.error === "product_unavailable"
+                  ? "One or more items in your bag are no longer available"
+                  : data?.error === "discount_invalid"
+                    ? `Discount code is no longer valid (${discountErrorMessage(data?.reason ?? "not_found")}). Please remove it and try again.`
+                    : "Something went wrong. Please try again.";
         if (data?.error === "discount_invalid") {
           setAppliedDiscount(null);
           setDiscountError(discountErrorMessage(data?.reason ?? "not_found"));
@@ -160,7 +165,7 @@ export default function CheckoutClient() {
         return;
       }
 
-      setPayfastPayload({ action: data.action, fields: data.fields });
+      setPaymentUrl(data.authorizationUrl);
     } catch (err) {
       console.error(err);
       setErrors({ form: "Network error. Please try again." });
@@ -170,11 +175,13 @@ export default function CheckoutClient() {
 
   if (!hasHydrated) {
     return (
-      <div className="py-20 text-center text-ink/50 text-sm">Loading your bag…</div>
+      <div className="py-20 text-center text-ink/50 text-sm">
+        Loading your bag…
+      </div>
     );
   }
 
-  if (lines.length === 0 && !payfastPayload) {
+  if (lines.length === 0 && !paymentUrl) {
     return null;
   }
 
@@ -280,15 +287,19 @@ export default function CheckoutClient() {
 
         <button
           type="submit"
-          disabled={submitting || payfastPayload !== null}
+          disabled={submitting || paymentUrl !== null}
           className="w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {payfastPayload ? "Redirecting to PayFast…" : submitting ? "Processing…" : `Pay ${formatPrice(total)}`}
+          {paymentUrl
+            ? "Redirecting to Paystack…"
+            : submitting
+              ? "Processing…"
+              : `Pay ${formatPrice(total)}`}
         </button>
 
         <p className="text-[11px] text-ink/45 text-center leading-relaxed">
-          By placing this order you agree to our terms. Payment is processed securely by PayFast —
-          we never store your card details.
+          By placing this order you agree to our terms. Payment is processed
+          securely by Paystack — we never store your card details.
         </p>
       </form>
 
@@ -300,19 +311,37 @@ export default function CheckoutClient() {
           </h2>
           <ul className="divide-y divide-ink/10">
             {lines.map((line) => (
-              <li key={line.id} className="flex gap-4 py-4 first:pt-0 last:pb-0">
+              <li
+                key={line.id}
+                className="flex gap-4 py-4 first:pt-0 last:pb-0"
+              >
                 <div className="relative w-16 h-20 shrink-0 overflow-hidden bg-stone">
                   {line.image_url && (
-                    <Image src={line.image_url} alt={line.name} fill sizes="64px" className="object-cover" />
+                    <Image
+                      src={line.image_url}
+                      alt={line.name}
+                      fill
+                      sizes="64px"
+                      className="object-cover"
+                    />
                   )}
                   <span className="absolute top-1 right-1 bg-ink text-paper text-[10px] font-body w-5 h-5 rounded-full flex items-center justify-center">
                     {line.quantity}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <p className="font-display text-sm leading-snug">{line.name}</p>
+                  <p className="font-display text-sm leading-snug">
+                    {line.name}
+                  </p>
                   {line.description && (
-                    <p className="text-ink/45 line-clamp-2 leading-snug" style={{ fontFamily: "var(--font-body)", fontSize: "11px", letterSpacing: "0.04em" }}>
+                    <p
+                      className="text-ink/45 line-clamp-2 leading-snug"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "11px",
+                        letterSpacing: "0.04em",
+                      }}
+                    >
                       {line.description}
                     </p>
                   )}
@@ -331,7 +360,9 @@ export default function CheckoutClient() {
             {appliedDiscount ? (
               <div className="flex items-center justify-between gap-3 border border-ink/15 bg-paper px-4 py-3">
                 <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-body truncate">{appliedDiscount.code}</span>
+                  <span className="text-sm font-body truncate">
+                    {appliedDiscount.code}
+                  </span>
                   <span className="text-[11px] text-ink/55">
                     −{formatPrice(appliedDiscount.amount)} applied
                   </span>
@@ -390,11 +421,17 @@ export default function CheckoutClient() {
             )}
             <div className="flex justify-between text-sm text-ink/60">
               <span>Shipping</span>
-              <span>{shippingCost === 0 ? "Free" : formatPrice(shippingCost)}</span>
+              <span>
+                {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
+              </span>
             </div>
             <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
-              <span className="text-[11px] tracking-[0.2em] uppercase font-body">Total</span>
-              <span className="font-display text-2xl">{formatPrice(total)}</span>
+              <span className="text-[11px] tracking-[0.2em] uppercase font-body">
+                Total
+              </span>
+              <span className="font-display text-2xl">
+                {formatPrice(total)}
+              </span>
             </div>
           </div>
 
@@ -406,35 +443,41 @@ export default function CheckoutClient() {
           </Link>
         </div>
       </aside>
-
-      {/* Hidden PayFast redirect form */}
-      {payfastPayload && (
-        <form ref={payfastFormRef} action={payfastPayload.action} method="POST" className="hidden">
-          {Object.entries(payfastPayload.fields).map(([k, v]) => (
-            <input key={k} type="hidden" name={k} value={v} />
-          ))}
-        </form>
-      )}
     </div>
   );
 }
 
 function discountErrorMessage(reason: string): string {
   switch (reason) {
-    case "not_found": return "Code not found";
-    case "inactive": return "Code is no longer active";
-    case "expired": return "Code has expired";
-    case "max_uses_reached": return "Code has already been used";
-    case "min_order_not_met": return "Your order doesn't meet the minimum";
-    case "email_mismatch": return "Code is tied to a different email";
-    default: return "Code is invalid";
+    case "not_found":
+      return "Code not found";
+    case "inactive":
+      return "Code is no longer active";
+    case "expired":
+      return "Code has expired";
+    case "max_uses_reached":
+      return "Code has already been used";
+    case "min_order_not_met":
+      return "Your order doesn't meet the minimum";
+    case "email_mismatch":
+      return "Code is tied to a different email";
+    default:
+      return "Code is invalid";
   }
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
     <section className="space-y-4">
-      <h2 className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body">{title}</h2>
+      <h2 className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body">
+        {title}
+      </h2>
       <div className="space-y-4">{children}</div>
     </section>
   );
@@ -451,7 +494,16 @@ interface FieldProps {
   readOnly?: boolean;
 }
 
-function Field({ label, value, onChange, type = "text", error, autoComplete, required, readOnly }: FieldProps) {
+function Field({
+  label,
+  value,
+  onChange,
+  type = "text",
+  error,
+  autoComplete,
+  required,
+  readOnly,
+}: FieldProps) {
   return (
     <label className="block">
       <span className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
@@ -466,7 +518,9 @@ function Field({ label, value, onChange, type = "text", error, autoComplete, req
         readOnly={readOnly}
         className={`w-full border ${error ? "border-red-500" : "border-ink/15"} bg-paper px-4 py-3 text-sm font-body focus:outline-none focus:border-ink transition-colors ${readOnly ? "text-ink/50" : ""}`}
       />
-      {error && <span className="mt-1 block text-[11px] text-red-600">{error}</span>}
+      {error && (
+        <span className="mt-1 block text-[11px] text-red-600">{error}</span>
+      )}
     </label>
   );
 }

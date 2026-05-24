@@ -1,8 +1,18 @@
-export type MetalType = "gold" | "silver" | "rose_gold" | "white_gold" | "platinum";
+export type MetalType =
+  | "gold"
+  | "silver"
+  | "rose_gold"
+  | "white_gold"
+  | "platinum";
 
 export type BadgeType = "NEW" | "BESTSELLER" | "LIMITED";
 
-export type CategoryType = "rings" | "necklaces" | "earrings" | "bracelets" | "jewellery-boxes";
+export type CategoryType =
+  | "rings"
+  | "necklaces"
+  | "earrings"
+  | "bracelets"
+  | "jewellery-boxes";
 
 export interface Product {
   id: string;
@@ -13,6 +23,8 @@ export interface Product {
   category_id: string | null;
   metal: MetalType | null;
   badge: BadgeType | null;
+  material: string | null;
+  size: string | number | null;
   image_url: string | null;
   images: string[];
   in_stock: boolean;

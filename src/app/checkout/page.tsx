@@ -5,7 +5,7 @@ import CheckoutClient from "./CheckoutClient";
 
 export const metadata: Metadata = {
   title: "Checkout | Charmistry",
-  description: "Complete your Charmistry order securely through PayFast.",
+  description: "Complete your Charmistry order securely through Paystack.",
   robots: { index: false, follow: false },
 };
 
@@ -25,7 +25,7 @@ export default function CheckoutPage() {
               Checkout
             </h1>
             <p className="mt-5 max-w-xl mx-auto text-ink/60 text-sm">
-              Your payment is processed securely by PayFast. We never see your card details.
+              Your payment is processed securely by Paystack. We never see your card details.
             </p>
           </header>
           <CheckoutClient />
