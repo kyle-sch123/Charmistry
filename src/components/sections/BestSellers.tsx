@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { formatPrice } from "@/lib/utils";
-import { getBestsellers } from "@/lib/queries";
 import type { ProductWithCategory } from "@/types";
 
 export default function BestSellers() {
@@ -14,9 +13,17 @@ export default function BestSellers() {
 
   useEffect(() => {
     let cancelled = false;
-    getBestsellers(5)
+
+    fetch("/api/bestsellers")
+      .then(async (res) => {
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          throw new Error(body?.error || "Failed to load bestsellers");
+        }
+        return res.json();
+      })
       .then((data) => {
-        if (!cancelled) setProducts(data);
+        if (!cancelled) setProducts(data.products ?? []);
       })
       .catch((err) => {
         console.error("Failed to load bestsellers", err);
@@ -24,6 +31,7 @@ export default function BestSellers() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
+
     return () => {
       cancelled = true;
     };

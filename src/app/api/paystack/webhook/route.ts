@@ -2,6 +2,11 @@ import { Resend } from "resend";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { verifyWebhookSignature } from "@/lib/paystack";
 import {
+  createCourierGuyShipment,
+  isCourierGuyConfigured,
+} from "@/lib/courier-guy";
+import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
+import {
   merchantOrderNotificationHtml,
   orderConfirmationHtml,
 } from "@/lib/email-templates";
@@ -104,9 +109,91 @@ export async function POST(request: Request) {
     return new Response("DB error", { status: 500 });
   }
 
-  await sendConfirmationEmail(orderId).catch((err) => {
-    console.error("Paystack webhook: confirmation email failed", err);
-  });
+  const [{ data: latestOrder }, { data: items }] = await Promise.all([
+    supabase.from("orders").select("*").eq("id", orderId).single<Order>(),
+    supabase
+      .from("order_items")
+      .select("*")
+      .eq("order_id", orderId)
+      .returns<OrderItem[]>(),
+  ]);
+
+  if (!latestOrder || !items) {
+    console.warn(
+      "Paystack webhook: unable to fetch order or items after payment",
+      {
+        orderId,
+      },
+    );
+  } else {
+    const trackingPromises = [sendConfirmationEmail(orderId)];
+
+    if (isKlaviyoConfigured()) {
+      trackingPromises.push(
+        trackKlaviyoEvent(
+          "Placed Order",
+          {
+            email: latestOrder.email,
+            first_name: latestOrder.first_name,
+            last_name: latestOrder.last_name,
+          },
+          {
+            order_id: latestOrder.id,
+            total: latestOrder.total,
+            currency: latestOrder.currency,
+            shipping_cost: latestOrder.shipping_cost,
+            discount_amount: latestOrder.discount_amount,
+            payment_reference: reference,
+          },
+        ),
+      );
+    }
+
+    await Promise.allSettled(trackingPromises);
+
+    if (isCourierGuyConfigured()) {
+      try {
+        const shipment = await createCourierGuyShipment(latestOrder, items);
+        await supabase
+          .from("orders")
+          .update({
+            shipping_status: shipment.status,
+            courier: shipment.courier,
+            tracking_number: shipment.trackingNumber,
+            tracking_url: shipment.trackingUrl,
+            waybill_number: shipment.waybillNumber,
+            shipped_at: new Date().toISOString(),
+          })
+          .eq("id", orderId);
+
+        if (isKlaviyoConfigured()) {
+          await trackKlaviyoEvent(
+            "Shipped Order",
+            {
+              email: latestOrder.email,
+              first_name: latestOrder.first_name,
+              last_name: latestOrder.last_name,
+            },
+            {
+              order_id: latestOrder.id,
+              tracking_number: shipment.trackingNumber,
+              tracking_url: shipment.trackingUrl,
+              waybill_number: shipment.waybillNumber,
+              courier: shipment.courier,
+              total: latestOrder.total,
+              currency: latestOrder.currency,
+            },
+          );
+        }
+      } catch (err) {
+        console.error("Paystack webhook: courier shipment failed", err);
+        await supabase
+          .from("orders")
+          .update({ shipping_status: "failed" })
+          .eq("id", orderId);
+      }
+    }
+  }
 
   return new Response("OK", { status: 200 });
 }

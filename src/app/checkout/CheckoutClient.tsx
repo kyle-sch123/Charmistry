@@ -44,11 +44,22 @@ export default function CheckoutClient() {
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [discountLoading, setDiscountLoading] = useState(false);
 
-  const shippingCost = 0;
+  const [shippingCost, setShippingCost] = useState<number | null>(null);
+  const [shippingCostError, setShippingCostError] = useState<string | null>(
+    null,
+  );
+  const [shippingCostLoading, setShippingCostLoading] = useState(false);
+
+  const canQuoteShipping =
+    lines.length > 0 &&
+    form.addressLine1.trim() &&
+    form.city.trim() &&
+    form.postalCode.trim();
+
   const discountAmount = appliedDiscount?.amount ?? 0;
   const total = useMemo(
-    () => Math.max(0, subtotal + shippingCost - discountAmount),
-    [subtotal, discountAmount],
+    () => Math.max(0, subtotal + (shippingCost ?? 0) - discountAmount),
+    [subtotal, shippingCost, discountAmount],
   );
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)
@@ -63,6 +74,65 @@ export default function CheckoutClient() {
       window.location.assign(paymentUrl);
     }
   }, [paymentUrl]);
+
+  useEffect(() => {
+    if (!canQuoteShipping) {
+      setShippingCost(null);
+      setShippingCostError(null);
+      setShippingCostLoading(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    setShippingCostLoading(true);
+    setShippingCostError(null);
+
+    fetch("/api/shipping/quote", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        destination: {
+          country: form.country,
+          city: form.city,
+          postalCode: form.postalCode,
+        },
+        lines: lines.map((line) => ({ quantity: line.quantity })),
+        subtotal,
+      }),
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) {
+          const data = await res.json().catch(() => null);
+          throw new Error(data?.error || "Unable to calculate shipping");
+        }
+        return res.json();
+      })
+      .then((data) => {
+        setShippingCost(Number(data.shippingCost ?? 0));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        console.error("Shipping quote error", error);
+        setShippingCostError("Unable to calculate shipping cost right now.");
+        setShippingCost(null);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setShippingCostLoading(false);
+        }
+      });
+
+    return () => controller.abort();
+  }, [
+    canQuoteShipping,
+    form.country,
+    form.city,
+    form.postalCode,
+    form.addressLine1,
+    lines,
+    subtotal,
+  ]);
 
   function update<K extends keyof CheckoutFormData>(
     key: K,
@@ -422,9 +492,18 @@ export default function CheckoutClient() {
             <div className="flex justify-between text-sm text-ink/60">
               <span>Shipping</span>
               <span>
-                {shippingCost === 0 ? "Free" : formatPrice(shippingCost)}
+                {!canQuoteShipping
+                  ? "Enter shipping details"
+                  : shippingCostLoading
+                    ? "Calculating…"
+                    : shippingCost === 0
+                      ? "Free"
+                      : formatPrice(shippingCost ?? 0)}
               </span>
             </div>
+            {shippingCostError ? (
+              <p className="text-sm text-red-600">{shippingCostError}</p>
+            ) : null}
             <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
               <span className="text-[11px] tracking-[0.2em] uppercase font-body">
                 Total

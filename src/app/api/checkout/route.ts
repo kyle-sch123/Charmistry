@@ -1,5 +1,6 @@
 import { createServerSupabase } from "@/lib/supabase-server";
 import { initializeTransaction } from "@/lib/paystack";
+import { estimateShippingCost } from "@/lib/shipping";
 import {
   consumeDiscount,
   refundDiscount,
@@ -168,7 +169,15 @@ export async function POST(request: Request) {
   }
 
   subtotal = Number(subtotal.toFixed(2));
-  const shippingCost = 0; // Free shipping for now
+  const shippingCost = estimateShippingCost({
+    subtotal,
+    lines: orderLines.map((line) => ({ quantity: line.quantity })),
+    destination: {
+      country,
+      city,
+      postalCode,
+    },
+  });
 
   // Resolve + atomically consume discount code server-side. Never trust the
   // client's claim about discount amount.

@@ -79,6 +79,12 @@ export interface NavLink {
 }
 
 export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
+export type ShippingStatus =
+  | "pending"
+  | "created"
+  | "shipped"
+  | "delivered"
+  | "failed";
 
 export interface CheckoutFormData {
   email: string;
@@ -109,6 +115,12 @@ export interface Order {
   total: number;
   currency: string;
   status: OrderStatus;
+  shipping_status: ShippingStatus;
+  courier: string | null;
+  tracking_number: string | null;
+  tracking_url: string | null;
+  waybill_number: string | null;
+  shipped_at: string | null;
   payfast_payment_id: string | null;
   payfast_pf_payment_id: string | null;
   notes: string | null;
