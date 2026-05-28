@@ -1,3 +1,5 @@
+/** TextReveal — staggered per-character entrance animation for headings. */
+
 "use client";
 
 import { motion } from "framer-motion";

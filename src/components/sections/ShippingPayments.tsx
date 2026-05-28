@@ -1,3 +1,5 @@
+/** ShippingPayments — trust-signal block (nationwide delivery, free over R600, secure payments). */
+
 "use client";
 
 import { useRef } from "react";
@@ -47,7 +49,7 @@ const tags = [
   },
   {
     label: "Secure Payments",
-    sub: "Powered by PAYSTACK — safe & encrypted",
+    sub: "Powered by PAYFAST — safe & encrypted",
     icon: (
       <svg
         width="18"

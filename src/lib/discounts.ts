@@ -1,3 +1,25 @@
+/**
+ * Discount code resolution + redemption.
+ *
+ * Why it exists:
+ * Discount codes are race-prone — two parallel checkouts can both observe
+ * `uses_count < max_uses` and both proceed unless the increment is
+ * conditional. The `redeem_discount_code` Supabase RPC does the increment
+ * under row-level locking so only one of the two wins.
+ *
+ * Architecture:
+ * - resolveDiscount() — read-only validation. Use it from /api/discount/validate
+ *   and from the checkout pricing pass. It DOES NOT consume the code.
+ * - consumeDiscount() — RPC call that conditionally increments uses_count.
+ *   Returns false if the code is already exhausted at the moment of the call.
+ * - refundDiscount() — decrement; used when a step after consume fails
+ *   (e.g. PayFast payment-request build erroring out).
+ *
+ * The split between resolve and consume lets the checkout flow validate
+ * pricing first, persist the order, and only consume the code at the last
+ * safe moment. See src/app/api/checkout/route.ts for the ordering.
+ */
+
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { DiscountCode } from "@/types";
 
@@ -47,8 +69,13 @@ export async function resolveDiscount(
     return "max_uses_reached";
   }
   if (Number(data.min_order_amount) > subtotal) return "min_order_not_met";
-  if (data.email && customerEmail && data.email.toLowerCase() !== customerEmail.toLowerCase()) {
-    return "email_mismatch";
+  // Email-bound codes require the customer's email and must match exactly.
+  // Missing email no longer bypasses the check.
+  if (data.email) {
+    if (!customerEmail) return "email_mismatch";
+    if (data.email.toLowerCase() !== customerEmail.toLowerCase()) {
+      return "email_mismatch";
+    }
   }
 
   return { code: data, amount: computeDiscountAmount(data, subtotal) };

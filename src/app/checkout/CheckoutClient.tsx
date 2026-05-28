@@ -1,6 +1,34 @@
+/**
+ * Checkout form (client-rendered).
+ *
+ * The page itself (page.tsx) is a server component that just frames this
+ * client component. Everything below — form state, shipping quote polling,
+ * discount validation — happens in the browser.
+ *
+ * Flow:
+ *   1. Form mounts, waits for the cart to hydrate from localStorage.
+ *   2. As the user types address fields, debounced calls to /api/shipping/quote
+ *      keep the shipping line live (350ms debounce so each keystroke doesn't
+ *      hit the server).
+ *   3. Discount code application calls /api/discount/validate, which
+ *      requires the email — the form re-validates the discount if the
+ *      email field changes after a code was applied.
+ *   4. On submit, POSTs to /api/checkout. Server returns one of:
+ *        - `{ paymentUrl, formData }` for a normal PayFast checkout — we
+ *          build a hidden POST form and submit it so the browser navigates
+ *          to PayFast's hosted page.
+ *        - `{ redirectUrl }` for R0 totals (100%-off code) — straight
+ *          `window.location.assign()` to the success page.
+ *   5. If the redirect is blocked (extension, popup blocker, CSP), a 4s
+ *      timeout re-enables the submit button so the user isn't trapped.
+ *
+ * The cart is NOT cleared here — that happens on the success page only
+ * when an `order` query param is present.
+ */
+
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -11,6 +39,15 @@ import type { CheckoutFormData } from "@/types";
 type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & {
   form?: string;
 };
+
+/**
+ * What the API hands back on a successful POST /api/checkout.
+ *  - `formPost`: render a hidden form and submit it (PayFast standard flow).
+ *  - `redirect`: navigate straight to the URL (zero-total → success page).
+ */
+type PendingPayment =
+  | { kind: "formPost"; url: string; fields: Record<string, string> }
+  | { kind: "redirect"; url: string };
 
 const initialForm: CheckoutFormData = {
   email: "",
@@ -34,7 +71,7 @@ export default function CheckoutClient() {
   const [form, setForm] = useState<CheckoutFormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
-  const [paymentUrl, setPaymentUrl] = useState<string | null>(null);
+  const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
 
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
@@ -57,79 +94,119 @@ export default function CheckoutClient() {
     form.postalCode.trim();
 
   const discountAmount = appliedDiscount?.amount ?? 0;
+  // Display values derived from canQuoteShipping so stale cost from a
+  // previously-completed address doesn't follow the user when they blank
+  // a field. Avoids setState-in-effect for the reset path.
+  const effectiveShippingCost = canQuoteShipping ? shippingCost : null;
+  const effectiveShippingError = canQuoteShipping ? shippingCostError : null;
+  const effectiveShippingLoading = canQuoteShipping ? shippingCostLoading : false;
   const total = useMemo(
-    () => Math.max(0, subtotal + (shippingCost ?? 0) - discountAmount),
-    [subtotal, shippingCost, discountAmount],
+    () => Math.max(0, subtotal + (effectiveShippingCost ?? 0) - discountAmount),
+    [subtotal, effectiveShippingCost, discountAmount],
   );
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)
   useEffect(() => {
-    if (hasHydrated && lines.length === 0 && !paymentUrl) {
+    if (hasHydrated && lines.length === 0 && !pendingPayment) {
       router.replace("/shop");
     }
-  }, [hasHydrated, lines.length, paymentUrl, router]);
+  }, [hasHydrated, lines.length, pendingPayment, router]);
 
   useEffect(() => {
-    if (paymentUrl) {
-      window.location.assign(paymentUrl);
+    if (!pendingPayment) return;
+    if (pendingPayment.kind === "redirect") {
+      window.location.assign(pendingPayment.url);
+    } else {
+      // PayFast: build a hidden POST form and submit it so the browser
+      // does a real navigation to PayFast's hosted payment page. Using
+      // location.assign() with a query-string URL would technically work
+      // for GET, but the canonical PayFast flow is POST.
+      const formEl = document.createElement("form");
+      formEl.method = "POST";
+      formEl.action = pendingPayment.url;
+      formEl.style.display = "none";
+      for (const [key, value] of Object.entries(pendingPayment.fields)) {
+        const input = document.createElement("input");
+        input.type = "hidden";
+        input.name = key;
+        input.value = value;
+        formEl.appendChild(input);
+      }
+      document.body.appendChild(formEl);
+      formEl.submit();
     }
-  }, [paymentUrl]);
+    // If the redirect/submit is blocked (popup blocker, CSP, browser
+    // extension), re-enable the submit button after a short grace period
+    // so the user isn't stuck on a permanently disabled "Redirecting…"
+    // state.
+    const fallback = setTimeout(() => {
+      setSubmitting(false);
+      setErrors({
+        form:
+          "Browser blocked the redirect. Click the button below to retry payment.",
+      });
+      setPendingPayment(null);
+    }, 4000);
+    return () => clearTimeout(fallback);
+  }, [pendingPayment]);
 
   useEffect(() => {
-    if (!canQuoteShipping) {
-      setShippingCost(null);
-      setShippingCostError(null);
-      setShippingCostLoading(false);
-      return;
-    }
+    if (!canQuoteShipping) return;
 
     const controller = new AbortController();
-    setShippingCostLoading(true);
-    setShippingCostError(null);
+    // Debounce so keystrokes don't hammer the API. 350ms feels responsive
+    // without firing on every character. setState only happens inside the
+    // timeout callback so the React "set-state-in-effect" rule stays happy.
+    const handle = setTimeout(() => {
+      setShippingCostLoading(true);
+      setShippingCostError(null);
 
-    fetch("/api/shipping/quote", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        destination: {
-          country: form.country,
-          city: form.city,
-          postalCode: form.postalCode,
-        },
-        lines: lines.map((line) => ({ quantity: line.quantity })),
-        subtotal,
-      }),
-      signal: controller.signal,
-    })
-      .then(async (res) => {
-        if (!res.ok) {
-          const data = await res.json().catch(() => null);
-          throw new Error(data?.error || "Unable to calculate shipping");
-        }
-        return res.json();
+      fetch("/api/shipping/quote", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          destination: {
+            country: form.country,
+            city: form.city,
+            postalCode: form.postalCode,
+          },
+          lines: lines.map((line) => ({ quantity: line.quantity })),
+          subtotal,
+        }),
+        signal: controller.signal,
       })
-      .then((data) => {
-        setShippingCost(Number(data.shippingCost ?? 0));
-      })
-      .catch((error) => {
-        if (controller.signal.aborted) return;
-        console.error("Shipping quote error", error);
-        setShippingCostError("Unable to calculate shipping cost right now.");
-        setShippingCost(null);
-      })
-      .finally(() => {
-        if (!controller.signal.aborted) {
-          setShippingCostLoading(false);
-        }
-      });
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => null);
+            throw new Error(data?.error || "Unable to calculate shipping");
+          }
+          return res.json();
+        })
+        .then((data) => {
+          setShippingCost(Number(data.shippingCost ?? 0));
+        })
+        .catch((error) => {
+          if (controller.signal.aborted) return;
+          console.error("Shipping quote error", error);
+          setShippingCostError("Unable to calculate shipping cost right now.");
+          setShippingCost(null);
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) {
+            setShippingCostLoading(false);
+          }
+        });
+    }, 350);
 
-    return () => controller.abort();
+    return () => {
+      clearTimeout(handle);
+      controller.abort();
+    };
   }, [
     canQuoteShipping,
     form.country,
     form.city,
     form.postalCode,
-    form.addressLine1,
     lines,
     subtotal,
   ]);
@@ -142,6 +219,14 @@ export default function CheckoutClient() {
     if (errors[key]) {
       setErrors((prev) => ({ ...prev, [key]: undefined }));
     }
+    // If the email changes after a discount was applied, the previously-validated
+    // bound code may now mismatch — drop it so the user re-applies with the
+    // new email.
+    if (key === "email" && appliedDiscount) {
+      setAppliedDiscount(null);
+      setDiscountInput("");
+      setDiscountError(null);
+    }
   }
 
   function validate(): boolean {
@@ -153,21 +238,29 @@ export default function CheckoutClient() {
     if (!form.lastName.trim()) next.lastName = "Required";
     if (!form.addressLine1.trim()) next.addressLine1 = "Required";
     if (!form.city.trim()) next.city = "Required";
-    if (!form.postalCode.trim()) next.postalCode = "Required";
+    const postal = form.postalCode.trim();
+    if (!postal) next.postalCode = "Required";
+    else if (form.country === "ZA" && !/^\d{4}$/.test(postal))
+      next.postalCode = "Must be 4 digits";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
 
   async function applyDiscount() {
     const code = discountInput.trim();
+    const emailValue = form.email.trim().toLowerCase();
     if (!code || discountLoading) return;
+    if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
+      setDiscountError("Enter your email above before applying a code.");
+      return;
+    }
     setDiscountLoading(true);
     setDiscountError(null);
     try {
       const res = await fetch("/api/discount/validate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code, subtotal, email: form.email.trim() }),
+        body: JSON.stringify({ code, subtotal, email: emailValue }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -235,7 +328,21 @@ export default function CheckoutClient() {
         return;
       }
 
-      setPaymentUrl(data.authorizationUrl);
+      // Zero-total orders skip PayFast — server returns `redirectUrl`
+      // straight to the success page. Otherwise the server hands back a
+      // `paymentUrl` + `formData` we POST to PayFast.
+      if (data.redirectUrl) {
+        setPendingPayment({ kind: "redirect", url: data.redirectUrl });
+      } else if (data.paymentUrl && data.formData) {
+        setPendingPayment({
+          kind: "formPost",
+          url: data.paymentUrl,
+          fields: data.formData,
+        });
+      } else {
+        setErrors({ form: "Unexpected response from payment server." });
+        setSubmitting(false);
+      }
     } catch (err) {
       console.error(err);
       setErrors({ form: "Network error. Please try again." });
@@ -251,7 +358,7 @@ export default function CheckoutClient() {
     );
   }
 
-  if (lines.length === 0 && !paymentUrl) {
+  if (lines.length === 0 && !pendingPayment) {
     return null;
   }
 
@@ -357,11 +464,13 @@ export default function CheckoutClient() {
 
         <button
           type="submit"
-          disabled={submitting || paymentUrl !== null}
+          disabled={submitting || pendingPayment !== null}
           className="w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
         >
-          {paymentUrl
-            ? "Redirecting to Paystack…"
+          {pendingPayment
+            ? pendingPayment.kind === "redirect"
+              ? "Redirecting…"
+              : "Redirecting to PayFast…"
             : submitting
               ? "Processing…"
               : `Pay ${formatPrice(total)}`}
@@ -369,7 +478,7 @@ export default function CheckoutClient() {
 
         <p className="text-[11px] text-ink/45 text-center leading-relaxed">
           By placing this order you agree to our terms. Payment is processed
-          securely by Paystack — we never store your card details.
+          securely by PayFast — we never store your card details.
         </p>
       </form>
 
@@ -494,15 +603,15 @@ export default function CheckoutClient() {
               <span>
                 {!canQuoteShipping
                   ? "Enter shipping details"
-                  : shippingCostLoading
+                  : effectiveShippingLoading
                     ? "Calculating…"
-                    : shippingCost === 0
+                    : effectiveShippingCost === 0
                       ? "Free"
-                      : formatPrice(shippingCost ?? 0)}
+                      : formatPrice(effectiveShippingCost ?? 0)}
               </span>
             </div>
-            {shippingCostError ? (
-              <p className="text-sm text-red-600">{shippingCostError}</p>
+            {effectiveShippingError ? (
+              <p className="text-sm text-red-600">{effectiveShippingError}</p>
             ) : null}
             <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
               <span className="text-[11px] tracking-[0.2em] uppercase font-body">
@@ -540,6 +649,8 @@ function discountErrorMessage(reason: string): string {
       return "Your order doesn't meet the minimum";
     case "email_mismatch":
       return "Code is tied to a different email";
+    case "email_required":
+      return "Enter your email above before applying a code.";
     default:
       return "Code is invalid";
   }

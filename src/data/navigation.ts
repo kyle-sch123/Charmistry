@@ -1,3 +1,5 @@
+/** Static nav-link sets used by Navbar, MobileMenu, and Footer. */
+
 import { NavLink } from "@/types";
 
 export const navLinks: NavLink[] = [

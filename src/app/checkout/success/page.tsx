@@ -1,3 +1,9 @@
+/**
+ * Order success page. The webhook is the source of truth for payment
+ * state — this page is purely UX, it does NOT confirm anything happened.
+ * Without an ?order param the page shows a generic landing message.
+ */
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";
@@ -16,6 +22,7 @@ export default async function CheckoutSuccessPage(
 ) {
   const { order } = await searchParams;
   const shortId = order ? order.slice(0, 8).toUpperCase() : null;
+  const hasOrder = Boolean(order);
 
   return (
     <>
@@ -29,14 +36,15 @@ export default async function CheckoutSuccessPage(
             </svg>
           </div>
           <p className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body mb-4">
-            Thank You
+            {hasOrder ? "Thank You" : "Charmistry"}
           </p>
           <h1 className="font-heading text-5xl md:text-6xl font-light leading-[0.95] mb-6">
-            Order placed.
+            {hasOrder ? "Order placed." : "Nothing to see here."}
           </h1>
           <p className="text-ink/60 text-sm leading-relaxed mb-2">
-            Your payment was received and your pieces are being prepared with care.
-            A confirmation email is on its way.
+            {hasOrder
+              ? "Your payment was received and your pieces are being prepared with care. A confirmation email is on its way."
+              : "This page confirms completed orders. Browse the collection to start a new order."}
           </p>
           {shortId && (
             <p className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body mt-6">
@@ -48,7 +56,7 @@ export default async function CheckoutSuccessPage(
               href="/shop"
               className="inline-block px-10 py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors"
             >
-              Continue Shopping
+              {hasOrder ? "Continue Shopping" : "Browse the Collection"}
             </Link>
           </div>
         </div>

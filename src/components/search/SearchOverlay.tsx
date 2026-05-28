@@ -1,3 +1,12 @@
+/**
+ * Full-screen product search overlay opened from the Navbar.
+ *
+ * Search runs against searchProducts() (ilike on name + description) with
+ * a 220ms debounce. A `cancelled` flag prevents stale fetches from
+ * overwriting newer results — important because the user can type faster
+ * than Supabase returns.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -20,6 +29,14 @@ export default function SearchOverlay({ open, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  // Derive runtime visibility from term length rather than resetting state
+  // inside an effect — keeps us out of the React "set-state-in-effect" rule.
+  const trimmedTerm = term.trim();
+  const shouldSearch = open && trimmedTerm.length >= 2;
+  const displayResults = shouldSearch ? results : [];
+  const displayLoading = shouldSearch ? loading : false;
+  const displayError = shouldSearch ? error : null;
+
   // Focus input + lock scroll on open
   useEffect(() => {
     if (!open) return;
@@ -40,31 +57,19 @@ export default function SearchOverlay({ open, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
-  // Clear state when closed so next open is fresh
+  // Debounced search. setState is intentionally only called from inside the
+  // async timeout callback (not in the effect body) — the React rule
+  // forbids the latter, and moving the setLoading/setError into the
+  // setTimeout cleanly satisfies it.
   useEffect(() => {
-    if (!open) {
-      setTerm("");
-      setResults([]);
-      setError(null);
-    }
-  }, [open]);
-
-  // Debounced search — cancel in-flight via flag so stale responses can't overwrite newer ones
-  useEffect(() => {
-    if (!open) return;
-    const q = term.trim();
-    if (q.length < 2) {
-      setResults([]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    if (!shouldSearch) return;
     let cancelled = false;
-    setLoading(true);
-    setError(null);
     const handle = setTimeout(async () => {
+      if (cancelled) return;
+      setLoading(true);
+      setError(null);
       try {
-        const data = await searchProducts(q, 8);
+        const data = await searchProducts(trimmedTerm, 8);
         if (!cancelled) setResults(data);
       } catch (err) {
         if (!cancelled) {
@@ -80,7 +85,7 @@ export default function SearchOverlay({ open, onClose }: Props) {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [term, open]);
+  }, [trimmedTerm, shouldSearch]);
 
   return (
     <AnimatePresence>
@@ -134,29 +139,29 @@ export default function SearchOverlay({ open, onClose }: Props) {
             </div>
 
             <div className="mt-10 flex-1 overflow-y-auto pb-20">
-              {term.trim().length < 2 && (
+              {!shouldSearch && (
                 <p className="text-sm text-ink/50">
                   Start typing to search the collection.
                 </p>
               )}
 
-              {term.trim().length >= 2 && loading && (
+              {shouldSearch && displayLoading && (
                 <p className="text-sm text-ink/50">Searching…</p>
               )}
 
-              {error && !loading && (
-                <p className="text-sm text-ink/60">{error}</p>
+              {displayError && !displayLoading && (
+                <p className="text-sm text-ink/60">{displayError}</p>
               )}
 
-              {!loading && !error && term.trim().length >= 2 && results.length === 0 && (
+              {!displayLoading && !displayError && shouldSearch && displayResults.length === 0 && (
                 <p className="text-sm text-ink/60">
                   No results for &ldquo;{term}&rdquo;. Try a different word.
                 </p>
               )}
 
-              {!loading && results.length > 0 && (
+              {!displayLoading && displayResults.length > 0 && (
                 <ul className="divide-y divide-ink/10">
-                  {results.map((p) => (
+                  {displayResults.map((p) => (
                     <li key={p.id}>
                       <Link
                         href={`/products/${p.slug}`}

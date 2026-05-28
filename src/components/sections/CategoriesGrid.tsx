@@ -1,3 +1,9 @@
+/**
+ * Bento-grid of category cards on the home page. Categories are fetched
+ * client-side via the anon Supabase client and rendered in a fixed slot
+ * order (necklaces / rings / earrings / bracelets / jewellery-boxes).
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";

@@ -1,3 +1,9 @@
+/**
+ * Testimonials section — infinite-scroll marquee of customer quotes.
+ * The track is the testimonials array doubled so the CSS keyframe can
+ * loop seamlessly (translateX from 0 to -50%).
+ */
+
 "use client";
 
 import { motion } from "framer-motion";

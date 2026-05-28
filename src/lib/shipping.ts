@@ -1,3 +1,21 @@
+/**
+ * Shipping cost estimator.
+ *
+ * Same function powers both the live shipping quote in CheckoutClient and
+ * the authoritative price written onto the order in /api/checkout. Both
+ * paths MUST go through this function so the user never sees a different
+ * total than what gets persisted.
+ *
+ * Pricing model:
+ * - R600+ subtotal -> free shipping
+ * - Domestic (ZA): R45 base + R30/kg, floored at R55
+ * - International: R120 base + R55/kg, floored at R55
+ *
+ * Each line is assumed to be 0.5kg unless a weight is supplied. Update
+ * DOMESTIC_PER_KG / INTERNATIONAL_PER_KG together so the per-kg gap stays
+ * roughly proportional to courier pricing.
+ */
+
 export interface ShippingEstimateLine {
   quantity: number;
   weightKg?: number;

@@ -1,3 +1,5 @@
+/** Home hero — full-bleed image with parallax scale, scroll-fade copy. */
+
 "use client";
 
 import { useRef } from "react";

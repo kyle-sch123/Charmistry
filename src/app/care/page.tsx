@@ -1,3 +1,5 @@
+/** Static content page — jewellery care guide. */
+
 "use client";
 
 import { useRef } from "react";

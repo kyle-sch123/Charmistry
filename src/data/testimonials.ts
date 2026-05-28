@@ -1,3 +1,10 @@
+/**
+ * Hardcoded customer testimonials shown on the home page.
+ * Hand-curated — not pulled from a review system. Edit this file when
+ * adding/removing testimonials; the marquee duplicates the array so the
+ * infinite scroll has enough content to fill the viewport.
+ */
+
 import { Testimonial } from "@/types";
 
 export const testimonials: Testimonial[] = [
@@ -24,7 +31,7 @@ export const testimonials: Testimonial[] = [
     customerName: "Zibusiso",
     rating: 5,
     text: "Obsessed with everything 😍 the Mila bracelet is even prettier in person",
-    productName: "Mila Bracelet",
+    productName: "Mila bracelet",
     date: "2026-02-20",
     verified: true,
   },
@@ -33,7 +40,7 @@ export const testimonials: Testimonial[] = [
     customerName: "Caitlin",
     rating: 5,
     text: "Hi! I just received my parcel! I am absolutely inlove with everything, I will definitely make an order with you again!💝",
-    productName: "tarnish-free ",
+    productName: "Charmistry collection",
     date: "2026-03-05",
     verified: true,
   },

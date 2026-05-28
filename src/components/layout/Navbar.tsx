@@ -1,3 +1,11 @@
+/**
+ * Sticky top navigation. Has a transparent-over-hero mode (`overHero` prop)
+ * used on the home page where the navbar floats above a dark hero image and
+ * fades in the paper background as the user scrolls. Cart badge reads from
+ * the Zustand store; the count is hidden until hydration to avoid an SSR
+ * mismatch flash.
+ */
+
 "use client";
 
 import { useEffect, useRef, useState } from "react";
@@ -192,7 +200,9 @@ export default function Navbar({ overHero = false }: NavbarProps) {
             <button
               className="md:hidden w-11 h-11 flex flex-col items-center justify-center gap-1.5 cursor-pointer"
               onClick={() => setMobileOpen(true)}
-              aria-label="Open menu"
+              aria-label={mobileOpen ? "Close menu" : "Open menu"}
+              aria-expanded={mobileOpen}
+              aria-controls="mobile-menu"
             >
               <motion.span className="w-6 h-px block" style={{ backgroundColor: barColor }} />
               <motion.span className="w-4 h-px block" style={{ backgroundColor: barColor }} />

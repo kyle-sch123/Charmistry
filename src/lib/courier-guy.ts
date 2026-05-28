@@ -1,3 +1,16 @@
+/**
+ * Courier Guy (thecourierguy.co.za) shipment creation.
+ *
+ * Called from the PayFast ITN handler after an order is marked paid. The whole
+ * integration is opt-in: if either COURIER_GUY_API_BASE_URL or
+ * COURIER_GUY_API_KEY is missing, isCourierGuyConfigured() returns false
+ * and the webhook skips dispatch entirely.
+ *
+ * The response shape from Courier Guy is loosely typed — different account
+ * tiers return different field names (tracking_number vs trackingNumber vs
+ * waybill_number). The mapping below accepts any of them.
+ */
+
 import type { Order, OrderItem } from "@/types";
 
 const COURIER_GUY_API_BASE_URL = process.env.COURIER_GUY_API_BASE_URL?.replace(
@@ -65,7 +78,10 @@ export async function createCourierGuyShipment(
     parcels: items.map((item) => ({
       description: item.product_name,
       quantity: item.quantity,
+      // Weight is per-unit; courier multiplies by quantity at the carrier end.
       weight_kg: 0.5,
+      // Total parcel weight for shipping providers that ignore `quantity`.
+      total_weight_kg: Number((0.5 * item.quantity).toFixed(2)),
       value: Number(item.line_total),
     })),
     instructions: order.notes ? order.notes.trim() : undefined,

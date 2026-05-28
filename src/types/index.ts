@@ -1,3 +1,22 @@
+/**
+ * Domain types shared between server, client, and the Supabase schema.
+ *
+ * Field naming mirrors the Supabase columns (snake_case) for everything
+ * the DB owns (Product, Order, OrderItem, DiscountCode), and camelCase for
+ * UI-only types (CartLine, CheckoutFormData, Testimonial, NavLink).
+ *
+ * The `payfast_payment_id` column stores our own `m_payment_id` (= order id)
+ * set at checkout, and `payfast_pf_payment_id` stores PayFast's
+ * `pf_payment_id` (their internal payment reference) set when the ITN
+ * lands. Both can be null while the order is still pending.
+ */
+
+// --- Catalogue ---------------------------------------------------------
+//
+// MetalType is the variant axis on Product — one DB row per (name, metal).
+// The shop grid collapses variants into a single tile (see queries.ts),
+// and the PDP surfaces the available metals as a swatch picker.
+
 export type MetalType =
   | "gold"
   | "silver"
@@ -77,6 +96,21 @@ export interface NavLink {
   label: string;
   href: string;
 }
+
+// --- Order Lifecycle ---------------------------------------------------
+//
+// Orders are inserted in `pending` state by /api/checkout and flipped to
+// `paid` by the PayFast ITN handler (or directly to `paid` for R0 totals).
+// Transitions:
+//   pending  -> paid       (ITN COMPLETE)
+//   pending  -> failed     (payment-request build error, amount mismatch,
+//                           DB error, ITN payment_status=FAILED)
+//   pending  -> cancelled  (ITN payment_status=CANCELLED)
+//
+// ShippingStatus is separate so a paid order can transition independently
+// through dispatch:
+//   pending  -> created  -> shipped  -> delivered
+//   ...      -> failed   (Courier Guy errored)
 
 export type OrderStatus = "pending" | "paid" | "failed" | "cancelled";
 export type ShippingStatus =

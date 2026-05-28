@@ -1,3 +1,10 @@
+/**
+ * useEmailSubscribe — POSTs to /api/subscribe and exposes status + the
+ * generated discount code. Returned `subscribe` resolves with the final
+ * status so callers can act on success (e.g. clear the input) without
+ * triggering React's "setState in effect" warning.
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -8,8 +15,12 @@ export function useEmailSubscribe() {
   const [status, setStatus] = useState<SubscribeStatus>("idle");
   const [discountCode, setDiscountCode] = useState<string | null>(null);
 
-  async function subscribe(email: string) {
+  async function subscribe(email: string): Promise<SubscribeStatus> {
     setStatus("loading");
+    // Clear any stale code from a prior attempt so we don't show last run's
+    // code if the current run resolves to duplicate/error.
+    setDiscountCode(null);
+    let result: SubscribeStatus;
     try {
       const res = await fetch("/api/subscribe", {
         method: "POST",
@@ -18,16 +29,18 @@ export function useEmailSubscribe() {
       });
       const data = await res.json();
       if (res.status === 409) {
-        setStatus("duplicate");
+        result = "duplicate";
       } else if (!res.ok) {
-        setStatus("error");
+        result = "error";
       } else {
         setDiscountCode(data.discountCode ?? null);
-        setStatus("success");
+        result = "success";
       }
     } catch {
-      setStatus("error");
+      result = "error";
     }
+    setStatus(result);
+    return result;
   }
 
   return { status, discountCode, subscribe };

@@ -1,3 +1,13 @@
+/**
+ * POST /api/shipping/quote — returns the shipping cost the checkout will
+ * charge for a given destination + line set. Used by CheckoutClient to
+ * render the live shipping total as the user fills in the address.
+ *
+ * The shipping cost on the order at /api/checkout is recomputed with the
+ * same estimateShippingCost(), so the quote here is informational; we
+ * never trust the client's claim about it.
+ */
+
 import { estimateShippingCost } from "@/lib/shipping";
 
 export const runtime = "nodejs";

@@ -1,5 +1,4 @@
-"use client";
-
+/** Wordmark — text-only "Charmistry" rendered in the heading font. */
 export default function Logo({ className = "" }: { className?: string }) {
   return (
     <span

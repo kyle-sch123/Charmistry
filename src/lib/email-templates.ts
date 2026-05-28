@@ -1,3 +1,21 @@
+/**
+ * Transactional email HTML templates (Resend).
+ *
+ * All templates are written as inline-styled tables — that's the
+ * lowest-common-denominator that Outlook, Gmail and Apple Mail all render
+ * consistently. Do not introduce external stylesheets or <link> tags; many
+ * clients strip them silently.
+ *
+ * Three templates:
+ * - orderConfirmationHtml() — customer-facing receipt.
+ * - merchantOrderNotificationHtml() — fulfilment team's new-order alert,
+ *   with the customer's email and phone as reply-to / call targets.
+ * - welcomeEmailHtml() — newsletter signup, includes the generated code.
+ *
+ * escapeHtml() runs on every user-supplied field; never inline an order
+ * field without going through it.
+ */
+
 import type { Order, OrderItem } from "@/types";
 
 function formatZar(amount: number): string {
@@ -74,6 +92,14 @@ export function orderConfirmationHtml(order: Order, items: OrderItem[]): string 
                   <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Subtotal</td>
                   <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">${formatZar(Number(order.subtotal))}</td>
                 </tr>
+                ${
+                  Number(order.discount_amount) > 0
+                    ? `<tr>
+                  <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Discount${order.discount_code ? ` (${escapeHtml(order.discount_code)})` : ""}</td>
+                  <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">−${formatZar(Number(order.discount_amount))}</td>
+                </tr>`
+                    : ""
+                }
                 <tr>
                   <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Shipping</td>
                   <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
@@ -222,6 +248,14 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
                   <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Subtotal</td>
                   <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">${formatZar(Number(order.subtotal))}</td>
                 </tr>
+                ${
+                  Number(order.discount_amount) > 0
+                    ? `<tr>
+                  <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Discount${order.discount_code ? ` (${escapeHtml(order.discount_code)})` : ""}</td>
+                  <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">−${formatZar(Number(order.discount_amount))}</td>
+                </tr>`
+                    : ""
+                }
                 <tr>
                   <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Shipping</td>
                   <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
@@ -239,7 +273,7 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
           <tr>
             <td style="padding:16px 32px;background:#FAFAF8;border-top:1px solid #E0DDD8;">
               <p style="margin:0;font-size:11px;color:#6B6B6B;line-height:1.6;">
-                Payment reference: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.payfast_pf_payment_id ?? "—")}</code><br/>
+                Payment reference: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.payfast_pf_payment_id ?? order.payfast_payment_id ?? "—")}</code><br/>
                 Order ID: <code style="font-size:11px;color:#0A0A0A;">${escapeHtml(order.id)}</code>
               </p>
             </td>
@@ -253,8 +287,15 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
 </html>`;
 }
 
-function escapeHtml(value: string): string {
-  return value
+function escapeHtml(value: string | number | null | undefined): string {
+  // String() coerces numbers (PayFast's `pf_payment_id` arrives as a string
+  // in form-encoded ITN bodies, but the column has historically held both
+  // numeric and string ids), null, and undefined so the merchant template
+  // doesn't crash when it inlines `order.payfast_pf_payment_id` — the
+  // previous signature accepted only string and threw
+  // `value.replace is not a function` on a number, which silently dropped
+  // the merchant notification email.
+  return String(value ?? "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
@@ -271,8 +312,6 @@ export function welcomeEmailHtml(discountCode: string): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Welcome to the Charmistry Club</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link href="https://fonts.googleapis.com/css2?family=Gilda+Display&family=Outfit:wght@300;400;500&display=swap" rel="stylesheet" />
 </head>
 <body style="margin:0;padding:0;background:#FAFAF8;font-family:'Outfit',sans-serif;color:#0A0A0A;">
   <table width="100%" cellpadding="0" cellspacing="0" role="presentation" style="background:#FAFAF8;">
@@ -338,7 +377,7 @@ export function welcomeEmailHtml(discountCode: string): string {
             <td style="padding:24px 48px;border-top:1px solid #E0DDD8;text-align:center;">
               <p style="margin:0;font-size:11px;color:#B8B5B0;letter-spacing:0.05em;line-height:1.8;">
                 You're receiving this because you joined the Charmistry Club.<br/>
-                <a href="${siteUrl}" style="color:#B8B5B0;text-decoration:underline;">Unsubscribe</a>
+                To unsubscribe, reply to this email with "unsubscribe" in the subject line.
               </p>
             </td>
           </tr>

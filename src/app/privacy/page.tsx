@@ -1,6 +1,8 @@
+/** Static content page — refund, returns and privacy policy. */
+
 "use client";
 
-import { useRef } from "react";
+import { Fragment, useRef } from "react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -36,10 +38,10 @@ const sections = [
           please email us within{" "}
           <span className="font-medium text-ink">7 days of delivery</span> at{" "}
           <a
-            href="mailto:chamristryza@gmail.com"
+            href="mailto:charmistryza@gmail.com"
             className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
           >
-            chamristryza@gmail.com
+            charmistryza@gmail.com
           </a>
           .
         </p>
@@ -237,11 +239,10 @@ export default function RefundAndPrivacyPolicy() {
           {/* Sections */}
           <div className="flex flex-col">
             {sections.map((section, i) => (
-              <>
+              <Fragment key={section.num}>
                 {/* Privacy sub-heading divider */}
                 {i === divider && (
                   <motion.div
-                    key="privacy-divider"
                     className="flex items-center gap-4 pt-4 pb-2 mt-4"
                     initial={{ opacity: 0 }}
                     whileInView={{ opacity: 1 }}
@@ -263,7 +264,6 @@ export default function RefundAndPrivacyPolicy() {
                 )}
 
                 <motion.div
-                  key={section.num}
                   className="border-b border-ink/10 py-7 last:border-b-0"
                   initial={{ opacity: 0, y: 16 }}
                   whileInView={{ opacity: 1, y: 0 }}
@@ -312,7 +312,7 @@ export default function RefundAndPrivacyPolicy() {
                     {section.content}
                   </div>
                 </motion.div>
-              </>
+              </Fragment>
             ))}
           </div>
         </div>

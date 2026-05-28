@@ -1,3 +1,5 @@
+/** ScrollReveal — fades + slides children in once on viewport entry. */
+
 "use client";
 
 import { motion } from "framer-motion";

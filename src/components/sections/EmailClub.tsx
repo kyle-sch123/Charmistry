@@ -1,3 +1,8 @@
+/**
+ * EmailClub — home-page newsletter form. POSTs to /api/subscribe via
+ * useEmailSubscribe(); on success shows the generated discount code.
+ */
+
 "use client";
 
 import { useState } from "react";
@@ -9,12 +14,12 @@ export default function EmailClub() {
   const [email, setEmail] = useState("");
   const { status, discountCode, subscribe } = useEmailSubscribe();
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (email) {
-      subscribe(email);
-      setEmail("");
-    }
+    if (!email) return;
+    // Clear input only after success so a failed request preserves the value.
+    const result = await subscribe(email);
+    if (result === "success") setEmail("");
   }
 
   return (

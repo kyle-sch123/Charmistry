@@ -1,3 +1,5 @@
+/** Payment-cancelled landing — reached if PayFast returns with a cancel. */
+
 import type { Metadata } from "next";
 import Link from "next/link";
 import Navbar from "@/components/layout/Navbar";

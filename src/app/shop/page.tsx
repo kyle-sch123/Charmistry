@@ -1,3 +1,18 @@
+/**
+ * Shop grid — server-renders the catalogue with category, availability,
+ * price and metal filters applied. Filters and sort live in the URL query
+ * string, so links are shareable and the back button works.
+ *
+ * URL params:
+ *   category   — slug (rings, necklaces, …); whitelisted server-side.
+ *   sort       — best-selling | price-asc | price-desc | newest | name-asc.
+ *   in_stock   — "1" to filter to in-stock only.
+ *   min_price  — numeric, ZAR.
+ *   max_price  — numeric, ZAR.
+ *   metals     — comma-separated MetalType; values not in ALLOWED_METALS
+ *                are silently dropped (no error UI for typos).
+ */
+
 import Link from "next/link";
 import { Suspense } from "react";
 import type { Metadata } from "next";

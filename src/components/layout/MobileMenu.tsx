@@ -1,5 +1,11 @@
+/**
+ * Mobile menu — full-screen overlay opened by the hamburger in Navbar.
+ * ESC closes it and body scroll is locked while open.
+ */
+
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { navLinks, shopCategories } from "@/data/navigation";
@@ -11,10 +17,29 @@ interface MobileMenuProps {
 }
 
 export default function MobileMenu({ open, onClose }: MobileMenuProps) {
+  // ESC closes the menu and body scroll locks while open.
+  useEffect(() => {
+    if (!open) return;
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = original;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
   return (
     <AnimatePresence>
       {open && (
         <motion.div
+          id="mobile-menu"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Site menu"
           className="fixed inset-0 z-[60] bg-obsidian flex flex-col"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}

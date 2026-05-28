@@ -1,3 +1,12 @@
+/**
+ * Right-side cart drawer — slides in over the page when isOpen is true.
+ *
+ * Globally mounted from the root layout so any page can call openCart()
+ * from the cart store. Body scroll is locked while open, ESC closes, and
+ * the backdrop click also closes. Quantity controls bump the line via
+ * the cart store (which clamps to maxQuantity from the cached row).
+ */
+
 "use client";
 
 import { useEffect } from "react";

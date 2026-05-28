@@ -1,3 +1,19 @@
+/**
+ * Catalogue reads via the anon Supabase client.
+ *
+ * This file is the public read surface — everything here is callable from
+ * Server Components or directly from the browser via the same anon key.
+ * Writes never go through this module; see /api/* routes for those.
+ *
+ * Two non-obvious behaviours worth knowing about:
+ * - getShopProducts() de-duplicates by (name + category_id). The DB stores
+ *   one row per metal variant; the shop grid shows one tile per piece, and
+ *   the variant picker on the PDP surfaces the metals.
+ * - getProductImages() lists a Supabase Storage bucket by prefix-matching
+ *   the product slug. If the bucket isn't list-able by the anon role the
+ *   call returns []; the PDP falls back to the row's image_url + images[].
+ */
+
 import { supabase } from "./supabase";
 import type {
   MetalType,
@@ -141,36 +157,6 @@ export async function getInStockProducts(): Promise<ProductWithCategory[]> {
   return data as ProductWithCategory[];
 }
 
-export async function getFeaturedProducts(
-  limit = 8,
-): Promise<ProductWithCategory[]> {
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("in_stock", true)
-    .order("review_count", { ascending: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return data as ProductWithCategory[];
-}
-
-export async function getBestsellers(
-  limit = 5,
-): Promise<ProductWithCategory[]> {
-  // True bestsellers: most-reviewed in-stock pieces, tie-broken by rating.
-  const { data, error } = await supabase
-    .from("products")
-    .select(PRODUCT_SELECT)
-    .eq("in_stock", true)
-    .order("review_count", { ascending: false })
-    .order("rating", { ascending: false, nullsFirst: false })
-    .limit(limit);
-
-  if (error) throw error;
-  return data as ProductWithCategory[];
-}
-
 export async function getProductBySlug(
   slug: string,
 ): Promise<ProductWithCategory | null> {
@@ -283,12 +269,19 @@ export async function getProductImages(productName: string): Promise<string[]> {
     .from(bucketName)
     .list("", { limit: 100 });
 
-  if (error || !data) return [];
+  if (error) {
+    console.warn("getProductImages: bucket list failed", error);
+    return [];
+  }
+  if (!data) return [];
 
+  // Match the slug as a word-boundary prefix (e.g. "ring" matches "ring-gold.jpg"
+  // but not "ring-set-silver.jpg"). Avoids unrelated products bleeding in.
   const slug = productName.toLowerCase().replace(/\s+/g, "-");
+  const slugPattern = new RegExp(`(^|[/_-])${escapeRegex(slug)}([_.-]|$)`, "i");
 
   const matched = data
-    .filter((file) => file.name.toLowerCase().includes(slug))
+    .filter((file) => slugPattern.test(file.name))
     .map((file) => {
       const { data: urlData } = supabase.storage
         .from(bucketName)
@@ -297,4 +290,8 @@ export async function getProductImages(productName: string): Promise<string[]> {
     });
 
   return matched;
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }

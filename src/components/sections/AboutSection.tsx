@@ -1,3 +1,5 @@
+/** AboutSection — two-column "Jewelry That Keeps Up" brand statement. */
+
 "use client";
 
 import Image from "next/image";
@@ -76,7 +78,7 @@ export default function AboutSection() {
                     letterSpacing: "0.2em",
                   }}
                 >
-                  Waterproof, tarnish-resistant and designed to be worn daily.
+                  Water-resistant, tarnish-resistant and designed to be worn daily.
                 </p>
                 <p
                   className="text-ink font-semibold uppercase"

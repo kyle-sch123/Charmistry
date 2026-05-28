@@ -1,5 +1,37 @@
+/**
+ * Checkout API — validates the cart, prices it server-side, persists a
+ * pending order, then either marks it paid (R0 total) or builds a signed
+ * PayFast payment request for the browser to POST.
+ *
+ * Why it exists:
+ * The client cannot be trusted for prices, stock, or discount value.
+ * Every value used on the order row is recomputed from the products table
+ * and the discounts RPC.
+ *
+ * Architecture:
+ * - resolveDiscount() — read-only check; does NOT consume the code.
+ * - orders insert — created in pending state (or paid for R0 totals).
+ * - order_items insert — line totals are server-computed, not client-supplied.
+ * - consumeDiscount() — RPC that conditionally increments uses_count; runs
+ *   after order persistence so a failed insert doesn't burn a code.
+ * - buildPaymentRequest() — PayFast call (signature build); refunds the
+ *   discount on failure.
+ *
+ * Order of operations: ORDER MATTERS.
+ *   1. Validate input -> 2. Fetch products -> 3. Compute totals
+ *   -> 4. Insert order -> 5. Insert items -> 6. Consume discount
+ *   -> 7. (Optional) Build PayFast payment request
+ * Reordering 5 and 6 makes a failed item-insert leak a consumed discount.
+ * Reordering 6 and 7 makes a failed payment-request build leak a consumed
+ * discount AND a paid-but-not-paid-for order.
+ *
+ * Connects to:
+ * - /api/payfast/notify — flips status from pending -> paid on ITN receipt.
+ * - /checkout/success — the redirectUrl returned for R0 orders.
+ */
+
 import { createServerSupabase } from "@/lib/supabase-server";
-import { initializeTransaction } from "@/lib/paystack";
+import { buildPaymentRequest } from "@/lib/payfast";
 import { estimateShippingCost } from "@/lib/shipping";
 import {
   consumeDiscount,
@@ -11,6 +43,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// Hard caps so a hostile payload can't OOM the server or build a
+// thousand-item PayFast form.
 const MAX_LINE_QTY = 99;
 const MAX_LINES = 50;
 
@@ -142,7 +176,10 @@ export async function POST(request: Request) {
       );
     }
     const available = Number(product.quantity ?? 0);
-    if (available > 0 && qty > available) {
+    // Reject whenever stock can't cover the requested qty. `available <= 0`
+    // means the row is depleted even though `in_stock` is still true (a stale
+    // flag we can't trust on its own).
+    if (available <= 0 || qty > available) {
       return Response.json(
         { error: "insufficient_stock", product: product.name, available },
         { status: 409 },
@@ -179,8 +216,8 @@ export async function POST(request: Request) {
     },
   });
 
-  // Resolve + atomically consume discount code server-side. Never trust the
-  // client's claim about discount amount.
+  // Resolve discount (read-only). Consumption happens after order insert so
+  // a failed insert doesn't permanently consume a code.
   let discountAmount = 0;
   let discountCodeText: string | null = null;
   let discountCodeId: string | null = null;
@@ -199,13 +236,6 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
-    const consumed = await consumeDiscount(supabase, resolved.code.id);
-    if (!consumed) {
-      return Response.json(
-        { error: "discount_invalid", reason: "max_uses_reached" },
-        { status: 400 },
-      );
-    }
     discountAmount = resolved.amount;
     discountCodeText = resolved.code.code;
     discountCodeId = resolved.code.id;
@@ -215,11 +245,13 @@ export async function POST(request: Request) {
     Math.max(0, subtotal + shippingCost - discountAmount).toFixed(2),
   );
 
-  if (total <= 0) {
+  if (total < 0) {
     return Response.json({ error: "invalid_total" }, { status: 400 });
   }
 
-  // Create the pending order
+  // Create the order. If total is zero (e.g. 100%-off welcome code), mark it
+  // paid immediately and skip PayFast — PayFast rejects R0 transactions.
+  const isZeroTotal = total === 0;
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -238,7 +270,8 @@ export async function POST(request: Request) {
       discount_amount: discountAmount,
       total,
       currency: "ZAR",
-      status: "pending",
+      status: isZeroTotal ? "paid" : "pending",
+      paid_at: isZeroTotal ? new Date().toISOString() : null,
       notes: notes || null,
     })
     .select("id")
@@ -246,7 +279,6 @@ export async function POST(request: Request) {
 
   if (orderError || !order) {
     console.error("Checkout: order insert failed", orderError);
-    if (discountCodeId) await refundDiscount(supabase, discountCodeId);
     return Response.json({ error: "service_error" }, { status: 500 });
   }
 
@@ -267,30 +299,63 @@ export async function POST(request: Request) {
     console.error("Checkout: order_items insert failed", itemsError);
     // Roll back the order so we don't leave orphans
     await supabase.from("orders").delete().eq("id", order.id);
-    if (discountCodeId) await refundDiscount(supabase, discountCodeId);
     return Response.json({ error: "service_error" }, { status: 500 });
   }
 
-  // Initialize Paystack transaction
+  // Now that the order + items are persisted, consume the discount. Discount
+  // RPC is conditional; if it fails (concurrent exhaustion), we fail the order.
+  if (discountCodeId) {
+    const consumed = await consumeDiscount(supabase, discountCodeId);
+    if (!consumed) {
+      await supabase.from("order_items").delete().eq("order_id", order.id);
+      await supabase.from("orders").delete().eq("id", order.id);
+      return Response.json(
+        { error: "discount_invalid", reason: "max_uses_reached" },
+        { status: 400 },
+      );
+    }
+  }
+
+  // Zero-total orders are done — no payment provider call needed.
+  if (isZeroTotal) {
+    return Response.json(
+      {
+        success: true,
+        orderId: order.id,
+        zeroTotal: true,
+        redirectUrl: `${getSiteUrl(request)}/checkout/success?order=${order.id}`,
+      },
+      { status: 200 },
+    );
+  }
+
+  // Build the PayFast payment request. PayFast looks the order back up
+  // in the ITN handler via the `m_payment_id` form field (= order.id).
   const siteUrl = getSiteUrl(request);
   const itemName =
     orderLines.length === 1
       ? orderLines[0].product_name
-      : `Charmistry order (${orderLines.reduce((acc, l) => acc + l.quantity, 0)} items)`;
+      : `${orderLines[0].product_name} +${orderLines.length - 1} more`;
 
-  let initialization;
+  let paymentRequest;
   try {
-    initialization = await initializeTransaction({
+    paymentRequest = buildPaymentRequest({
       orderId: order.id,
-      email,
       amountZar: total,
-      callbackUrl: `${siteUrl}/checkout/success?order=${order.id}`,
-      metadata: {
-        orderId: order.id,
-      },
+      email,
+      firstName,
+      lastName,
+      phone,
+      itemName,
+      itemDescription: `Charmistry order ${order.id.slice(0, 8).toUpperCase()}`,
+      returnUrl: `${siteUrl}/checkout/success?order=${order.id}`,
+      cancelUrl: `${siteUrl}/checkout/cancelled?order=${order.id}`,
+      notifyUrl: `${siteUrl}/api/payfast/notify`,
     });
   } catch (err) {
-    console.error("Checkout: Paystack initialize failed", err);
+    console.error("Checkout: PayFast payment-request build failed", err);
+    // Refund the consumed discount and mark the order failed.
+    if (discountCodeId) await refundDiscount(supabase, discountCodeId);
     await supabase
       .from("orders")
       .update({ status: "failed" })
@@ -298,17 +363,21 @@ export async function POST(request: Request) {
     return Response.json({ error: "payment_misconfigured" }, { status: 500 });
   }
 
+  // No reference is known yet — PayFast emits its `pf_payment_id` only on
+  // the ITN. `payfast_payment_id` stores our own `m_payment_id` (the order
+  // id), which lets the merchant team trace by short-id if the ITN hasn't
+  // landed yet.
   await supabase
     .from("orders")
-    .update({ payfast_payment_id: initialization.reference })
+    .update({ payfast_payment_id: order.id })
     .eq("id", order.id);
 
   return Response.json(
     {
       success: true,
       orderId: order.id,
-      authorizationUrl: initialization.authorizationUrl,
-      reference: initialization.reference,
+      paymentUrl: paymentRequest.paymentUrl,
+      formData: paymentRequest.formData,
     },
     { status: 200 },
   );

@@ -1,11 +1,9 @@
+/** SectionDivider — gold diamond rule with horizontal lines, between sections. */
+
 "use client";
 
 import { motion } from "framer-motion";
 
-/**
- * Ornamental dark strip that creates a visual break between light sections.
- * Renders a full-width obsidian band with a centered gold-diamond rule.
- */
 export default function SectionDivider() {
   return (
     <div

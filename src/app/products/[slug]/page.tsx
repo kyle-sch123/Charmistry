@@ -1,3 +1,12 @@
+/**
+ * Product detail page — server-renders one product by slug.
+ *
+ * Three Supabase fetches run in parallel after the product is loaded:
+ * variants (rows sharing name + category), related products (same category,
+ * different id), and storage-listed images. The variant set is passed to
+ * ProductDetail.tsx where it powers the metal swatch picker.
+ */
+
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import type { Metadata } from "next";

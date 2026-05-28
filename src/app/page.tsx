@@ -1,3 +1,5 @@
+/** Home page — composes the marketing sections in narrative order. */
+
 import Navbar from "@/components/layout/Navbar";
 import HeroSection from "@/components/sections/HeroSection";
 import CategoriesGrid from "@/components/sections/CategoriesGrid";

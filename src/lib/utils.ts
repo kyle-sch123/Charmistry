@@ -1,3 +1,5 @@
+/** Small utility helpers shared across UI components. */
+
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 

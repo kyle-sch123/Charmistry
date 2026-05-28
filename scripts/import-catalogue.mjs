@@ -1,3 +1,25 @@
+/**
+ * Catalogue import — hydrates the Supabase products table from a CSV.
+ *
+ * Two CSV shapes are detected from the header row:
+ *   - "inventory"   — Product;Catagory;Gold/Silver;Sellng Price;Qty;Product Photo
+ *                     (note the typos: those header strings come straight from
+ *                     the merchant's spreadsheet; do not "correct" them)
+ *   - "description" — Product Name;Description;Material;Length/Size;Image Filename
+ *
+ * Inventory rows update price, quantity, category, metal and image_url on
+ * matching products. Description rows update description and append to the
+ * images array. New categories are created on demand; new products are NOT
+ * — they must already exist in the table (insert them via Supabase Studio
+ * first, then run this to fill in inventory/copy).
+ *
+ * Run:
+ *   node scripts/import-catalogue.mjs path/to/file.csv
+ *
+ * Requires SUPABASE_SERVICE_ROLE_KEY in .env.local. Falls back to anon key
+ * if missing, but anon will silently fail any write that's blocked by RLS.
+ */
+
 import fs from "node:fs";
 import path from "node:path";
 import { createClient } from "@supabase/supabase-js";
@@ -38,7 +60,7 @@ if (lines.length === 0) {
 
 const delimiter = detectDelimiter(lines[0]);
 const header = parseCsvLine(lines[0], delimiter).map((h) => normalizeHeader(h));
-const rows = lines.slice(1).map((line, index) => {
+const rows = lines.slice(1).map((line) => {
     const values = parseCsvLine(line, delimiter);
     return header.reduce((acc, key, idx) => {
         acc[key] = values[idx] ?? "";
@@ -130,15 +152,6 @@ function normalizeName(value) {
     return value.trim().replace(/\s+/g, " ");
 }
 
-function normalizeSlug(value) {
-    return value
-        .trim()
-        .toLowerCase()
-        .replace(/[’'`]/g, "")
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "");
-}
-
 function normalizeMetal(value) {
     const raw = value.trim().toLowerCase();
     if (raw === "gold") return "gold";
@@ -193,7 +206,6 @@ async function importInventory(rows) {
         const metal = normalizeMetal(metalValue);
         const price = parsePrice(priceValue);
         const quantity = parseQuantity(qtyValue);
-        const inStock = typeof quantity === "number" ? quantity > 0 : true;
 
         let categoryId = null;
         if (categorySlug) {
@@ -242,6 +254,9 @@ async function importInventory(rows) {
             if (typeof quantity === "number") {
                 updated.quantity = quantity;
                 updated.in_stock = quantity > 0;
+            }
+            if (typeof price === "number") {
+                updated.price = price;
             }
             if (categoryId) updated.category_id = categoryId;
             if (metal) updated.metal = metal;

@@ -1,3 +1,9 @@
+/**
+ * "Bestsellers" home-page section — fetches /api/bestsellers (top 5 by
+ * review_count, tie-broken by rating) and renders them as a small grid.
+ * Hides itself silently if the API fails or returns nothing.
+ */
+
 "use client";
 
 import { useEffect, useState } from "react";
@@ -134,13 +140,17 @@ function BestSellerCard({
       >
         {/* Image */}
         <div className="relative overflow-hidden aspect-[3/4] bg-stone">
-          <Image
-            src={item.image_url || "/placeholder.webp"}
-            alt={item.name}
-            fill
-            className="object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-          />
+          {item.image_url ? (
+            <Image
+              src={item.image_url}
+              alt={item.name}
+              fill
+              className="object-cover object-center transition-transform duration-700 group-hover:scale-[1.03]"
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-stone" aria-hidden />
+          )}
           {item.badge && (
             <span className="absolute top-3 left-3 px-2.5 py-1 bg-ink text-paper text-[9px] tracking-[0.18em] uppercase font-body">
               {item.badge}

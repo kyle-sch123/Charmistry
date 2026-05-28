@@ -1,3 +1,5 @@
+/** Static content page — FAQ. */
+
 "use client";
 
 import { useRef } from "react";
@@ -51,12 +53,12 @@ const faqs = [
       <p>
         Secure online payments are processed through{" "}
         <Link
-          href="https://paystack.com/za"
+          href="https://www.payfast.co.za"
           target="_blank"
           rel="noopener noreferrer"
           className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
         >
-          Paystack
+          PayFast
         </Link>
         .
       </p>
@@ -150,7 +152,7 @@ export default function FAQ() {
               Everything you need to know about ordering, delivery, and caring
               for your Charmistry pieces. Can&apos;t find an answer?{" "}
               <a
-                href="mailto:chamristryza@gmail.com"
+                href="mailto:charmistryza@gmail.com"
                 className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
               >
                 Get in touch.

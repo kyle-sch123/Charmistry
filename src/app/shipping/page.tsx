@@ -1,3 +1,5 @@
+/** Static content page — full Terms & Conditions. */
+
 "use client";
 
 import { useRef } from "react";
@@ -83,12 +85,12 @@ const sections = [
         <p>
           We currently accept secure online payments through{" "}
           <Link
-            href="https://paystack.com/za"
+            href="https://www.payfast.co.za"
             target="_blank"
             rel="noopener noreferrer"
             className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
           >
-            Paystack
+            PayFast
           </Link>
           . Orders will only be processed and shipped once payment has been
           successfully received and confirmed.
@@ -152,10 +154,10 @@ const sections = [
           or faulty, please contact us within{" "}
           <span className="font-medium text-ink">7 days of delivery</span> at{" "}
           <a
-            href="mailto:chamristryza@gmail.com"
+            href="mailto:charmistryza@gmail.com"
             className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
           >
-            chamristryza@gmail.com
+            charmistryza@gmail.com
           </a>
           .
         </p>
@@ -258,11 +260,11 @@ const sections = [
             Charmistry
           </p>
           <a
-            href="mailto:chamristryza@gmail.com"
+            href="mailto:charmistryza@gmail.com"
             className="text-ink/60 hover:text-ink transition-colors duration-200 underline underline-offset-4 decoration-ink/20 hover:decoration-ink/50"
             style={{ fontSize: "13px" }}
           >
-            chamristryza@gmail.com
+            charmistryza@gmail.com
           </a>
         </div>
       </>
@@ -274,7 +276,7 @@ const pills = [
   "South Africa only",
   "Secure payments",
   "2–5 business days delivery",
-  "Free shipping over R800",
+  "Free shipping over R600",
 ];
 
 export default function TermsAndConditions() {

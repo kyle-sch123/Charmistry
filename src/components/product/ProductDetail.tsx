@@ -1,3 +1,16 @@
+/**
+ * Product detail body — gallery, variant (metal) picker, quantity stepper
+ * and add-to-bag button.
+ *
+ * Variants are fetched server-side in page.tsx (same name + category, one
+ * row per metal). The local `selectedVariant` controls which row's price,
+ * image set, badge and quantity-cap is shown. Switching variants resets
+ * the active gallery image but keeps the quantity input.
+ *
+ * formatSize() handles two legacy sentinels stored in the size column:
+ * "0" → "Adjustable" (rings/bracelets), "-1" → "9x10cm" (jewellery boxes).
+ */
+
 "use client";
 
 import { useMemo, useState } from "react";
@@ -215,25 +228,24 @@ export default function ProductDetail({
         )}
 
         {(material || formattedSize) && (
-          <div className="mt-5 grid gap-3 text-sm text-ink/80">
+          <dl className="mt-7 flex border-y border-ink/10 divide-x divide-ink/10">
             {material && (
-              <div>
-                <p className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
+              <div className="flex-1 py-4 px-5 first:pl-0 last:pr-0">
+                <dt className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
                   Material
-                </p>
-                <p className="font-body">{material}</p>
+                </dt>
+                <dd className="mt-1.5 font-body text-sm text-ink">{material}</dd>
               </div>
             )}
-
             {formattedSize && (
-              <div>
-                <p className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
+              <div className="flex-1 py-4 px-5 first:pl-0 last:pr-0">
+                <dt className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
                   Size
-                </p>
-                <p className="font-body">{formattedSize}</p>
+                </dt>
+                <dd className="mt-1.5 font-body text-sm text-ink">{formattedSize}</dd>
               </div>
             )}
-          </div>
+          </dl>
         )}
 
         {/* Metal variant selector */}
@@ -335,7 +347,9 @@ export default function ProductDetail({
             </span>
             <button
               onClick={() =>
-                setQuantity((q) => Math.min(maxQty || q + 1, q + 1))
+                setQuantity((q) =>
+                  maxQty > 0 ? Math.min(maxQty, q + 1) : q,
+                )
               }
               className="w-11 h-12 flex items-center justify-center text-ink/70 hover:text-ink cursor-pointer disabled:opacity-30"
               disabled={disabled || quantity >= maxQty}

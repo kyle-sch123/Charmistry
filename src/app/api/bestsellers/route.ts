@@ -1,3 +1,9 @@
+/**
+ * GET /api/bestsellers — top 5 in-stock products by review_count then rating.
+ * Used by the home-page BestSellers section so it can render after the
+ * cart hydrates without blocking the shell. Cacheable.
+ */
+
 import { createServerSupabase } from "@/lib/supabase-server";
 
 export const runtime = "nodejs";

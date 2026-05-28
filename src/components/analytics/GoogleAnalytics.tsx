@@ -1,3 +1,8 @@
+/**
+ * Injects the Google Analytics gtag script and fires a pageview on every
+ * client-side route change. Renders null when NEXT_PUBLIC_GA_ID is unset.
+ */
+
 "use client";
 
 import { useEffect } from "react";

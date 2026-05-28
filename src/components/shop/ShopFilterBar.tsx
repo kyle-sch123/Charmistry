@@ -1,3 +1,16 @@
+/**
+ * Filter + sort bar on the /shop page.
+ *
+ * Filter state lives entirely in the URL — every dropdown change calls
+ * router.push() with the updated query string and the shop page re-renders
+ * with the new params. That keeps links shareable and the back button
+ * working, but means every filter change is a full server round-trip.
+ *
+ * Whitelisted enums (SORT_OPTIONS, METAL_OPTIONS) and a parseMetalsParam()
+ * that drops unknown values prevent URL-injected garbage from reaching
+ * Supabase.
+ */
+
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
