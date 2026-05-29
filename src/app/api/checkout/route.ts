@@ -38,6 +38,7 @@ import {
   refundDiscount,
   resolveDiscount,
 } from "@/lib/discounts";
+import { decrementProductStock } from "@/lib/inventory";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -316,8 +317,13 @@ export async function POST(request: Request) {
     }
   }
 
-  // Zero-total orders are done — no payment provider call needed.
+  // Zero-total orders are done — no payment provider call needed. They are
+  // created paid (no ITN will ever fire), so decrement stock here, once.
   if (isZeroTotal) {
+    await decrementProductStock(
+      supabase,
+      orderLines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
+    );
     return Response.json(
       {
         success: true,

@@ -45,6 +45,7 @@ import {
   merchantOrderNotificationHtml,
   orderConfirmationHtml,
 } from "@/lib/email-templates";
+import { decrementProductStock } from "@/lib/inventory";
 import type { Order, OrderItem } from "@/types";
 
 export const runtime = "nodejs";
@@ -170,6 +171,15 @@ export async function POST(request: Request) {
       orderId,
     });
   } else {
+    // Payment is confirmed and this invocation won the pending→paid race, so
+    // it runs exactly once: decrement stock now (validated at checkout, debited
+    // here). Atomic + oversell-safe in the DB; best-effort so a stock-write
+    // hiccup never blocks the confirmation email or courier dispatch.
+    await decrementProductStock(
+      supabase,
+      items.map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
+    );
+
     const trackingPromises = [sendConfirmationEmail(orderId)];
 
     if (isKlaviyoConfigured()) {

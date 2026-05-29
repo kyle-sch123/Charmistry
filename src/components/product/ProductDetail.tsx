@@ -390,11 +390,7 @@ export default function ProductDetail({
           </li>
           <li className="flex items-center gap-3">
             <span className="w-1 h-1 bg-gold rounded-full" />
-            30-day easy returns
-          </li>
-          <li className="flex items-center gap-3">
-            <span className="w-1 h-1 bg-gold rounded-full" />
-            Handcrafted in South Africa
+            Handcrafted
           </li>
         </ul>
       </div>

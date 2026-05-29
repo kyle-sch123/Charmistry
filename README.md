@@ -302,9 +302,10 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `003_add_material_size.sql`           | `material`, `size` columns on products (no-op if 000 ran first) |
 | `004_discount_rpcs.sql`               | `redeem_discount_code()` and `refund_discount_code()` |
 | `005_email_canonical.sql`             | `discount_codes.email_canonical` + partial unique index over active rows (welcome-code abuse fix — see "Newsletter signup" below) |
+| `006_stock_decrement_rpc.sql`         | `decrement_product_stock()` — atomic, oversell-safe stock debit run on payment confirmation |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
-enums) so re-running them is safe.
+enums, CREATE OR REPLACE for functions) so re-running them is safe.
 
 **Storage bucket** — `getProductImages()` in `lib/queries.ts` lists a
 Supabase Storage bucket (default name `Charmistry Assets`, override with
@@ -464,11 +465,12 @@ A successful purchase produces these side effects in order:
 5. **Browser builds + submits the hidden POST form** to PayFast's hosted page. User pays.
 6. **PayFast POSTs the ITN** to `/api/payfast/notify`.
 7. **Order updated** to `status='paid'`, `paid_at=now()`, `payfast_pf_payment_id` set.
-8. **Customer confirmation email** sent (Resend).
-9. **Merchant notification email** sent (Resend) — only if `MERCHANT_NOTIFICATION_EMAIL` is set.
-10. **Klaviyo `Placed Order` event** fired (if `KLAVIYO_API_KEY` set).
-11. **Courier Guy shipment created** (if Courier Guy env vars set), order updated with tracking info.
-12. **Klaviyo `Shipped Order` event** fired (if both Courier Guy and Klaviyo configured).
+8. **Stock decremented** — `decrement_product_stock()` RPC atomically debits `products.quantity` per line (clamped at 0, flips `in_stock=false` at zero, flags any oversell).
+9. **Customer confirmation email** sent (Resend).
+10. **Merchant notification email** sent (Resend) — only if `MERCHANT_NOTIFICATION_EMAIL` is set.
+11. **Klaviyo `Placed Order` event** fired (if `KLAVIYO_API_KEY` set).
+12. **Courier Guy shipment created** (if Courier Guy env vars set), order updated with tracking info.
+13. **Klaviyo `Shipped Order` event** fired (if both Courier Guy and Klaviyo configured).
 
 If step 4 (PayFast build) errors, step 3's consume is refunded and the
 order is marked `failed`. If step 6 doesn't fire, the order stays in
@@ -476,14 +478,16 @@ order is marked `failed`. If step 6 doesn't fire, the order stays in
 whom the ITN didn't land can be reconciled manually.
 
 Zero-total orders (100% discount code, exactly matched by shipping) skip
-steps 4 and 5 — the API marks the order `paid` directly and returns a
-`redirectUrl` that takes the browser straight to the success page.
+steps 4 and 5 — the API marks the order `paid` directly, decrements stock,
+and returns a `redirectUrl` that takes the browser straight to the success
+page. (The R0 path does not send the confirmation emails — see "Order
+confirmation emails".)
 
 The ITN handler is race-safe against duplicate deliveries: the
 pending → paid transition uses `.eq("status","pending").select("id")`,
-and the handler bails before steps 8–12 if zero rows were updated. Only
+and the handler bails before steps 8–13 if zero rows were updated. Only
 one concurrent ITN invocation runs the side effects, so a customer can't
-receive duplicate emails or end up with two Courier Guy shipments.
+receive duplicate emails, a double stock debit, or two Courier Guy shipments.
 
 Defence in depth on the ITN: signature verification + server-to-server
 replay to `/eng/query/validate` + amount-gross check. A forged ITN
@@ -569,6 +573,42 @@ Blank out the env var:
 - `NEXT_PUBLIC_GA_ID=` → no GA script
 
 The code checks `isXConfigured()` before calling.
+
+### Order confirmation emails (customer + merchant)
+
+On payment confirmation, `/api/payfast/notify` → `sendConfirmationEmail()`
+sends **two** emails via Resend:
+
+- **Customer** → `order.email`, subject *"Order confirmed — Charmistry
+  #XXXX"*: order summary, line items, totals and shipping address
+  (`orderConfirmationHtml`).
+- **Merchant** → `MERCHANT_NOTIFICATION_EMAIL`, subject *"New order #XXXX —
+  {name} — R{total}"*: the item table (what was bought), customer contact,
+  shipping address and notes — everything needed to pack and dispatch
+  (`merchantOrderNotificationHtml`).
+
+The code is already wired; what makes it actually **deliver** is configuration:
+
+1. **`RESEND_FROM_EMAIL` must be on a Resend-verified domain.** The default
+   `onboarding@resend.dev` is Resend's shared test sender and only delivers
+   to your *own* Resend-account address — real customers get nothing (the
+   403 is caught and logged, so it fails silently). Verify your sending
+   domain in Resend (add the DNS records) and set e.g.
+   `RESEND_FROM_EMAIL=orders@charmistry.co.za`.
+2. **`NEXT_PUBLIC_SITE_URL` must be the public site URL** (not
+   `http://localhost:3000`). Checkout bakes
+   `notify_url=${NEXT_PUBLIC_SITE_URL}/api/payfast/notify` into the PayFast
+   form; if PayFast can't reach it the ITN never arrives, the order stays
+   `pending`, and **no email is ever sent**. Locally, use a tunnel
+   (cloudflared / ngrok) and point this at it.
+3. **`MERCHANT_NOTIFICATION_EMAIL`** is the fulfilment inbox the merchant
+   copy goes to. If unset, the merchant email is skipped (the customer email
+   still sends).
+
+Both emails fire automatically once payment is confirmed — no code change is
+needed. Caveat: the zero-total (100%-off) checkout path marks the order paid
+but does **not** call `sendConfirmationEmail`, so a fully discounted order
+currently notifies no one.
 
 ---
 

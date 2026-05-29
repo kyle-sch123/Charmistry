@@ -2,12 +2,19 @@
  * Reusable product tile used across the shop grid, related products, and
  * (formerly) featured sections.
  *
- * Layout note — the card avoids the invalid HTML pattern of a <button>
- * inside an <a>. Instead, two separate <Link> elements (one absolute
- * overlay over the image, one wrapping the title row) act as the click
- * target, and the Add-to-Bag <button> sits above the image link via
- * z-index + pointer-events:auto. preventDefault/stopPropagation in
- * handleAdd is kept as a defensive belt-and-braces.
+ * Layout note — the whole tile is one navigation target without nesting a
+ * <button> inside an <a>. A single absolutely-positioned <Link> overlay
+ * covers the entire card and is kept OUTSIDE the 3D-tilt wrapper (so it stays
+ * flat). The visual layers (image, tilt wrapper, title) are pointer-events:none
+ * so clicks fall through to the overlay; the Add-to-Bag buttons opt back in via
+ * pointer-events:auto and, being painted above the overlay, win their own clicks.
+ *
+ * Why the link must stay flat and top-level: when it previously lived INSIDE the
+ * preserve-3d + overflow-hidden image box, Chrome's hit-testing diverged from
+ * painting and the cursor-driven tilt collapsed the clickable region toward the
+ * card's centre — only the middle of the tile was clickable. Keeping the link
+ * outside the transformed subtree fixes that. preventDefault/stopPropagation in
+ * handleAdd remain as defensive belt-and-braces.
  */
 
 "use client";
@@ -91,10 +98,9 @@ export default function ProductCard({
       : "border border-ivory/30 text-ivory active:bg-ivory active:text-obsidian";
   const imageBg = variant === "light" ? "bg-stone" : "bg-charcoal";
 
-  // Card structure intentionally avoids nesting `<button>` inside `<a>`:
-  // we render an absolutely-positioned overlay `<Link>` that captures clicks
-  // on the image + text area, and let the Add-to-Bag buttons sit above it
-  // via z-index so their onClick wins.
+  // The whole card is one flat overlay <Link> (rendered first, below); the
+  // visual layers are pointer-events:none so clicks fall through to it, while
+  // the Add-to-Bag buttons opt back in so their onClick wins. See file header.
   return (
     <motion.div
       ref={cardRef}
@@ -104,9 +110,17 @@ export default function ProductCard({
       onMouseLeave={handleMouseLeave}
       whileHover="hover"
     >
+      {/* Whole-card click target — flat and outside the tilt wrapper so the
+          entire tile is a stable, fully-clickable navigation area. */}
+      <Link
+        href={`/products/${product.slug}`}
+        aria-label={product.name}
+        className="absolute inset-0"
+      />
+
       <motion.div
         style={{ rotateX, rotateY, transformStyle: "preserve-3d" }}
-        className="relative"
+        className="relative pointer-events-none"
       >
         <div
           className={`relative overflow-hidden ${imageBg} ${
@@ -145,14 +159,9 @@ export default function ProductCard({
             </span>
           )}
 
-          {/* Link overlay — covers the image so the whole image is clickable. */}
-          <Link
-            href={`/products/${product.slug}`}
-            aria-label={product.name}
-            className="absolute inset-0 z-0"
-          />
-
-          {/* Desktop: hover-reveal CTA. z-index sits above the link overlay. */}
+          {/* Desktop: hover-reveal CTA. Opts back into pointer events so the
+              Add-to-Bag button wins its own clicks; the rest of the tile
+              navigates via the overlay link. */}
           <motion.div
             className="hidden md:block absolute inset-x-0 bottom-0 z-10 p-4 bg-gradient-to-t from-black/60 to-transparent pointer-events-none"
             initial={{ opacity: 0, y: 10 }}
@@ -170,21 +179,18 @@ export default function ProductCard({
         </div>
       </motion.div>
 
-      {/* Mobile: permanent CTA */}
+      {/* Mobile: permanent CTA. relative z-10 lifts it above the click overlay
+          so it stays tappable; the rest of the card navigates. */}
       <button
         onClick={handleAdd}
         disabled={soldOut}
-        className={`md:hidden w-full mt-2 py-2.5 text-xs tracking-[0.15em] uppercase font-body transition-colors duration-200 cursor-pointer min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed ${mobileBtn}`}
+        className={`md:hidden relative z-10 w-full mt-2 py-2.5 text-xs tracking-[0.15em] uppercase font-body transition-colors duration-200 cursor-pointer min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed ${mobileBtn}`}
       >
         {soldOut ? "Sold Out" : "Add to Bag"}
       </button>
 
-      {/* Title + price row — also a link target. */}
-      <Link
-        href={`/products/${product.slug}`}
-        aria-label={product.name}
-        className="block pt-4 pb-2"
-      >
+      {/* Title + price row — visual only; clicks fall through to the overlay. */}
+      <div className="pt-4 pb-2">
         <h3 className={titleClass}>{product.name}</h3>
         <div className="flex items-center justify-between mt-1">
           <span className={priceClass}>{formatPrice(product.price)}</span>
@@ -201,7 +207,7 @@ export default function ProductCard({
             </div>
           )}
         </div>
-      </Link>
+      </div>
     </motion.div>
   );
 }
