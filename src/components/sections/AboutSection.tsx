@@ -23,7 +23,7 @@ export default function AboutSection() {
             >
               <Image
                 src={About}
-                alt="Charmistry jewelry lifestyle"
+                alt="Charmistry jewellry lifestyle"
                 fill
                 className="object-cover object-center"
                 sizes="(max-width: 640px) 100vw, (max-width: 1024px) 100vw, 50vw"
@@ -42,7 +42,7 @@ export default function AboutSection() {
                   letterSpacing: "-0.01em",
                 }}
               >
-                Jewelry
+                Jewellry
                 <br />
                 That Keeps Up
               </h2>
@@ -68,7 +68,8 @@ export default function AboutSection() {
                     letterSpacing: "0.2em",
                   }}
                 >
-                  That&apos;s why our jewelry is made from high-quality stainless steel.
+                  That&apos;s why our jewellry is made from high-quality
+                  stainless steel.
                 </p>
                 <p
                   className="text-ink-tertiary uppercase leading-relaxed"
@@ -78,7 +79,8 @@ export default function AboutSection() {
                     letterSpacing: "0.2em",
                   }}
                 >
-                  Water-resistant, tarnish-resistant and designed to be worn daily.
+                  Water-resistant, tarnish-resistant and designed to be worn
+                  daily.
                 </p>
                 <p
                   className="text-ink font-semibold uppercase"

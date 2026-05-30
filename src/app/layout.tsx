@@ -33,7 +33,7 @@ const gilda = Gilda_Display({
 export const metadata: Metadata = {
   title: "Charmistry | Water & Tarnish Resistant Jewellery",
   description:
-    "Discover exquisite handcrafted jewelry. From diamond solitaires to statement pieces, Charmistry brings you luxury redefined.",
+    "Discover exquisite jewellry. From diamond solitaires to statement pieces, Charmistry brings you luxury redefined.",
 };
 
 export default function RootLayout({

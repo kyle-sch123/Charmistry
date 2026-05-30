@@ -234,7 +234,9 @@ export default function ProductDetail({
                 <dt className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
                   Material
                 </dt>
-                <dd className="mt-1.5 font-body text-sm text-ink">{material}</dd>
+                <dd className="mt-1.5 font-body text-sm text-ink">
+                  {material}
+                </dd>
               </div>
             )}
             {formattedSize && (
@@ -242,7 +244,9 @@ export default function ProductDetail({
                 <dt className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
                   Size
                 </dt>
-                <dd className="mt-1.5 font-body text-sm text-ink">{formattedSize}</dd>
+                <dd className="mt-1.5 font-body text-sm text-ink">
+                  {formattedSize}
+                </dd>
               </div>
             )}
           </dl>
@@ -347,9 +351,7 @@ export default function ProductDetail({
             </span>
             <button
               onClick={() =>
-                setQuantity((q) =>
-                  maxQty > 0 ? Math.min(maxQty, q + 1) : q,
-                )
+                setQuantity((q) => (maxQty > 0 ? Math.min(maxQty, q + 1) : q))
               }
               className="w-11 h-12 flex items-center justify-center text-ink/70 hover:text-ink cursor-pointer disabled:opacity-30"
               disabled={disabled || quantity >= maxQty}

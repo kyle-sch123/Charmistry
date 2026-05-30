@@ -31,7 +31,7 @@ export default function HeroSection() {
       >
         <Image
           src={heroImage}
-          alt="Luxury jewelry editorial"
+          alt="Luxury jewellry editorial"
           fill
           className="object-cover object-center"
           priority
@@ -159,7 +159,7 @@ export default function HeroSection() {
           className="text-white/55 text-[9px] tracking-[0.35em] uppercase [writing-mode:vertical-rl]"
           style={{ fontFamily: "var(--font-body)" }}
         >
-          Handcrafted
+          High Quality
         </span>
       </motion.div>
     </section>
