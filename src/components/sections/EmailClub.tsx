@@ -122,7 +122,7 @@ export default function EmailClub() {
                   letterSpacing: "0.1em",
                 }}
               >
-                10% off your first order. Check your inbox for details.
+                10% off your first order.
               </p>
             </motion.div>
           )}
