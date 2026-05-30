@@ -6,8 +6,8 @@
  * PayFast's `return_url` brings the customer back to the success page, but
  * that's a browser redirect under the customer's control. The ITN is the
  * only authoritative confirmation that money actually moved. Anything
- * customer-visible (email, Klaviyo, courier dispatch) must wait for this
- * handler, not the redirect.
+ * customer-visible (email, Klaviyo) must wait for this handler, not the
+ * redirect.
  *
  * Architecture:
  * - verifyItnSignature() — MD5 of the ordered form fields + passphrase,
@@ -19,7 +19,7 @@
  * - Race-safe transition — `UPDATE orders SET status='paid' WHERE
  *   id=... AND status='pending'` with `.select("id")`. Losers of the
  *   pending→paid race return early before side effects so concurrent
- *   ITN redeliveries don't fire emails or courier shipments twice.
+ *   ITN redeliveries don't fire emails twice.
  *
  * Response codes:
  * - 4xx on signature mismatch / failed PayFast validation — PayFast will
@@ -36,10 +36,6 @@ import {
   verifyItnSignature,
   validateItnWithPayFast,
 } from "@/lib/payfast";
-import {
-  createCourierGuyShipment,
-  isCourierGuyConfigured,
-} from "@/lib/courier-guy";
 import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
 import {
   merchantOrderNotificationHtml,
@@ -161,7 +157,7 @@ export async function POST(request: Request) {
   // Race-safe transition: only one concurrent ITN can flip pending → paid.
   // .select("id") makes the row count visible so losers bail out before
   // running the side effects — otherwise concurrent retries would double
-  // the customer's emails and create two Courier Guy shipments.
+  // the customer's emails.
   const { data: updatedRows, error: updateError } = await supabase
     .from("orders")
     .update({
@@ -199,7 +195,7 @@ export async function POST(request: Request) {
     // Payment is confirmed and this invocation won the pending→paid race, so
     // it runs exactly once: decrement stock now (validated at checkout, debited
     // here). Atomic + oversell-safe in the DB; best-effort so a stock-write
-    // hiccup never blocks the confirmation email or courier dispatch.
+    // hiccup never blocks the confirmation email.
     await decrementProductStock(
       supabase,
       items.map((it) => ({ product_id: it.product_id, quantity: it.quantity })),
@@ -229,49 +225,6 @@ export async function POST(request: Request) {
     }
 
     await Promise.allSettled(trackingPromises);
-
-    if (isCourierGuyConfigured()) {
-      try {
-        const shipment = await createCourierGuyShipment(latestOrder, items);
-        await supabase
-          .from("orders")
-          .update({
-            shipping_status: shipment.status,
-            courier: shipment.courier,
-            tracking_number: shipment.trackingNumber,
-            tracking_url: shipment.trackingUrl,
-            waybill_number: shipment.waybillNumber,
-            shipped_at: new Date().toISOString(),
-          })
-          .eq("id", orderId);
-
-        if (isKlaviyoConfigured()) {
-          await trackKlaviyoEvent(
-            "Shipped Order",
-            {
-              email: latestOrder.email,
-              first_name: latestOrder.first_name,
-              last_name: latestOrder.last_name,
-            },
-            {
-              order_id: latestOrder.id,
-              tracking_number: shipment.trackingNumber,
-              tracking_url: shipment.trackingUrl,
-              waybill_number: shipment.waybillNumber,
-              courier: shipment.courier,
-              total: latestOrder.total,
-              currency: latestOrder.currency,
-            },
-          );
-        }
-      } catch (err) {
-        console.error("PayFast ITN: courier shipment failed", err);
-        await supabase
-          .from("orders")
-          .update({ shipping_status: "failed" })
-          .eq("id", orderId);
-      }
-    }
   }
 
   return new Response("OK", { status: 200 });

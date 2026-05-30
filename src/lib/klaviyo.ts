@@ -6,8 +6,7 @@
  * `/api/track` endpoint (base64-encoded GET) — it's still supported and is
  * simpler than the v3 API for one-off server-side calls.
  *
- * Events emitted today: "Placed Order" (on payment) and "Shipped Order"
- * (after Courier Guy returns a tracking number).
+ * Events emitted today: "Placed Order" (on payment).
  */
 
 const KLAVIYO_API_KEY = process.env.KLAVIYO_API_KEY;
