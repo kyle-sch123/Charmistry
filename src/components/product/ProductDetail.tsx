@@ -9,6 +9,8 @@
  *
  * formatSize() handles two legacy sentinels stored in the size column:
  * "0" → "Adjustable" (rings/bracelets), "-1" → "9x10cm" (jewellery boxes).
+ * Plain numeric values are unit-less in the DB and rendered in cm (the
+ * attribute is surfaced to shoppers as "Length").
  */
 
 "use client";
@@ -35,6 +37,9 @@ function formatSize(size: string | number | null | undefined) {
   const raw = String(size).trim();
   if (raw === "0" || raw === "0.0") return "Adjustable";
   if (raw === "-1" || raw === "-1.0") return "9x10cm";
+  // Plain numeric lengths are stored unit-less; render them in cm. Values
+  // that already carry a unit (e.g. "9x10cm") are left untouched.
+  if (/^\d+(\.\d+)?$/.test(raw)) return `${raw}cm`;
   return raw;
 }
 
@@ -242,7 +247,7 @@ export default function ProductDetail({
             {formattedSize && (
               <div className="flex-1 py-4 px-5 first:pl-0 last:pr-0">
                 <dt className="text-[11px] tracking-[0.2em] uppercase text-ink/50 font-body">
-                  Size
+                  Length
                 </dt>
                 <dd className="mt-1.5 font-body text-sm text-ink">
                   {formattedSize}
