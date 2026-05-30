@@ -6,3 +6,9 @@ main = ".open-next/worker.js"
 [assets]
 directory = ".open-next/assets"
 binding = "ASSETS"
+
+# Keep Worker logs on so PayFast ITN delivery (and any runtime error) is
+# observable in the dashboard. The remote Worker previously had this off,
+# which hid the /api/payfast/notify invocations during debugging.
+[observability.logs]
+enabled = true
