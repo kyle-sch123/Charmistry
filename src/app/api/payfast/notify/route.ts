@@ -55,20 +55,45 @@ export async function POST(request: Request) {
   const rawBody = await request.text();
   const { fields, signature } = parseItnBody(rawBody);
 
-  if (!signature || !verifyItnSignature(fields, signature)) {
-    console.warn("PayFast ITN: invalid signature");
-    return new Response("Invalid signature", { status: 400 });
-  }
+  // Diagnostic: surface exactly what arrived so a single real ITN tells us
+  // where (if anywhere) it's being rejected. Logged at info level; remove or
+  // downgrade once the pending-order issue is confirmed resolved.
+  const localSigOk = Boolean(signature) && verifyItnSignature(fields, signature);
+  console.log("PayFast ITN: received", {
+    fieldKeys: Object.keys(fields),
+    m_payment_id: fields.m_payment_id,
+    payment_status: fields.payment_status,
+    amount_gross: fields.amount_gross,
+    hasSignature: Boolean(signature),
+    localSignatureMatch: localSigOk,
+  });
 
-  // Server-to-server: ask PayFast to confirm they sent this ITN. Defends
-  // against a forged signature from anyone who guessed the merchant key.
+  // Authoritative gate: ask PayFast's own server to confirm it emitted this
+  // ITN. This is the source of truth and defends against forged callbacks.
+  //
+  // We intentionally do NOT hard-fail on the *local* signature check: PayFast's
+  // signature is notoriously sensitive to field-ordering / encoding edge cases,
+  // and a false-negative there was silently leaving paid orders stuck in
+  // `pending`. The local check is now advisory (logged above); the
+  // server-to-server validation below is what authorises processing.
   const valid = await validateItnWithPayFast(rawBody).catch((err) => {
     console.warn("PayFast ITN: validate call threw", err);
     return false;
   });
   if (!valid) {
-    console.warn("PayFast ITN: validation with PayFast failed");
+    console.warn("PayFast ITN: validation with PayFast failed", {
+      localSignatureMatch: localSigOk,
+    });
     return new Response("PayFast validation failed", { status: 400 });
+  }
+
+  if (!localSigOk) {
+    // Authoritative validation passed but our local recompute disagreed —
+    // this is the encoding/ordering trap. Log loudly so we can tighten the
+    // local check later, but proceed: PayFast has vouched for the ITN.
+    console.warn(
+      "PayFast ITN: local signature mismatch but PayFast validation passed — proceeding on authoritative validation",
+    );
   }
 
   const orderId = fields.m_payment_id;
