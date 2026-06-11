@@ -395,10 +395,6 @@ export default function ProductDetail({
             <span className="w-1 h-1 bg-gold rounded-full" />
             Complimentary shipping on orders over R600
           </li>
-          <li className="flex items-center gap-3">
-            <span className="w-1 h-1 bg-gold rounded-full" />
-            Handcrafted
-          </li>
         </ul>
       </div>
     </div>

@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Outfit, Gilda_Display } from "next/font/google";
 import CartDrawer from "@/components/cart/CartDrawer";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import Klaviyo from "@/components/analytics/Klaviyo";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -33,7 +34,7 @@ const gilda = Gilda_Display({
 export const metadata: Metadata = {
   title: "Charmistry | Water & Tarnish Resistant Jewellery",
   description:
-    "Discover exquisite jewellry. From diamond solitaires to statement pieces, Charmistry brings you luxury redefined.",
+    "Charmistry is a South African Jewellery brand offering modern, minimal charm bracelets and curated accessories designed to mix, match and personalise your everyday style.",
 };
 
 export default function RootLayout({
@@ -48,6 +49,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <GoogleAnalytics />
+        <Klaviyo />
         {children}
         <CartDrawer />
       </body>

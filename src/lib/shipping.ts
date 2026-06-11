@@ -8,7 +8,7 @@
  *
  * Pricing model:
  * - R600+ subtotal -> free shipping
- * - Otherwise a flat R90, regardless of weight or destination.
+ * - Otherwise a flat R80, regardless of weight or destination.
  */
 
 export interface ShippingEstimateLine {
@@ -30,7 +30,7 @@ export interface ShippingEstimateOptions {
 }
 
 const FREE_SHIPPING_THRESHOLD = 600;
-const FLAT_SHIPPING_COST = 90;
+const FLAT_SHIPPING_COST = 80;
 
 export function estimateShippingCost(options: ShippingEstimateOptions): number {
   if (options.subtotal >= FREE_SHIPPING_THRESHOLD) {
