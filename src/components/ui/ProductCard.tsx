@@ -26,6 +26,7 @@ import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Product, ProductWithCategory } from "@/types";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
+import { trackAddToCart } from "@/lib/gtag";
 
 interface ProductCardProps {
   product: Product | ProductWithCategory;
@@ -75,6 +76,13 @@ export default function ProductCard({
     e.preventDefault();
     e.stopPropagation();
     addItem(product as Product, 1);
+    trackAddToCart({
+      item_id: product.id,
+      item_name: product.name,
+      price: Number(product.price),
+      quantity: 1,
+      item_variant: product.metal ?? undefined,
+    });
   };
 
   const soldOut = !product.in_stock || (product.quantity ?? 0) <= 0;

@@ -15,6 +15,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
+import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
 import type { MetalType } from "@/types";
 
 const metalLabels: Record<MetalType, string> = {
@@ -165,7 +166,16 @@ export default function CartDrawer() {
                             )}
                           </div>
                           <button
-                            onClick={() => removeItem(line.id)}
+                            onClick={() => {
+                              trackRemoveFromCart({
+                                item_id: line.id,
+                                item_name: line.name,
+                                item_variant: line.metal ?? undefined,
+                                price: line.price,
+                                quantity: line.quantity,
+                              });
+                              removeItem(line.id);
+                            }}
                             className="text-ink/40 hover:text-ink transition-colors cursor-pointer shrink-0"
                             aria-label={`Remove ${line.name}${line.metal ? ` (${metalLabels[line.metal]})` : ""}`}
                           >
@@ -217,7 +227,19 @@ export default function CartDrawer() {
                   </p>
                   <Link
                     href="/checkout"
-                    onClick={closeCart}
+                    onClick={() => {
+                      trackBeginCheckout(
+                        lines.map((l) => ({
+                          item_id: l.id,
+                          item_name: l.name,
+                          item_variant: l.metal ?? undefined,
+                          price: l.price,
+                          quantity: l.quantity,
+                        })),
+                        subtotal,
+                      );
+                      closeCart();
+                    }}
                     className="block w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors text-center cursor-pointer"
                   >
                     Checkout
