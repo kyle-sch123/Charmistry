@@ -7,8 +7,7 @@ import { motion } from "framer-motion";
 export default function SectionDivider() {
   return (
     <div
-      className="bg-paper w-full flex items-center justify-center overflow-hidden"
-      style={{ paddingBlock: "clamp(2.2rem, 4vw, 3.2rem)" }}
+      className="bg-paper w-full flex items-center justify-center overflow-hidden py-12 md:py-20"
       aria-hidden="true"
     >
       <motion.div

@@ -48,7 +48,7 @@ export default function BestSellers() {
   return (
     <section
       id="collection"
-      className="bg-paper pt-14 md:pt-20 pb-6 md:pb-8 scroll-mt-24"
+      className="bg-paper pt-14 md:pt-20 pb-0 scroll-mt-24"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         {/* Header */}
@@ -98,8 +98,17 @@ export default function BestSellers() {
           </motion.div>
         </motion.div>
 
-        {/* Product grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 md:gap-5 lg:gap-7">
+        {/* Products — horizontal snap-scroll on mobile, grid on sm+ */}
+        <div
+          className="
+            bestsellers-rail
+            flex snap-x snap-mandatory overflow-x-auto scroll-pl-6
+            -mx-6 px-6 pb-2
+            sm:grid sm:grid-cols-3 lg:grid-cols-5 sm:overflow-visible
+            sm:mx-0 sm:px-0 sm:pb-0 sm:scroll-pl-0
+            gap-3 md:gap-5 lg:gap-7
+          "
+        >
           {loading
             ? Array.from({ length: 5 }).map((_, i) => (
                 <BestSellerSkeleton key={i} />
@@ -108,7 +117,30 @@ export default function BestSellers() {
                 <BestSellerCard key={item.id} item={item} index={i} />
               ))}
         </div>
+
+        {/* Swipe affordance — mobile only */}
+        <p
+          className="sm:hidden mt-4 text-ink/35 text-center"
+          style={{
+            fontFamily: "var(--font-body)",
+            fontSize: "10px",
+            letterSpacing: "0.22em",
+            textTransform: "uppercase",
+          }}
+        >
+          Swipe to explore &rarr;
+        </p>
       </div>
+
+      <style>{`
+        .bestsellers-rail {
+          scrollbar-width: none;
+          -ms-overflow-style: none;
+        }
+        .bestsellers-rail::-webkit-scrollbar {
+          display: none;
+        }
+      `}</style>
     </section>
   );
 }
@@ -122,6 +154,7 @@ function BestSellerCard({
 }) {
   return (
     <motion.div
+      className="snap-start shrink-0 w-[58%] min-[480px]:w-[44%] sm:w-auto sm:shrink"
       initial={{ opacity: 0, y: 28 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-40px" }}
@@ -190,7 +223,7 @@ function BestSellerCard({
 
 function BestSellerSkeleton() {
   return (
-    <div className="animate-pulse">
+    <div className="animate-pulse snap-start shrink-0 w-[58%] min-[480px]:w-[44%] sm:w-auto sm:shrink">
       <div className="aspect-[3/4] bg-stone" />
       <div className="mt-3 space-y-2">
         <div className="h-2 bg-stone w-3/4" />

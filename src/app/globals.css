@@ -34,6 +34,16 @@
   --animate-shimmer: shimmer 2s linear infinite;
   --animate-grain: grain 0.5s steps(1) infinite;
   --animate-pulse-gold: pulse-gold 2s ease-in-out infinite;
+  --animate-marquee: marquee 92s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translateX(0);
+    }
+    to {
+      transform: translateX(-50%);
+    }
+  }
 
   @keyframes float {
     0%,

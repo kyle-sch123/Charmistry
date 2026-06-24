@@ -13,6 +13,7 @@ import Link from "next/link";
 import { motion, useScroll, useTransform, AnimatePresence } from "framer-motion";
 import Logo from "@/components/icons/Logo";
 import MobileMenu from "./MobileMenu";
+import MarqueeBanner from "./MarqueeBanner";
 import SearchOverlay from "@/components/search/SearchOverlay";
 import { navLinks, shopCategories } from "@/data/navigation";
 import { useCart, selectCartCount } from "@/stores/cart";
@@ -36,6 +37,27 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   const { scrollY } = useScroll();
   const bgOpacity = useTransform(scrollY, [0, 80], overHero ? [0, 1] : [1, 1]);
   const atTop = useTransform(scrollY, [0, 80], overHero ? [1, 0] : [0, 0]);
+
+  // Home page only: the marquee lives in flow under the full-screen hero and
+  // sticks to top-0 as the user scrolls. Once it reaches the top (≈ one
+  // viewport of scroll), slide the navbar down by the banner's height so the
+  // docked banner sits above the nav row rather than overlapping it.
+  const [heroH, setHeroH] = useState(0);
+  const [bannerH, setBannerH] = useState(40);
+  useEffect(() => {
+    if (!overHero) return;
+    const measure = () => {
+      setHeroH(window.innerHeight);
+      setBannerH(window.matchMedia("(min-width: 768px)").matches ? 40 : 36);
+    };
+    measure();
+    window.addEventListener("resize", measure);
+    return () => window.removeEventListener("resize", measure);
+  }, [overHero]);
+
+  const navTop = useTransform(scrollY, (y) =>
+    overHero && heroH > 0 ? Math.min(bannerH, Math.max(0, y - heroH)) : 0,
+  );
 
   const openCart = useCart((s) => s.openCart);
   const cartCount = useCart(selectCartCount);
@@ -74,14 +96,20 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   return (
     <>
       <motion.header
-        className="fixed top-0 left-0 right-0 z-50"
+        className="fixed left-0 right-0 z-50"
         style={{
+          top: navTop,
           backgroundColor: headerBg,
           borderBottomWidth: "1px",
           borderBottomColor: headerBorder,
           backdropFilter: "blur(16px)",
         }}
       >
+        {/* Promotional marquee — sits above the nav row on solid pages.
+            On the home page the banner lives under the hero instead, so it is
+            omitted here when in over-hero mode. */}
+        {!overHero && <MarqueeBanner />}
+
         <nav className="max-w-7xl mx-auto px-6 md:px-8 h-16 md:h-20 flex items-center justify-between">
           {/* Logo */}
           <motion.div style={{ color: logoColor }}>
@@ -209,8 +237,13 @@ export default function Navbar({ overHero = false }: NavbarProps) {
             </button>
           </div>
         </nav>
-
       </motion.header>
+
+      {/* In-flow spacer matching the banner height. The fixed header doesn't
+          occupy flow space (pages already pad for the nav row), so this pushes
+          page content down by exactly the banner's height — keeping every
+          page's existing top spacing intact without per-page edits. */}
+      {!overHero && <div className="h-9 md:h-10" aria-hidden />}
 
       <MobileMenu open={mobileOpen} onClose={() => setMobileOpen(false)} />
       <SearchOverlay open={searchOpen} onClose={() => setSearchOpen(false)} />

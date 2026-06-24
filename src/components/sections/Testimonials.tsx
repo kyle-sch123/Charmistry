@@ -14,35 +14,35 @@ const track = [...testimonials, ...testimonials];
 
 export default function Testimonials() {
   return (
-    <section className="bg-paper pt-6 md:pt-10 pb-6 md:pb-8 overflow-hidden">
+    <section className="bg-paper py-0 overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(260px,300px)_1fr] xl:grid-cols-[340px_1fr] gap-12 lg:gap-16 items-center">
-          {/* ── Left: sticky heading ── */}
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(340px,420px)] xl:grid-cols-[1fr_460px] gap-6 lg:gap-8 items-center">
+          {/* ── Right (desktop): sticky heading ── */}
           <motion.div
-            className="lg:sticky lg:top-32 self-start"
-            initial={{ opacity: 0, x: -24 }}
+            className="lg:order-2 lg:sticky lg:top-32 self-start lg:text-right"
+            initial={{ opacity: 0, x: 24 }}
             whileInView={{ opacity: 1, x: 0 }}
             viewport={{ once: true }}
             transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
           >
             <h2
-              className="text-ink uppercase leading-[1.08] mb-6"
+              className="text-ink uppercase leading-[1.1] mb-6 text-balance"
               style={{
                 fontFamily: "var(--font-heading)",
-                fontSize: "clamp(2rem, 4.5vw, 3.8rem)",
-                letterSpacing: "0.03em",
+                fontSize: "clamp(2.3rem, 4.4vw, 4rem)",
+                letterSpacing: "0.02em",
               }}
             >
               What the
               <br />
-              Charmistry
+              <em style={{ fontStyle: "italic" }}>Charmistry</em>
               <br />
               <em style={{ fontStyle: "italic" }}>Girls</em>
               <br />
               are saying
             </h2>
 
-            <div className="flex items-center gap-1 mb-3">
+            <div className="flex items-center gap-1 mb-3 lg:justify-end">
               {Array.from({ length: 5 }).map((_, i) => (
                 <StarIcon key={i} />
               ))}
@@ -60,13 +60,13 @@ export default function Testimonials() {
             </p>
           </motion.div>
 
-          {/* ── Right: infinite marquee ── */}
+          {/* ── Left (desktop): infinite marquee ── */}
           <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
             transition={{ duration: 0.6, delay: 0.3 }}
-            className="relative overflow-hidden"
+            className="relative overflow-hidden lg:order-1"
             style={{
               maskImage:
                 "linear-gradient(to right, transparent 0%, black 10%, black 90%, transparent 100%)",

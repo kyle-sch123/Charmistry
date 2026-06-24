@@ -79,7 +79,7 @@ export default function ShippingPayments() {
   return (
     <section
       ref={sectionRef}
-      className="bg-paper relative py-16 md:py-24 overflow-hidden"
+      className="bg-paper relative pt-0 pb-16 md:pb-24 overflow-hidden"
     >
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
