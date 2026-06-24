@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { ProductWithCategory } from "@/types";
 import { searchProducts } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
+import { trackSearch } from "@/lib/gtag";
 
 interface Props {
   open: boolean;
@@ -70,7 +71,10 @@ export default function SearchOverlay({ open, onClose }: Props) {
       setError(null);
       try {
         const data = await searchProducts(trimmedTerm, 8);
-        if (!cancelled) setResults(data);
+        if (!cancelled) {
+          setResults(data);
+          trackSearch(trimmedTerm);
+        }
       } catch (err) {
         if (!cancelled) {
           setError("Something went wrong. Please try again.");

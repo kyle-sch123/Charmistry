@@ -15,12 +15,13 @@
 
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MetalType, ProductWithCategory } from "@/types";
 import { useCart } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
+import { trackAddToCart, trackViewItem } from "@/lib/gtag";
 
 interface Props {
   product: ProductWithCategory;
@@ -125,9 +126,28 @@ export default function ProductDetail({
   const maxQty = selectedVariant.quantity ?? 0;
   const disabled = !selectedVariant.in_stock || maxQty <= 0;
 
+  useEffect(() => {
+    trackViewItem({
+      item_id: selectedVariant.id,
+      item_name: selectedVariant.name,
+      item_category: selectedVariant.categories?.name ?? undefined,
+      item_variant: selectedVariant.metal ?? undefined,
+      price: Number(selectedVariant.price),
+      quantity: 1,
+    });
+  }, [selectedVariant.id, selectedVariant.name, selectedVariant.categories?.name, selectedVariant.metal, selectedVariant.price]);
+
   const handleAdd = () => {
     if (disabled) return;
     addItem(selectedVariant, quantity);
+    trackAddToCart({
+      item_id: selectedVariant.id,
+      item_name: selectedVariant.name,
+      item_category: selectedVariant.categories?.name ?? undefined,
+      item_variant: selectedVariant.metal ?? undefined,
+      price: Number(selectedVariant.price),
+      quantity,
+    });
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
