@@ -126,6 +126,7 @@ See `.env.example` for the full list. Quick rundown:
 | `COURIER_GUY_SENDER_*`           | Your business pickup address (8 vars).           |
 | `KLAVIYO_API_KEY`                | Set to enable Placed Order + Shipped Order events.|
 | `NEXT_PUBLIC_GA_ID`              | Set to enable GA script injection.               |
+| `NEXT_PUBLIC_FB_PIXEL_ID`        | Set to enable Meta (Facebook) Pixel injection.   |
 | `S3_BUCKET_NAME`                 | Supabase Storage bucket for product galleries.   |
 
 The optional integrations all have `isXConfigured()` guards — leaving the
@@ -153,6 +154,7 @@ src/
     page.tsx                   Home page composition.
   components/
     analytics/GoogleAnalytics  GA script + pageview emitter.
+    analytics/MetaPixel        Meta Pixel script + pageview emitter.
     cart/CartDrawer            Right-side slide-in bag.
     icons/Logo                 Text wordmark.
     layout/{Navbar, MobileMenu, Footer}
@@ -171,6 +173,7 @@ src/
     discounts.ts               Resolve / consume / refund codes.
     email-templates.ts         Transactional HTML.
     gtag.ts                    GA helpers (no-op when env blank).
+    fpixel.ts                  Meta Pixel helpers (no-op when env blank).
     klaviyo.ts                 Event tracking.
     payfast.ts                 Payment-request build + ITN signature + validate.
     queries.ts                 Anon-side Supabase reads.
@@ -571,6 +574,7 @@ Blank out the env var:
 - `KLAVIYO_API_KEY=` → no marketing events
 - `COURIER_GUY_API_KEY=` → no automated dispatch (orders still marked paid)
 - `NEXT_PUBLIC_GA_ID=` → no GA script
+- `NEXT_PUBLIC_FB_PIXEL_ID=` → no Meta Pixel script
 
 The code checks `isXConfigured()` before calling.
 

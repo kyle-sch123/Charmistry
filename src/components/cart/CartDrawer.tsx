@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
+import { trackInitiateCheckout as fbTrackInitiateCheckout } from "@/lib/fpixel";
 import type { MetalType } from "@/types";
 
 const metalLabels: Record<MetalType, string> = {
@@ -228,16 +229,15 @@ export default function CartDrawer() {
                   <Link
                     href="/checkout"
                     onClick={() => {
-                      trackBeginCheckout(
-                        lines.map((l) => ({
-                          item_id: l.id,
-                          item_name: l.name,
-                          item_variant: l.metal ?? undefined,
-                          price: l.price,
-                          quantity: l.quantity,
-                        })),
-                        subtotal,
-                      );
+                      const items = lines.map((l) => ({
+                        item_id: l.id,
+                        item_name: l.name,
+                        item_variant: l.metal ?? undefined,
+                        price: l.price,
+                        quantity: l.quantity,
+                      }));
+                      trackBeginCheckout(items, subtotal);
+                      fbTrackInitiateCheckout(items, subtotal);
                       closeCart();
                     }}
                     className="block w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors text-center cursor-pointer"

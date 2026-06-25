@@ -7,6 +7,7 @@ import type { Metadata } from "next";
 import { Cormorant_Garamond, Outfit, Gilda_Display } from "next/font/google";
 import CartDrawer from "@/components/cart/CartDrawer";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
+import MetaPixel from "@/components/analytics/MetaPixel";
 import Klaviyo from "@/components/analytics/Klaviyo";
 import "./globals.css";
 
@@ -49,6 +50,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <GoogleAnalytics />
+        <MetaPixel />
         <Klaviyo />
         {children}
         <CartDrawer />

@@ -27,6 +27,7 @@ import { Product, ProductWithCategory } from "@/types";
 import { formatPrice } from "@/lib/utils";
 import { useCart } from "@/stores/cart";
 import { trackAddToCart } from "@/lib/gtag";
+import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
 
 interface ProductCardProps {
   product: Product | ProductWithCategory;
@@ -76,13 +77,15 @@ export default function ProductCard({
     e.preventDefault();
     e.stopPropagation();
     addItem(product as Product, 1);
-    trackAddToCart({
+    const item = {
       item_id: product.id,
       item_name: product.name,
       price: Number(product.price),
       quantity: 1,
       item_variant: product.metal ?? undefined,
-    });
+    };
+    trackAddToCart(item);
+    fbTrackAddToCart(item);
   };
 
   const soldOut = !product.in_stock || (product.quantity ?? 0) <= 0;

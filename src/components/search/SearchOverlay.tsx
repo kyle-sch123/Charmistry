@@ -17,6 +17,7 @@ import type { ProductWithCategory } from "@/types";
 import { searchProducts } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 import { trackSearch } from "@/lib/gtag";
+import { trackSearch as fbTrackSearch } from "@/lib/fpixel";
 
 interface Props {
   open: boolean;
@@ -74,6 +75,7 @@ export default function SearchOverlay({ open, onClose }: Props) {
         if (!cancelled) {
           setResults(data);
           trackSearch(trimmedTerm);
+          fbTrackSearch(trimmedTerm);
         }
       } catch (err) {
         if (!cancelled) {

@@ -22,6 +22,10 @@ import type { MetalType, ProductWithCategory } from "@/types";
 import { useCart } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { trackAddToCart, trackViewItem } from "@/lib/gtag";
+import {
+  trackAddToCart as fbTrackAddToCart,
+  trackViewContent as fbTrackViewContent,
+} from "@/lib/fpixel";
 
 interface Props {
   product: ProductWithCategory;
@@ -127,27 +131,31 @@ export default function ProductDetail({
   const disabled = !selectedVariant.in_stock || maxQty <= 0;
 
   useEffect(() => {
-    trackViewItem({
+    const item = {
       item_id: selectedVariant.id,
       item_name: selectedVariant.name,
       item_category: selectedVariant.categories?.name ?? undefined,
       item_variant: selectedVariant.metal ?? undefined,
       price: Number(selectedVariant.price),
       quantity: 1,
-    });
+    };
+    trackViewItem(item);
+    fbTrackViewContent(item);
   }, [selectedVariant.id, selectedVariant.name, selectedVariant.categories?.name, selectedVariant.metal, selectedVariant.price]);
 
   const handleAdd = () => {
     if (disabled) return;
     addItem(selectedVariant, quantity);
-    trackAddToCart({
+    const item = {
       item_id: selectedVariant.id,
       item_name: selectedVariant.name,
       item_category: selectedVariant.categories?.name ?? undefined,
       item_variant: selectedVariant.metal ?? undefined,
       price: Number(selectedVariant.price),
       quantity,
-    });
+    };
+    trackAddToCart(item);
+    fbTrackAddToCart(item);
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
