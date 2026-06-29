@@ -11,9 +11,9 @@
  */
 
 const PHRASES = [
+  "Free Shipping Over R600",
   "Live in it: Waterproof + Tarnish-Resistant",
-  "Free Shipping Over R600+",
-  "Secure EFT & Card Pay",
+  "R80 Nationwide Shipping",
 ];
 
 // Repeat the phrases so a single sequence is wide enough to fill ultrawide
