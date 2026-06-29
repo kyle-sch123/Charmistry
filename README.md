@@ -124,7 +124,7 @@ See `.env.example` for the full list. Quick rundown:
 | `COURIER_GUY_API_BASE_URL`       | Set both to enable automated dispatch.           |
 | `COURIER_GUY_API_KEY`            | Set both to enable automated dispatch.           |
 | `COURIER_GUY_SENDER_*`           | Your business pickup address (8 vars).           |
-| `KLAVIYO_API_KEY`                | Set to enable Placed Order + Shipped Order events.|
+| `KLAVIYO_API_KEY`                | Set to enable server-side Placed Order + Ordered Product events. |
 | `NEXT_PUBLIC_GA_ID`              | Set to enable GA script injection.               |
 | `NEXT_PUBLIC_FB_PIXEL_ID`        | Set to enable Meta (Facebook) Pixel injection.   |
 | `S3_BUCKET_NAME`                 | Supabase Storage bucket for product galleries.   |
@@ -174,7 +174,8 @@ src/
     email-templates.ts         Transactional HTML.
     gtag.ts                    GA helpers (no-op when env blank).
     fpixel.ts                  Meta Pixel helpers (no-op when env blank).
-    klaviyo.ts                 Event tracking.
+    klaviyo.ts                 Server-side order events (Placed/Ordered Product).
+    klaviyo-client.ts          Onsite funnel events (Viewed/Added/Started Checkout).
     payfast.ts                 Payment-request build + ITN signature + validate.
     queries.ts                 Anon-side Supabase reads.
     shipping.ts                Shipping price estimator.
@@ -706,8 +707,10 @@ uses that local copy.
 - **Courier Guy.** Set all `COURIER_GUY_*` env vars. If you don't, the
   webhook skips dispatch and the order stays `paid` with
   `shipping_status='pending'` — you fulfil manually.
-- **Klaviyo.** Set `KLAVIYO_API_KEY` to fire `Placed Order` and `Shipped
-  Order` events. Skip to disable.
+- **Klaviyo.** The onsite funnel (`Active on Site`, `Viewed Product`, `Added
+  to Cart`, `Started Checkout`) runs off `NEXT_PUBLIC_KLAVIYO_COMPANY_ID`. Set
+  `KLAVIYO_API_KEY` to also fire the server-side `Placed Order` and `Ordered
+  Product` events from the PayFast ITN. Skip the key to disable those.
 - **GA.** Set `NEXT_PUBLIC_GA_ID` to inject the gtag script. Skip to
   disable.
 

@@ -204,24 +204,7 @@ export async function POST(request: Request) {
     const trackingPromises = [sendConfirmationEmail(orderId)];
 
     if (isKlaviyoConfigured()) {
-      trackingPromises.push(
-        trackKlaviyoEvent(
-          "Placed Order",
-          {
-            email: latestOrder.email,
-            first_name: latestOrder.first_name,
-            last_name: latestOrder.last_name,
-          },
-          {
-            order_id: latestOrder.id,
-            total: latestOrder.total,
-            currency: latestOrder.currency,
-            shipping_cost: latestOrder.shipping_cost,
-            discount_amount: latestOrder.discount_amount,
-            payment_reference: pfPaymentId,
-          },
-        ),
-      );
+      trackingPromises.push(trackKlaviyoOrder(latestOrder, items, pfPaymentId));
     }
 
     await Promise.allSettled(trackingPromises);
@@ -281,4 +264,149 @@ async function sendConfirmationEmail(orderId: string): Promise<void> {
       );
 
   await Promise.all([sendCustomer, sendMerchant]);
+}
+
+const KLAVIYO_BRAND = "Charmistry";
+
+function klaviyoProductUrl(slug: string | null | undefined): string | undefined {
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
+  return slug && base ? `${base}/products/${slug}` : undefined;
+}
+
+/**
+ * Emit the Klaviyo order events from Klaviyo's integration guide:
+ *   - "Placed Order"    — one event, carries the full Items array + addresses.
+ *   - "Ordered Product" — one event per line item for product-level segments.
+ *
+ * Self-contained and best-effort: a single round-trip enriches line items with
+ * their category for segmentation, and every Klaviyo call is settled so a
+ * tracking failure never rejects back into the ITN response path. Both events
+ * carry $event_id, so PayFast ITN redeliveries are deduped by Klaviyo.
+ */
+async function trackKlaviyoOrder(
+  order: Order,
+  items: OrderItem[],
+  paymentReference: string | null,
+): Promise<void> {
+  // Map product_id → category name. A failure here just drops Categories.
+  const productIds = items
+    .map((it) => it.product_id)
+    .filter((id): id is string => Boolean(id));
+  const categoryByProduct = new Map<string, string>();
+  if (productIds.length > 0) {
+    const supabase = createServerSupabase();
+    const { data: products } = await supabase
+      .from("products")
+      .select("id, categories(name)")
+      .in("id", productIds);
+    for (const p of products ?? []) {
+      const row = p as {
+        id: string;
+        categories: { name: string } | { name: string }[] | null;
+      };
+      const cat = Array.isArray(row.categories)
+        ? row.categories[0]?.name
+        : row.categories?.name;
+      if (cat) categoryByProduct.set(row.id, cat);
+    }
+  }
+
+  const categoryFor = (it: OrderItem): string | undefined =>
+    it.product_id ? categoryByProduct.get(it.product_id) : undefined;
+
+  const customer = {
+    email: order.email,
+    first_name: order.first_name,
+    last_name: order.last_name,
+    phone: order.phone,
+    address1: order.shipping_address_line1,
+    address2: order.shipping_address_line2,
+    city: order.shipping_city,
+    zip: order.shipping_postal_code,
+    country: order.shipping_country,
+  };
+
+  const lineItems = items.map((it) => {
+    const cat = categoryFor(it);
+    return {
+      ProductID: it.product_id ?? it.product_slug,
+      SKU: it.product_slug,
+      ProductName: it.product_name,
+      Quantity: it.quantity,
+      ItemPrice: Number(it.unit_price),
+      RowTotal: Number(it.line_total),
+      ProductURL: klaviyoProductUrl(it.product_slug),
+      ImageURL: it.product_image_url ?? undefined,
+      ProductCategories: cat ? [cat] : [],
+      ProductBrand: KLAVIYO_BRAND,
+    };
+  });
+
+  const categories = Array.from(
+    new Set(items.map(categoryFor).filter((c): c is string => Boolean(c))),
+  );
+  const itemNames = items.map((it) => it.product_name);
+  const occurredAt = order.paid_at
+    ? Math.floor(new Date(order.paid_at).getTime() / 1000)
+    : Math.floor(Date.now() / 1000);
+
+  const events: Promise<void>[] = [
+    trackKlaviyoEvent(
+      "Placed Order",
+      customer,
+      {
+        $event_id: order.id,
+        $value: Number(order.total),
+        OrderId: order.id,
+        Categories: categories,
+        ItemNames: itemNames,
+        Brands: [KLAVIYO_BRAND],
+        DiscountCode: order.discount_code ?? undefined,
+        DiscountValue: Number(order.discount_amount) || 0,
+        ShippingCost: Number(order.shipping_cost) || 0,
+        Currency: order.currency,
+        PaymentReference: paymentReference ?? undefined,
+        Items: lineItems,
+        ShippingAddress: {
+          FirstName: order.first_name,
+          LastName: order.last_name,
+          Address1: order.shipping_address_line1,
+          Address2: order.shipping_address_line2 ?? undefined,
+          City: order.shipping_city,
+          Zip: order.shipping_postal_code,
+          Country: order.shipping_country,
+          Phone: order.phone ?? undefined,
+        },
+      },
+      occurredAt,
+    ),
+    ...items.map((it) => {
+      const cat = categoryFor(it);
+      return trackKlaviyoEvent(
+        "Ordered Product",
+        customer,
+        {
+          $event_id: `${order.id}_${it.product_id ?? it.product_slug}`,
+          $value: Number(it.line_total),
+          OrderId: order.id,
+          ProductID: it.product_id ?? it.product_slug,
+          SKU: it.product_slug,
+          ProductName: it.product_name,
+          Quantity: it.quantity,
+          ProductURL: klaviyoProductUrl(it.product_slug),
+          ImageURL: it.product_image_url ?? undefined,
+          Categories: cat ? [cat] : [],
+          ProductBrand: KLAVIYO_BRAND,
+        },
+        occurredAt,
+      );
+    }),
+  ];
+
+  const results = await Promise.allSettled(events);
+  for (const r of results) {
+    if (r.status === "rejected") {
+      console.error("PayFast ITN: Klaviyo order event failed", r.reason);
+    }
+  }
 }

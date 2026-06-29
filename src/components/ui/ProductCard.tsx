@@ -25,9 +25,13 @@ import Image from "next/image";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Product, ProductWithCategory } from "@/types";
 import { formatPrice } from "@/lib/utils";
-import { useCart } from "@/stores/cart";
+import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { trackAddToCart } from "@/lib/gtag";
 import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
+import {
+  trackAddedToCart as klTrackAddedToCart,
+  cartLinesToKlaviyoItems,
+} from "@/lib/klaviyo-client";
 
 interface ProductCardProps {
   product: Product | ProductWithCategory;
@@ -80,12 +84,23 @@ export default function ProductCard({
     const item = {
       item_id: product.id,
       item_name: product.name,
+      item_category: (product as ProductWithCategory).categories?.name ?? undefined,
       price: Number(product.price),
       quantity: 1,
       item_variant: product.metal ?? undefined,
+      slug: product.slug,
+      image_url: product.image_url,
     };
     trackAddToCart(item);
     fbTrackAddToCart(item);
+    // Klaviyo's Added to Cart wants the whole cart + total; getState() reflects
+    // the line just added (Zustand updates synchronously).
+    const cartState = useCart.getState();
+    klTrackAddedToCart(
+      item,
+      cartLinesToKlaviyoItems(cartState.lines),
+      selectCartSubtotal(cartState),
+    );
   };
 
   const soldOut = !product.in_stock || (product.quantity ?? 0) <= 0;
