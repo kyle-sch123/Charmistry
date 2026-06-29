@@ -28,13 +28,20 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
+import {
+  identifyKlaviyo,
+  trackStartedCheckout,
+  cartLinesToKlaviyoItems,
+} from "@/lib/klaviyo-client";
 import type { CheckoutFormData } from "@/types";
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & {
   form?: string;
@@ -67,6 +74,11 @@ export default function CheckoutClient() {
   const hasHydrated = useCart((s) => s.hasHydrated);
   const lines = useCart((s) => s.lines);
   const subtotal = useCart(selectCartSubtotal);
+  const cartUpdatedAt = useCart((s) => s.updatedAt);
+
+  // Klaviyo "Started Checkout" fires once per distinct email so we don't spam
+  // the metric on every keystroke / re-render.
+  const startedCheckoutEmail = useRef<string | null>(null);
 
   const [form, setForm] = useState<CheckoutFormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -111,6 +123,39 @@ export default function CheckoutClient() {
       router.replace("/shop");
     }
   }, [hasHydrated, lines.length, pendingPayment, router]);
+
+  // Identify the visitor and fire Klaviyo "Started Checkout" once they've
+  // entered a valid email. This is Klaviyo's canonical trigger and is what
+  // powers abandoned-checkout flows. Debounced so it lands after they finish
+  // typing, and guarded by a ref so it fires once per distinct email.
+  useEffect(() => {
+    if (!hasHydrated || lines.length === 0) return;
+    const email = form.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email) || startedCheckoutEmail.current === email) return;
+
+    const handle = setTimeout(() => {
+      startedCheckoutEmail.current = email;
+      identifyKlaviyo({
+        email,
+        firstName: form.firstName.trim() || undefined,
+        lastName: form.lastName.trim() || undefined,
+      });
+      trackStartedCheckout(cartLinesToKlaviyoItems(lines), subtotal, {
+        email,
+        eventId: `${cartUpdatedAt}-${email}`,
+      });
+    }, 600);
+
+    return () => clearTimeout(handle);
+  }, [
+    hasHydrated,
+    lines,
+    subtotal,
+    cartUpdatedAt,
+    form.email,
+    form.firstName,
+    form.lastName,
+  ]);
 
   useEffect(() => {
     if (!pendingPayment) return;

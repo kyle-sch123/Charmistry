@@ -19,13 +19,18 @@ import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MetalType, ProductWithCategory } from "@/types";
-import { useCart } from "@/stores/cart";
+import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { trackAddToCart, trackViewItem } from "@/lib/gtag";
 import {
   trackAddToCart as fbTrackAddToCart,
   trackViewContent as fbTrackViewContent,
 } from "@/lib/fpixel";
+import {
+  trackViewedProduct,
+  trackAddedToCart as klTrackAddedToCart,
+  cartLinesToKlaviyoItems,
+} from "@/lib/klaviyo-client";
 
 interface Props {
   product: ProductWithCategory;
@@ -138,10 +143,21 @@ export default function ProductDetail({
       item_variant: selectedVariant.metal ?? undefined,
       price: Number(selectedVariant.price),
       quantity: 1,
+      slug: selectedVariant.slug,
+      image_url: selectedVariant.image_url,
     };
     trackViewItem(item);
     fbTrackViewContent(item);
-  }, [selectedVariant.id, selectedVariant.name, selectedVariant.categories?.name, selectedVariant.metal, selectedVariant.price]);
+    trackViewedProduct(item);
+  }, [
+    selectedVariant.id,
+    selectedVariant.name,
+    selectedVariant.categories?.name,
+    selectedVariant.metal,
+    selectedVariant.price,
+    selectedVariant.slug,
+    selectedVariant.image_url,
+  ]);
 
   const handleAdd = () => {
     if (disabled) return;
@@ -153,9 +169,19 @@ export default function ProductDetail({
       item_variant: selectedVariant.metal ?? undefined,
       price: Number(selectedVariant.price),
       quantity,
+      slug: selectedVariant.slug,
+      image_url: selectedVariant.image_url,
     };
     trackAddToCart(item);
     fbTrackAddToCart(item);
+    // Klaviyo's Added to Cart wants the whole cart + total. addItem ran above
+    // and Zustand updates synchronously, so getState() already reflects it.
+    const cartState = useCart.getState();
+    klTrackAddedToCart(
+      item,
+      cartLinesToKlaviyoItems(cartState.lines),
+      selectCartSubtotal(cartState),
+    );
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
