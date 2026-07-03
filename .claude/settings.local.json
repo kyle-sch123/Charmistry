@@ -10,7 +10,8 @@
       "WebSearch",
       "WebFetch(domain:vercel.com)",
       "WebFetch(domain:developers.cloudflare.com)",
-      "WebFetch(domain:opennext.js.org)"
+      "WebFetch(domain:opennext.js.org)",
+      "Bash(Select-Object Name)"
     ]
   }
 }

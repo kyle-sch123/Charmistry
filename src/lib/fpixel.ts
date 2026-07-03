@@ -76,9 +76,18 @@ export function trackPurchase(
   items: PixelItem[],
   value: number,
 ) {
-  fb("track", "Purchase", {
-    ...contentParams(items, value),
-    order_id: transactionId,
-    num_items: items.reduce((n, i) => n + i.quantity, 0),
-  });
+  // eventID = order id lets Meta dedupe this browser event against the
+  // server-side Conversions API Purchase (see lib/meta-capi.ts), which fires
+  // with the same event_id from the PayFast ITN handler. Without it a shopper
+  // whose pixel isn't blocked would be counted twice.
+  fb(
+    "track",
+    "Purchase",
+    {
+      ...contentParams(items, value),
+      order_id: transactionId,
+      num_items: items.reduce((n, i) => n + i.quantity, 0),
+    },
+    { eventID: transactionId },
+  );
 }

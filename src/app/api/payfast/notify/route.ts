@@ -37,6 +37,7 @@ import {
   validateItnWithPayFast,
 } from "@/lib/payfast";
 import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
+import { trackMetaPurchase, isMetaCapiConfigured } from "@/lib/meta-capi";
 import {
   merchantOrderNotificationHtml,
   orderConfirmationHtml,
@@ -146,18 +147,24 @@ export async function POST(request: Request) {
     return new Response("Already processed", { status: 200 });
   }
 
-  if (order.status !== "pending") {
+  // A genuine COMPLETE payment is authoritative and must win even if the order
+  // was already marked `cancelled` — e.g. the customer hit the cancel page
+  // (which flips pending → cancelled via /api/checkout/cancel), then completed
+  // payment in the same PayFast session. Any other non-pending state is
+  // unexpected, so leave it untouched.
+  if (order.status !== "pending" && order.status !== "cancelled") {
     console.warn("PayFast ITN: unexpected order state", {
       orderId,
       status: order.status,
     });
-    return new Response("Order not pending", { status: 200 });
+    return new Response("Order not in a payable state", { status: 200 });
   }
 
-  // Race-safe transition: only one concurrent ITN can flip pending → paid.
-  // .select("id") makes the row count visible so losers bail out before
-  // running the side effects — otherwise concurrent retries would double
-  // the customer's emails.
+  // Race-safe transition: only one concurrent ITN can flip the order → paid.
+  // The `.in` guard also lets a real payment rescue a `cancelled` order (see
+  // above). .select("id") makes the row count visible so losers bail out before
+  // running the side effects — otherwise concurrent retries would double the
+  // customer's emails.
   const { data: updatedRows, error: updateError } = await supabase
     .from("orders")
     .update({
@@ -166,7 +173,7 @@ export async function POST(request: Request) {
       payfast_pf_payment_id: pfPaymentId,
     })
     .eq("id", orderId)
-    .eq("status", "pending")
+    .in("status", ["pending", "cancelled"])
     .select("id");
 
   if (updateError) {
@@ -205,6 +212,10 @@ export async function POST(request: Request) {
 
     if (isKlaviyoConfigured()) {
       trackingPromises.push(trackKlaviyoOrder(latestOrder, items, pfPaymentId));
+    }
+
+    if (isMetaCapiConfigured()) {
+      trackingPromises.push(trackMetaCapiPurchase(latestOrder, items));
     }
 
     await Promise.allSettled(trackingPromises);
@@ -264,6 +275,52 @@ async function sendConfirmationEmail(orderId: string): Promise<void> {
       );
 
   await Promise.all([sendCustomer, sendMerchant]);
+}
+
+/**
+ * Fire the Meta Conversions API Purchase event for a paid order.
+ *
+ * event_id is the order id — the exact value the browser pixel sends as its
+ * `eventID` — so Meta dedupes the server event against the client pixel when
+ * both fire. value is the authoritative server-priced order total (identical to
+ * what the pixel reports), and the customer's hashed PII drives match quality
+ * since the ITN has no browser IP / user-agent / _fbp cookie.
+ */
+async function trackMetaCapiPurchase(
+  order: Order,
+  items: OrderItem[],
+): Promise<void> {
+  const base = process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "");
+  const eventTime = order.paid_at
+    ? Math.floor(new Date(order.paid_at).getTime() / 1000)
+    : Math.floor(Date.now() / 1000);
+
+  await trackMetaPurchase(
+    {
+      email: order.email,
+      first_name: order.first_name,
+      last_name: order.last_name,
+      phone: order.phone,
+      city: order.shipping_city,
+      zip: order.shipping_postal_code,
+      country: order.shipping_country,
+    },
+    {
+      eventId: order.id,
+      eventTime,
+      eventSourceUrl: base ? `${base}/checkout/success?order=${order.id}` : undefined,
+      value: Number(order.total),
+      currency: order.currency,
+      contents: items.map((it) => ({
+        id: it.product_id ?? it.product_slug,
+        quantity: it.quantity,
+        item_price: Number(it.unit_price),
+      })),
+      contentIds: items.map((it) => it.product_id ?? it.product_slug),
+      numItems: items.reduce((n, it) => n + it.quantity, 0),
+      orderId: order.id,
+    },
+  );
 }
 
 const KLAVIYO_BRAND = "Charmistry";
