@@ -146,6 +146,8 @@ export interface Order {
   shipping_country: string;
   subtotal: number;
   shipping_cost: number;
+  /** Chosen carrier: "pudo_locker" | "courier_economy". Null for legacy orders. */
+  shipping_method: string | null;
   total: number;
   currency: string;
   status: OrderStatus;

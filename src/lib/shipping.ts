@@ -1,40 +1,103 @@
 /**
- * Shipping cost estimator.
+ * Shipping methods + cost resolution.
  *
- * Same function powers both the live shipping quote in CheckoutClient and
- * the authoritative price written onto the order in /api/checkout. Both
- * paths MUST go through this function so the user never sees a different
- * total than what gets persisted.
+ * Charmistry offers two carrier options at checkout, both fulfilled under The
+ * Courier Guy umbrella:
+ *   - Locker-to-Locker (R49) — collect from a nearby locker. The customer tells
+ *     us their preferred locker in the order notes or by email; if none is
+ *     given, we ship to the nearest available locker to their address.
+ *   - Standard Economy (R79) — door-to-door delivery via The Courier Guy.
+ *
+ * Note: the `pudo_locker` method id is retained internally (the locker network
+ * is PUDO under the hood) but is never surfaced to customers.
  *
  * Pricing model:
- * - R600+ subtotal -> free shipping
- * - Otherwise a flat R80, regardless of weight or destination.
+ * - subtotal >= R600 -> free shipping, whichever method is chosen (the carrier
+ *   is still recorded so fulfilment knows how to ship — it just isn't charged).
+ * - otherwise the chosen method's flat price.
+ *
+ * This module is pure (no server-only imports) so it is the single source of
+ * truth for BOTH the client price shown in CheckoutClient and the authoritative
+ * price recomputed in /api/checkout — they can never diverge. The client never
+ * gets to assert a price; the server re-derives it from the chosen method id.
  */
 
-export interface ShippingEstimateLine {
-  quantity: number;
-  weightKg?: number;
-  value?: number;
+export const FREE_SHIPPING_THRESHOLD = 600;
+
+export type ShippingMethodId = "pudo_locker" | "courier_economy";
+
+export interface ShippingMethodDef {
+  id: ShippingMethodId;
+  /** Customer-facing name, e.g. "Locker-to-Locker". */
+  label: string;
+  /** Fulfilment carrier, e.g. "The Courier Guy". */
+  carrier: string;
+  /** Flat price in ZAR before the free-shipping threshold is applied. */
+  price: number;
+  /** Rough delivery window, shown as a sub-label. */
+  eta: string;
+  /** One-line description of the method. */
+  blurb: string;
 }
 
-export interface ShippingEstimateDestination {
-  country: string;
-  city: string;
-  postalCode: string;
+export const SHIPPING_METHODS: readonly ShippingMethodDef[] = [
+  {
+    id: "pudo_locker",
+    label: "Courier Guy Locker-to-Locker",
+    carrier: "The Courier Guy",
+    price: 49,
+    eta: "2–4 working days",
+    blurb: "Collect from any locker nationwide",
+  },
+  {
+    id: "courier_economy",
+    label: "Standard Economy",
+    carrier: "The Courier Guy",
+    price: 79,
+    eta: "3–5 working days",
+    blurb: "Door-to-door delivery via The Courier Guy",
+  },
+] as const;
+
+export const DEFAULT_SHIPPING_METHOD_ID: ShippingMethodId = "pudo_locker";
+
+function findMethod(
+  id: string | null | undefined,
+): ShippingMethodDef | undefined {
+  return SHIPPING_METHODS.find((m) => m.id === id);
 }
 
-export interface ShippingEstimateOptions {
-  lines: ShippingEstimateLine[];
-  subtotal: number;
-  destination: ShippingEstimateDestination;
-}
-
-const FREE_SHIPPING_THRESHOLD = 600;
-const FLAT_SHIPPING_COST = 80;
-
-export function estimateShippingCost(options: ShippingEstimateOptions): number {
-  if (options.subtotal >= FREE_SHIPPING_THRESHOLD) {
-    return 0;
+/**
+ * Turn a raw method id (from the client, or a stored order column) into its
+ * definition. An empty / missing value falls back to the default method so the
+ * flow is robust; a *non-empty but unknown* value returns null so the checkout
+ * route can reject a tampered payload rather than silently mischarge.
+ */
+export function resolveShippingMethod(
+  input: string | null | undefined,
+): ShippingMethodDef | null {
+  if (input == null || input === "") {
+    return findMethod(DEFAULT_SHIPPING_METHOD_ID) ?? null;
   }
-  return FLAT_SHIPPING_COST;
+  return findMethod(input) ?? null;
+}
+
+/** Human-readable label for a stored method id (emails, admin). Null if unknown. */
+export function shippingMethodLabel(
+  id: string | null | undefined,
+): string | null {
+  return findMethod(id)?.label ?? null;
+}
+
+/**
+ * The authoritative shipping cost for a chosen method at a given subtotal.
+ * Free above the threshold regardless of method; otherwise the method's price.
+ * Unknown ids resolve to 0 (the caller is expected to have validated the id).
+ */
+export function shippingCostForMethod(
+  methodId: ShippingMethodId,
+  subtotal: number,
+): number {
+  if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
+  return findMethod(methodId)?.price ?? 0;
 }

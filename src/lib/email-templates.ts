@@ -17,6 +17,7 @@
  */
 
 import type { Order, OrderItem } from "@/types";
+import { shippingMethodLabel } from "@/lib/shipping";
 
 function formatZar(amount: number): string {
   return `R${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -101,7 +102,7 @@ export function orderConfirmationHtml(order: Order, items: OrderItem[]): string 
                     : ""
                 }
                 <tr>
-                  <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Shipping</td>
+                  <td style="padding:8px 0;font-size:12px;color:#6B6B6B;">Shipping${shippingMethodLabel(order.shipping_method) ? ` &middot; ${escapeHtml(shippingMethodLabel(order.shipping_method))}` : ""}</td>
                   <td style="padding:8px 0;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
                 </tr>
                 <tr>
@@ -137,6 +138,8 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
     timeStyle: "short",
   });
   const totalUnits = items.reduce((acc, i) => acc + i.quantity, 0);
+  const methodLabel = shippingMethodLabel(order.shipping_method);
+  const isPudo = order.shipping_method === "pudo_locker";
 
   const itemRows = items
     .map(
@@ -169,6 +172,18 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
         <td style="padding:16px 24px;border-top:1px solid #E0DDD8;background:#FFF8E1;">
           <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#7A5D00;">Customer Notes</p>
           <p style="margin:0;font-size:13px;color:#0A0A0A;line-height:1.6;">${escapeHtml(order.notes)}</p>
+        </td>
+      </tr>`
+    : "";
+
+  // Locker-to-locker orders: the customer names their preferred locker in the
+  // notes above or by email, so flag it prominently for fulfilment. If none was
+  // given, ship to the nearest available locker to their address.
+  const pudoBlock = isPudo
+    ? `<tr>
+        <td style="padding:16px 24px;border-top:1px solid #E0DDD8;background:#E7F1FB;">
+          <p style="margin:0 0 6px;font-size:11px;letter-spacing:0.15em;text-transform:uppercase;color:#0B4A8F;">Locker Delivery &middot; Action Needed</p>
+          <p style="margin:0;font-size:13px;color:#0A0A0A;line-height:1.6;">This is a locker-to-locker order. Use the customer's preferred locker (from their notes above or a follow-up email); if none was provided, ship to the nearest available locker to their delivery address.</p>
         </td>
       </tr>`
     : "";
@@ -209,6 +224,7 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
                   <td width="50%" style="vertical-align:top;padding-right:12px;">
                     <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Ship To</p>
                     <p style="margin:0;font-size:13px;line-height:1.7;color:#0A0A0A;">${addressLines}</p>
+                    ${methodLabel ? `<p style="margin:10px 0 0;font-size:12px;line-height:1.5;color:#0A0A0A;"><span style="color:#6B6B6B;">Via:</span> ${escapeHtml(methodLabel)}</p>` : ""}
                   </td>
                   <td width="50%" style="vertical-align:top;padding-left:12px;border-left:1px solid #E0DDD8;">
                     <p style="margin:0 0 8px;font-size:10px;letter-spacing:0.2em;text-transform:uppercase;color:#6B6B6B;">Customer</p>
@@ -257,7 +273,7 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
                     : ""
                 }
                 <tr>
-                  <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Shipping</td>
+                  <td style="padding:6px 8px;font-size:12px;color:#6B6B6B;">Shipping${methodLabel ? ` &middot; ${escapeHtml(methodLabel)}` : ""}</td>
                   <td style="padding:6px 8px;text-align:right;font-size:12px;color:#0A0A0A;">${Number(order.shipping_cost) === 0 ? "Free" : formatZar(Number(order.shipping_cost))}</td>
                 </tr>
                 <tr>
@@ -267,6 +283,8 @@ export function merchantOrderNotificationHtml(order: Order, items: OrderItem[]):
               </table>
             </td>
           </tr>
+
+          ${pudoBlock}
 
           ${notesBlock}
 

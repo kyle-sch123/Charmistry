@@ -24,7 +24,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
 import { Product, ProductWithCategory } from "@/types";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, isAdjustableSize } from "@/lib/utils";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { trackAddToCart } from "@/lib/gtag";
 import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
@@ -104,6 +104,12 @@ export default function ProductCard({
   };
 
   const soldOut = !product.in_stock || (product.quantity ?? 0) <= 0;
+  // Only rings surface the adjustable tag. Other categories (bracelets,
+  // earrings) also use size 0 in the data, but the tag is meaningful for
+  // resizable rings specifically.
+  const adjustable =
+    isAdjustableSize(product.size) &&
+    (product as ProductWithCategory).categories?.slug === "rings";
 
   const titleClass =
     variant === "light"
@@ -182,6 +188,15 @@ export default function ProductCard({
               className={`absolute top-3 left-3 z-10 px-3 py-1 text-[10px] tracking-[0.15em] uppercase font-body font-medium ${badgeStyles[product.badge]}`}
             >
               {product.badge}
+            </span>
+          )}
+
+          {/* Attribute tag: adjustable-length rings. Pinned top-right so it
+              never collides with the promo badge (top-left), and styled neutral
+              (frosted ivory) to read as an attribute rather than a promotion. */}
+          {adjustable && (
+            <span className="absolute top-3 right-3 z-10 px-3 py-1 text-[10px] tracking-[0.15em] uppercase font-body font-medium bg-ivory/90 text-obsidian backdrop-blur-sm">
+              Adjustable
             </span>
           )}
 

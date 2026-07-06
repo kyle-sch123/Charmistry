@@ -32,7 +32,7 @@
 
 import { createServerSupabase } from "@/lib/supabase-server";
 import { buildPaymentRequest } from "@/lib/payfast";
-import { estimateShippingCost } from "@/lib/shipping";
+import { resolveShippingMethod, shippingCostForMethod } from "@/lib/shipping";
 import {
   consumeDiscount,
   refundDiscount,
@@ -69,6 +69,7 @@ interface CheckoutBody {
   };
   lines?: ClientCartLine[];
   discountCode?: string;
+  shippingMethod?: string;
 }
 
 function str(value: unknown): string {
@@ -207,15 +208,14 @@ export async function POST(request: Request) {
   }
 
   subtotal = Number(subtotal.toFixed(2));
-  const shippingCost = estimateShippingCost({
-    subtotal,
-    lines: orderLines.map((line) => ({ quantity: line.quantity })),
-    destination: {
-      country,
-      city,
-      postalCode,
-    },
-  });
+
+  // Resolve the chosen carrier. An unknown (tampered) id is rejected outright;
+  // the cost is re-derived server-side so the client can never assert a price.
+  const shippingMethodDef = resolveShippingMethod(body.shippingMethod);
+  if (!shippingMethodDef) {
+    return Response.json({ error: "invalid_shipping_method" }, { status: 400 });
+  }
+  const shippingCost = shippingCostForMethod(shippingMethodDef.id, subtotal);
 
   // Resolve discount (read-only). Consumption happens after order insert so
   // a failed insert doesn't permanently consume a code.
@@ -267,6 +267,7 @@ export async function POST(request: Request) {
       shipping_country: country,
       subtotal,
       shipping_cost: shippingCost,
+      shipping_method: shippingMethodDef.id,
       discount_code: discountCodeText,
       discount_amount: discountAmount,
       total,

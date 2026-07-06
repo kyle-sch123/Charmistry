@@ -43,6 +43,7 @@ import {
   orderConfirmationHtml,
 } from "@/lib/email-templates";
 import { decrementProductStock } from "@/lib/inventory";
+import { shippingMethodLabel } from "@/lib/shipping";
 import type { Order, OrderItem } from "@/types";
 
 export const runtime = "nodejs";
@@ -421,6 +422,7 @@ async function trackKlaviyoOrder(
         DiscountCode: order.discount_code ?? undefined,
         DiscountValue: Number(order.discount_amount) || 0,
         ShippingCost: Number(order.shipping_cost) || 0,
+        ShippingMethod: shippingMethodLabel(order.shipping_method) ?? undefined,
         Currency: order.currency,
         PaymentReference: paymentReference ?? undefined,
         Items: lineItems,

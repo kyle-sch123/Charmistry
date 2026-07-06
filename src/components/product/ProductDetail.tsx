@@ -20,7 +20,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MetalType, ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
-import { formatPrice } from "@/lib/utils";
+import { formatPrice, isAdjustableSize } from "@/lib/utils";
 import { trackAddToCart, trackViewItem } from "@/lib/gtag";
 import {
   trackAddToCart as fbTrackAddToCart,
@@ -45,7 +45,7 @@ function formatSize(size: string | number | null | undefined) {
   }
 
   const raw = String(size).trim();
-  if (raw === "0" || raw === "0.0") return "Adjustable";
+  if (isAdjustableSize(raw)) return "Adjustable";
   if (raw === "-1" || raw === "-1.0") return "9x10cm";
   // Plain numeric lengths are stored unit-less; render them in cm. Values
   // that already carry a unit (e.g. "9x10cm") are left untouched.

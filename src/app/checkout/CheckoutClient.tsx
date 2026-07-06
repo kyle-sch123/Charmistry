@@ -7,9 +7,10 @@
  *
  * Flow:
  *   1. Form mounts, waits for the cart to hydrate from localStorage.
- *   2. As the user types address fields, debounced calls to /api/shipping/quote
- *      keep the shipping line live (350ms debounce so each keystroke doesn't
- *      hit the server).
+ *   2. The shopper picks a delivery method (Locker-to-Locker or Standard
+ *      Economy). Prices come from the shared lib/shipping catalogue, so the line
+ *      updates instantly with no round-trip; /api/checkout re-derives the same
+ *      cost server-side from the chosen method id.
  *   3. Discount code application calls /api/discount/validate, which
  *      requires the email — the form re-validates the discount if the
  *      email field changes after a code was applied.
@@ -31,6 +32,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
@@ -39,7 +41,20 @@ import {
   trackStartedCheckout,
   cartLinesToKlaviyoItems,
 } from "@/lib/klaviyo-client";
+import {
+  SHIPPING_METHODS,
+  DEFAULT_SHIPPING_METHOD_ID,
+  FREE_SHIPPING_THRESHOLD,
+  shippingCostForMethod,
+  shippingMethodLabel,
+  type ShippingMethodId,
+} from "@/lib/shipping";
 import type { CheckoutFormData } from "@/types";
+
+// Where locker shoppers send their preferred locker (mirrors the address used
+// on the shipping / terms pages). Kept as a constant so the note and any future
+// mailto stay in sync.
+const SUPPORT_EMAIL = "charmistryza@gmail.com";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -93,28 +108,22 @@ export default function CheckoutClient() {
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [discountLoading, setDiscountLoading] = useState(false);
 
-  const [shippingCost, setShippingCost] = useState<number | null>(null);
-  const [shippingCostError, setShippingCostError] = useState<string | null>(
-    null,
+  const [shippingMethod, setShippingMethod] = useState<ShippingMethodId>(
+    DEFAULT_SHIPPING_METHOD_ID,
   );
-  const [shippingCostLoading, setShippingCostLoading] = useState(false);
-
-  const canQuoteShipping =
-    lines.length > 0 &&
-    form.addressLine1.trim() &&
-    form.city.trim() &&
-    form.postalCode.trim();
 
   const discountAmount = appliedDiscount?.amount ?? 0;
-  // Display values derived from canQuoteShipping so stale cost from a
-  // previously-completed address doesn't follow the user when they blank
-  // a field. Avoids setState-in-effect for the reset path.
-  const effectiveShippingCost = canQuoteShipping ? shippingCost : null;
-  const effectiveShippingError = canQuoteShipping ? shippingCostError : null;
-  const effectiveShippingLoading = canQuoteShipping ? shippingCostLoading : false;
+  // Free over the threshold, otherwise the chosen method's flat price. Derived
+  // from the shared catalogue with no round-trip; /api/checkout recomputes the
+  // identical value from the method id so display and charge can't diverge.
+  const isFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  const shippingCost = useMemo(
+    () => shippingCostForMethod(shippingMethod, subtotal),
+    [shippingMethod, subtotal],
+  );
   const total = useMemo(
-    () => Math.max(0, subtotal + (effectiveShippingCost ?? 0) - discountAmount),
-    [subtotal, effectiveShippingCost, discountAmount],
+    () => Math.max(0, subtotal + shippingCost - discountAmount),
+    [subtotal, shippingCost, discountAmount],
   );
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)
@@ -194,67 +203,6 @@ export default function CheckoutClient() {
     }, 4000);
     return () => clearTimeout(fallback);
   }, [pendingPayment]);
-
-  useEffect(() => {
-    if (!canQuoteShipping) return;
-
-    const controller = new AbortController();
-    // Debounce so keystrokes don't hammer the API. 350ms feels responsive
-    // without firing on every character. setState only happens inside the
-    // timeout callback so the React "set-state-in-effect" rule stays happy.
-    const handle = setTimeout(() => {
-      setShippingCostLoading(true);
-      setShippingCostError(null);
-
-      fetch("/api/shipping/quote", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          destination: {
-            country: form.country,
-            city: form.city,
-            postalCode: form.postalCode,
-          },
-          lines: lines.map((line) => ({ quantity: line.quantity })),
-          subtotal,
-        }),
-        signal: controller.signal,
-      })
-        .then(async (res) => {
-          if (!res.ok) {
-            const data = await res.json().catch(() => null);
-            throw new Error(data?.error || "Unable to calculate shipping");
-          }
-          return res.json();
-        })
-        .then((data) => {
-          setShippingCost(Number(data.shippingCost ?? 0));
-        })
-        .catch((error) => {
-          if (controller.signal.aborted) return;
-          console.error("Shipping quote error", error);
-          setShippingCostError("Unable to calculate shipping cost right now.");
-          setShippingCost(null);
-        })
-        .finally(() => {
-          if (!controller.signal.aborted) {
-            setShippingCostLoading(false);
-          }
-        });
-    }, 350);
-
-    return () => {
-      clearTimeout(handle);
-      controller.abort();
-    };
-  }, [
-    canQuoteShipping,
-    form.country,
-    form.city,
-    form.postalCode,
-    lines,
-    subtotal,
-  ]);
 
   function update<K extends keyof CheckoutFormData>(
     key: K,
@@ -346,6 +294,7 @@ export default function CheckoutClient() {
           customer: form,
           lines: lines.map((l) => ({ id: l.id, quantity: l.quantity })),
           discountCode: appliedDiscount?.code,
+          shippingMethod,
         }),
       });
 
@@ -488,6 +437,100 @@ export default function CheckoutClient() {
             autoComplete="country"
             readOnly
           />
+        </Section>
+
+        <Section title="Delivery Method">
+          <div
+            role="radiogroup"
+            aria-label="Delivery method"
+            className="space-y-3"
+          >
+            {SHIPPING_METHODS.map((method) => {
+              const selected = shippingMethod === method.id;
+              const isPudo = method.id === "pudo_locker";
+              return (
+                <div
+                  key={method.id}
+                  className={`border transition-colors duration-200 ${
+                    selected
+                      ? "border-ink"
+                      : "border-ink/15 hover:border-ink/40"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setShippingMethod(method.id)}
+                    className="flex w-full items-start gap-4 px-4 py-4 text-left cursor-pointer"
+                  >
+                    {/* Radio indicator */}
+                    <span
+                      className={`mt-1 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border transition-colors ${
+                        selected ? "border-ink" : "border-ink/30"
+                      }`}
+                      aria-hidden
+                    >
+                      <AnimatePresence>
+                        {selected && (
+                          <motion.span
+                            initial={{ scale: 0 }}
+                            animate={{ scale: 1 }}
+                            exit={{ scale: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="h-2 w-2 rounded-full bg-ink"
+                          />
+                        )}
+                      </AnimatePresence>
+                    </span>
+
+                    {/* Label + description + price */}
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-baseline justify-between gap-3">
+                        <span className="font-display text-[15px] leading-snug text-ink">
+                          {method.label}
+                        </span>
+                        <span className="shrink-0 font-body text-sm text-ink">
+                          {isFreeShipping ? (
+                            <>
+                              <span className="mr-1.5 text-ink/35 line-through">
+                                {formatPrice(method.price)}
+                              </span>
+                              Free
+                            </>
+                          ) : (
+                            formatPrice(method.price)
+                          )}
+                        </span>
+                      </span>
+                      <span className="mt-1 block text-[11px] leading-relaxed text-ink/45">
+                        {method.blurb} · {method.eta}
+                      </span>
+                    </span>
+                  </button>
+
+                  {/* Locker instruction — the sub-header note asking the
+                      customer where to send their locker preference. */}
+                  {isPudo && (
+                    <div className="pb-4 pl-12 pr-4">
+                      <p className="border-l border-ink/15 pl-3 text-[11px] leading-relaxed text-ink/55">
+                        <span className="mb-1 block text-[10px] uppercase tracking-[0.15em] text-ink/45">
+                          Choosing your locker
+                        </span>
+                        Add your preferred locker in the order notes below, or
+                        email it to{" "}
+                        <span className="font-medium text-ink">
+                          {SUPPORT_EMAIL}
+                        </span>
+                        . If none is provided, it will be sent to the nearest
+                        available locker to your address.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </Section>
 
         <Section title="Order notes (optional)">
@@ -643,21 +686,29 @@ export default function CheckoutClient() {
                 <span>−{formatPrice(appliedDiscount.amount)}</span>
               </div>
             )}
-            <div className="flex justify-between text-sm text-ink/60">
-              <span>Shipping</span>
-              <span>
-                {!canQuoteShipping
-                  ? "Enter shipping details"
-                  : effectiveShippingLoading
-                    ? "Calculating…"
-                    : effectiveShippingCost === 0
-                      ? "Free"
-                      : formatPrice(effectiveShippingCost ?? 0)}
+            <div className="flex justify-between gap-4 text-sm text-ink/60">
+              <span className="min-w-0">
+                Shipping
+                <span className="block text-[11px] text-ink/40 truncate">
+                  {shippingMethodLabel(shippingMethod)}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                {isFreeShipping ? (
+                  <>
+                    <span className="mr-1.5 text-ink/35 line-through">
+                      {formatPrice(
+                        SHIPPING_METHODS.find((m) => m.id === shippingMethod)
+                          ?.price ?? 0,
+                      )}
+                    </span>
+                    Free
+                  </>
+                ) : (
+                  formatPrice(shippingCost)
+                )}
               </span>
             </div>
-            {effectiveShippingError ? (
-              <p className="text-sm text-red-600">{effectiveShippingError}</p>
-            ) : null}
             <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
               <span className="text-[11px] tracking-[0.2em] uppercase font-body">
                 Total
