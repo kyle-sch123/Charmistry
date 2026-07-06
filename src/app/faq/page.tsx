@@ -52,7 +52,9 @@ const faqGroups: FaqGroup[] = [
             </ul>
             <p>
               Shipping is{" "}
-              <span className="font-medium text-ink">free on orders over R600</span>
+              <span className="font-medium text-ink">
+                free on orders over R600
+              </span>
               , whichever option you pick.
             </p>
           </>
@@ -65,8 +67,9 @@ const faqGroups: FaqGroup[] = [
             Within South Africa, Locker-to-Locker takes{" "}
             <span className="font-medium text-ink">2–4 working days</span> and
             Standard Economy{" "}
-            <span className="font-medium text-ink">3–5 working days</span>. These
-            are estimates and may vary over peak periods or public holidays.
+            <span className="font-medium text-ink">3–5 working days</span>.
+            These are estimates and may vary over peak periods or public
+            holidays.
           </p>
         ),
       },
@@ -117,8 +120,8 @@ const faqGroups: FaqGroup[] = [
             >
               PayFast
             </Link>
-            . Your card details are handled entirely by PayFast — we never see or
-            store them.
+            . Your card details are handled entirely by PayFast — we never see
+            or store them.
           </p>
         ),
       },
@@ -129,7 +132,9 @@ const faqGroups: FaqGroup[] = [
             Yes. Join the{" "}
             <span className="font-medium text-ink">Charmistry Club</span> and
             we&apos;ll email you a single-use code for{" "}
-            <span className="font-medium text-ink">10% off your first order</span>
+            <span className="font-medium text-ink">
+              15% off your first order
+            </span>
             . Apply it in the discount field at checkout.
           </p>
         ),
@@ -177,8 +182,8 @@ const faqGroups: FaqGroup[] = [
         a: (
           <p>
             Most Charmistry pieces are crafted from{" "}
-            <span className="font-medium text-ink">stainless steel</span>, chosen
-            for its durability and everyday wearability.
+            <span className="font-medium text-ink">stainless steel</span>,
+            chosen for its durability and everyday wearability.
           </p>
         ),
       },
@@ -190,8 +195,8 @@ const faqGroups: FaqGroup[] = [
             <span className="font-medium text-ink">
               water-resistant and tarnish-resistant
             </span>{" "}
-            and hold up beautifully to daily wear. A little care still goes a long
-            way in keeping them looking their best.
+            and hold up beautifully to daily wear. A little care still goes a
+            long way in keeping them looking their best.
           </p>
         ),
       },
@@ -293,8 +298,8 @@ export default function FAQ() {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.2, ease: EASE }}
             >
-              Everything you need to know about ordering, delivery, and caring for
-              your Charmistry pieces. Can&apos;t find an answer?{" "}
+              Everything you need to know about ordering, delivery, and caring
+              for your Charmistry pieces. Can&apos;t find an answer?{" "}
               <a href="mailto:charmistryza@gmail.com" className={linkClass}>
                 Get in touch.
               </a>
@@ -337,7 +342,9 @@ export default function FAQ() {
                   transition={{ duration: 0.5, ease: EASE }}
                 >
                   {faq.category && (
-                    <div className={`flex items-center gap-4 mb-1 ${i === 0 ? "" : "mt-12"}`}>
+                    <div
+                      className={`flex items-center gap-4 mb-1 ${i === 0 ? "" : "mt-12"}`}
+                    >
                       <span
                         className="text-ink/40 uppercase shrink-0"
                         style={{
@@ -363,7 +370,9 @@ export default function FAQ() {
                     >
                       <span
                         className={`shrink-0 pt-[7px] tabular-nums transition-colors duration-300 ${
-                          isOpen ? "text-gold" : "text-ink/35 group-hover:text-ink/60"
+                          isOpen
+                            ? "text-gold"
+                            : "text-ink/35 group-hover:text-ink/60"
                         }`}
                         style={{
                           fontFamily: "var(--font-body)",
@@ -377,7 +386,9 @@ export default function FAQ() {
 
                       <span
                         className={`flex-1 leading-snug transition-colors duration-300 ${
-                          isOpen ? "text-ink" : "text-ink/85 group-hover:text-ink"
+                          isOpen
+                            ? "text-ink"
+                            : "text-ink/85 group-hover:text-ink"
                         }`}
                         style={{
                           fontFamily: "var(--font-display)",
@@ -394,7 +405,10 @@ export default function FAQ() {
                         <motion.span
                           className="absolute left-0 top-1/2 h-px w-full -translate-y-1/2 bg-ink/50 transition-colors duration-300 group-hover:bg-ink"
                           animate={{ rotate: isOpen ? 0 : 90 }}
-                          transition={{ duration: reduce ? 0 : 0.3, ease: EASE }}
+                          transition={{
+                            duration: reduce ? 0 : 0.3,
+                            ease: EASE,
+                          }}
                         />
                       </span>
                     </button>
@@ -409,7 +423,10 @@ export default function FAQ() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
-                          transition={{ duration: reduce ? 0 : 0.35, ease: EASE }}
+                          transition={{
+                            duration: reduce ? 0 : 0.35,
+                            ease: EASE,
+                          }}
                           className="overflow-hidden"
                         >
                           <div

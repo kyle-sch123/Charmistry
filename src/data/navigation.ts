@@ -3,9 +3,8 @@
 import { NavLink } from "@/types";
 
 export const navLinks: NavLink[] = [
-  { label: "New In", href: "/shop?sort=newest" },
   { label: "Shop", href: "/shop" },
-  { label: "Best Sellers", href: "/shop?sort=best-selling" },
+  { label: "BestSellers", href: "/best-sellers" },
   { label: "FAQ", href: "/faq" },
 ];
 
