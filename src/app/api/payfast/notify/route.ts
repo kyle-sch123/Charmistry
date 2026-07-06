@@ -44,6 +44,15 @@ import {
 } from "@/lib/email-templates";
 import { decrementProductStock } from "@/lib/inventory";
 import { shippingMethodLabel } from "@/lib/shipping";
+import {
+  KLAVIYO_BRAND,
+  klaviyoProductUrl,
+  klaviyoCustomerFor,
+  fetchCategoryByProduct,
+  categoryFor,
+  klaviyoLineItemsFor,
+  klaviyoCategoriesFor,
+} from "@/lib/klaviyo-orders";
 import type { Order, OrderItem } from "@/types";
 
 export const runtime = "nodejs";
@@ -324,13 +333,6 @@ async function trackMetaCapiPurchase(
   );
 }
 
-const KLAVIYO_BRAND = "Charmistry";
-
-function klaviyoProductUrl(slug: string | null | undefined): string | undefined {
-  const base = process.env.NEXT_PUBLIC_SITE_URL ?? "";
-  return slug && base ? `${base}/products/${slug}` : undefined;
-}
-
 /**
  * Emit the Klaviyo order events from Klaviyo's integration guide:
  *   - "Placed Order"    — one event, carries the full Items array + addresses.
@@ -340,69 +342,22 @@ function klaviyoProductUrl(slug: string | null | undefined): string | undefined 
  * their category for segmentation, and every Klaviyo call is settled so a
  * tracking failure never rejects back into the ITN response path. Both events
  * carry $event_id, so PayFast ITN redeliveries are deduped by Klaviyo.
+ * The customer / Items mapping is shared with the "Fulfilled Order" event
+ * (/api/admin/fulfil) via lib/klaviyo-orders.
  */
 async function trackKlaviyoOrder(
   order: Order,
   items: OrderItem[],
   paymentReference: string | null,
 ): Promise<void> {
-  // Map product_id → category name. A failure here just drops Categories.
-  const productIds = items
-    .map((it) => it.product_id)
-    .filter((id): id is string => Boolean(id));
-  const categoryByProduct = new Map<string, string>();
-  if (productIds.length > 0) {
-    const supabase = createServerSupabase();
-    const { data: products } = await supabase
-      .from("products")
-      .select("id, categories(name)")
-      .in("id", productIds);
-    for (const p of products ?? []) {
-      const row = p as {
-        id: string;
-        categories: { name: string } | { name: string }[] | null;
-      };
-      const cat = Array.isArray(row.categories)
-        ? row.categories[0]?.name
-        : row.categories?.name;
-      if (cat) categoryByProduct.set(row.id, cat);
-    }
-  }
-
-  const categoryFor = (it: OrderItem): string | undefined =>
-    it.product_id ? categoryByProduct.get(it.product_id) : undefined;
-
-  const customer = {
-    email: order.email,
-    first_name: order.first_name,
-    last_name: order.last_name,
-    phone: order.phone,
-    address1: order.shipping_address_line1,
-    address2: order.shipping_address_line2,
-    city: order.shipping_city,
-    zip: order.shipping_postal_code,
-    country: order.shipping_country,
-  };
-
-  const lineItems = items.map((it) => {
-    const cat = categoryFor(it);
-    return {
-      ProductID: it.product_id ?? it.product_slug,
-      SKU: it.product_slug,
-      ProductName: it.product_name,
-      Quantity: it.quantity,
-      ItemPrice: Number(it.unit_price),
-      RowTotal: Number(it.line_total),
-      ProductURL: klaviyoProductUrl(it.product_slug),
-      ImageURL: it.product_image_url ?? undefined,
-      ProductCategories: cat ? [cat] : [],
-      ProductBrand: KLAVIYO_BRAND,
-    };
-  });
-
-  const categories = Array.from(
-    new Set(items.map(categoryFor).filter((c): c is string => Boolean(c))),
+  const categoryByProduct = await fetchCategoryByProduct(
+    createServerSupabase(),
+    items,
   );
+
+  const customer = klaviyoCustomerFor(order);
+  const lineItems = klaviyoLineItemsFor(items, categoryByProduct);
+  const categories = klaviyoCategoriesFor(items, categoryByProduct);
   const itemNames = items.map((it) => it.product_name);
   const occurredAt = order.paid_at
     ? Math.floor(new Date(order.paid_at).getTime() / 1000)
@@ -440,7 +395,7 @@ async function trackKlaviyoOrder(
       occurredAt,
     ),
     ...items.map((it) => {
-      const cat = categoryFor(it);
+      const cat = categoryFor(categoryByProduct, it);
       return trackKlaviyoEvent(
         "Ordered Product",
         customer,
