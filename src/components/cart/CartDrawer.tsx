@@ -43,6 +43,11 @@ export default function CartDrawer() {
   const updateQuantity = useCart((s) => s.updateQuantity);
   const removeItem = useCart((s) => s.removeItem);
 
+  const FREE_SHIPPING_THRESHOLD = 600;
+  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
+  const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
+  const isUnlocked = subtotal >= FREE_SHIPPING_THRESHOLD;
+
   // Lock body scroll while the drawer is open
   useEffect(() => {
     if (!isOpen) return;
@@ -125,6 +130,79 @@ export default function CartDrawer() {
               </div>
             ) : (
               <>
+                {/* Free shipping progress bar */}
+                <div className="px-6 pt-4 pb-3.5 border-b border-ink/10">
+                  <div className="flex items-center justify-between mb-2.5">
+                    <AnimatePresence mode="wait">
+                      {isUnlocked ? (
+                        <motion.div
+                          key="unlocked"
+                          className="flex items-center gap-1.5"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <svg
+                            className="w-3 h-3 shrink-0"
+                            viewBox="0 0 12 12"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            style={{ color: "var(--color-gold)" }}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
+                          </svg>
+                          <p
+                            className="text-[10px] tracking-[0.22em] uppercase font-body"
+                            style={{ color: "var(--color-gold)" }}
+                          >
+                            Free delivery unlocked
+                          </p>
+                        </motion.div>
+                      ) : (
+                        <motion.p
+                          key="remaining"
+                          className="text-[10px] tracking-[0.15em] uppercase font-body text-ink/55"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <span className="text-ink">{formatPrice(remaining)}</span> away from free delivery
+                        </motion.p>
+                      )}
+                    </AnimatePresence>
+                    {!isUnlocked && (
+                      <span className="text-[10px] font-body text-ink/30 tabular-nums">R600</span>
+                    )}
+                  </div>
+
+                  {/* Progress track */}
+                  <div className="relative h-[2px] bg-stone rounded-full overflow-hidden">
+                    <motion.div
+                      className="absolute inset-y-0 left-0 rounded-full"
+                      style={{
+                        background:
+                          "linear-gradient(90deg, var(--color-gold-dark), var(--color-gold), var(--color-gold-light))",
+                      }}
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${progress}%` }}
+                      transition={{ type: "spring", damping: 28, stiffness: 160, mass: 0.8 }}
+                    />
+                    {isUnlocked && (
+                      <div
+                        className="absolute inset-0 animate-shimmer"
+                        style={{
+                          background:
+                            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
+                          backgroundSize: "200% 100%",
+                        }}
+                      />
+                    )}
+                  </div>
+                </div>
+
                 <ul className="flex-1 overflow-y-auto divide-y divide-ink/10">
                   {lines.map((line) => (
                     <li key={line.id} className="flex gap-4 px-6 py-5">

@@ -195,7 +195,7 @@ export default function ProductCard({
               never collides with the promo badge (top-left), and styled neutral
               (frosted ivory) to read as an attribute rather than a promotion. */}
           {adjustable && (
-            <span className="absolute top-3 right-3 z-10 px-3 py-1 text-[10px] tracking-[0.15em] uppercase font-body font-medium bg-ivory/90 text-obsidian backdrop-blur-sm">
+            <span className="absolute top-3 right-3 z-10 px-1.5 py-0.5 text-[8px] tracking-[0.08em] md:px-3 md:py-1 md:text-[10px] md:tracking-[0.15em] uppercase font-body font-medium bg-ivory/90 text-obsidian backdrop-blur-sm">
               Adjustable
             </span>
           )}

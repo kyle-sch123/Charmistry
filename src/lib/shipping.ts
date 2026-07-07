@@ -55,7 +55,7 @@ export const SHIPPING_METHODS: readonly ShippingMethodDef[] = [
     carrier: "The Courier Guy",
     price: 79,
     eta: "3–5 working days",
-    blurb: "Door-to-door delivery via The Courier Guy",
+    blurb: "Delivery via The Courier Guy",
   },
 ] as const;
 
