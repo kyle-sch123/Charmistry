@@ -129,7 +129,7 @@ export default function HeroSection() {
           className="text-white/60 text-[10px] tracking-[0.4em] uppercase"
           style={{ fontFamily: "var(--font-body)" }}
         >
-          Scroll
+          EXPLORE BESTSELLERS
         </span>
       </motion.div>
 
