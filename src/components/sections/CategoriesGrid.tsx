@@ -13,12 +13,18 @@ import Link from "next/link";
 import { getCategories } from "@/lib/queries";
 import type { CategoryWithCount } from "@/types";
 
-const SLUG_ORDER = ["necklaces", "rings", "earrings", "bracelets", "jewellery-boxes"];
+const SLUG_ORDER = [
+  "necklaces",
+  "rings",
+  "earrings",
+  "bracelets",
+  "jewellery-boxes",
+];
 
 const AREA_CLASS: Record<string, string> = {
   necklaces: "cat-n",
-  rings: "cat-r",
   earrings: "cat-e",
+  rings: "cat-r",
   bracelets: "cat-b",
   "jewellery-boxes": "cat-x",
 };
@@ -30,9 +36,9 @@ export default function CategoriesGrid() {
     getCategories().then(setCategories);
   }, []);
 
-  const ordered = SLUG_ORDER.map((s) => categories.find((c) => c.slug === s)).filter(
-    Boolean,
-  ) as CategoryWithCount[];
+  const ordered = SLUG_ORDER.map((s) =>
+    categories.find((c) => c.slug === s),
+  ).filter(Boolean) as CategoryWithCount[];
 
   if (!ordered.length) return null;
 
@@ -77,7 +83,7 @@ export default function CategoriesGrid() {
           grid-template-rows: 1.7fr 1fr 1fr;
           grid-template-areas:
             "n n"
-            "r e"
+            "e r"
             "b x";
           height: 560px;
         }
@@ -89,7 +95,7 @@ export default function CategoriesGrid() {
             grid-template-columns: 2fr 1fr 1fr;
             grid-template-rows: 1fr 1fr;
             grid-template-areas:
-              "n r e"
+              "n e r"
               "n b x";
             height: 620px;
           }
@@ -119,7 +125,11 @@ function CategoryCard({
       initial={{ opacity: 0, scale: 0.97 }}
       whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.65, delay: 0.05 + index * 0.07, ease: [0.22, 1, 0.36, 1] }}
+      transition={{
+        duration: 0.65,
+        delay: 0.05 + index * 0.07,
+        ease: [0.22, 1, 0.36, 1],
+      }}
     >
       <Link
         href={`/shop?category=${category.slug}`}
