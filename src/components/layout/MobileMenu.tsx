@@ -19,10 +19,14 @@ interface MobileMenuProps {
 export default function MobileMenu({ open, onClose }: MobileMenuProps) {
   const [shopExpanded, setShopExpanded] = useState(false);
 
-  // Reset subcategory state when menu closes.
-  useEffect(() => {
+  // Reset subcategory state when the menu closes — adjust-during-render
+  // (react.dev "You Might Not Need an Effect") instead of an effect, so the
+  // reset happens in the same pass without a cascading re-render.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (open !== prevOpen) {
+    setPrevOpen(open);
     if (!open) setShopExpanded(false);
-  }, [open]);
+  }
 
   // ESC closes the menu and body scroll locks while open.
   useEffect(() => {
@@ -142,6 +146,23 @@ export default function MobileMenu({ open, onClose }: MobileMenuProps) {
                 )}
               </motion.div>
             ))}
+
+            {/* Account — the top bar only shows this icon on desktop, so the
+                menu is the mobile entry point. */}
+            <motion.div
+              className="flex flex-col items-center w-full"
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4, delay: 0.1 + navLinks.length * 0.08 }}
+            >
+              <Link
+                href="/account"
+                onClick={onClose}
+                className="font-display text-3xl sm:text-4xl text-ivory font-light tracking-wide hover:text-gold transition-colors py-1"
+              >
+                Account
+              </Link>
+            </motion.div>
           </nav>
 
           <div className="px-6 pb-8 text-center">

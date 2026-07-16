@@ -31,6 +31,7 @@
  */
 
 import { createServerSupabase } from "@/lib/supabase-server";
+import { getVerifiedUser } from "@/lib/auth/server";
 import { buildPaymentRequest } from "@/lib/payfast";
 import { resolveShippingMethod, shippingCostForMethod } from "@/lib/shipping";
 import {
@@ -250,6 +251,11 @@ export async function POST(request: Request) {
     return Response.json({ error: "invalid_total" }, { status: 400 });
   }
 
+  // Attach the signed-in customer, if any. The id comes from the verified
+  // session cookie — never from the request body — and getVerifiedUser()
+  // returns null on any failure, so an auth outage can't block guest checkout.
+  const authUser = await getVerifiedUser();
+
   // Create the order. If total is zero (e.g. 100%-off welcome code), mark it
   // paid immediately and skip PayFast — PayFast rejects R0 transactions.
   const isZeroTotal = total === 0;
@@ -257,6 +263,7 @@ export async function POST(request: Request) {
     .from("orders")
     .insert({
       email,
+      user_id: authUser?.id ?? null,
       first_name: firstName,
       last_name: lastName,
       phone: phone || null,

@@ -23,8 +23,8 @@ const SLUG_ORDER = [
 
 const AREA_CLASS: Record<string, string> = {
   necklaces: "cat-n",
-  earrings: "cat-e",
   rings: "cat-r",
+  earrings: "cat-e",
   bracelets: "cat-b",
   "jewellery-boxes": "cat-x",
 };
@@ -83,7 +83,7 @@ export default function CategoriesGrid() {
           grid-template-rows: 1.7fr 1fr 1fr;
           grid-template-areas:
             "n n"
-            "e r"
+            "r e"
             "b x";
           height: 560px;
         }
@@ -95,7 +95,7 @@ export default function CategoriesGrid() {
             grid-template-columns: 2fr 1fr 1fr;
             grid-template-rows: 1fr 1fr;
             grid-template-areas:
-              "n e r"
+              "n r e"
               "n b x";
             height: 620px;
           }

@@ -4,10 +4,11 @@ E-commerce storefront for **Charmistry** — a South-African jewellery brand
 selling water-resistant, tarnish-resistant stainless-steel pieces.
 
 > **At a glance.** Next.js 15 (App Router) + React 19 site, deployed to
-> Cloudflare via OpenNext. Supabase is the catalogue + order database,
-> PayFast handles payments, Resend sends transactional email, Courier Guy
-> dispatches parcels, Klaviyo tracks marketing events. The cart lives in
-> the browser (Zustand + localStorage with a 30-day TTL).
+> Cloudflare via OpenNext. Supabase is the catalogue + order database and
+> the auth provider (customer accounts: Google OAuth + email OTP), PayFast
+> handles payments, Resend sends transactional email, Klaviyo tracks
+> marketing events. Fulfilment is manual via the `/admin/fulfil` console.
+> The cart lives in the browser (Zustand + localStorage with a 30-day TTL).
 
 ---
 
@@ -31,16 +32,17 @@ selling water-resistant, tarnish-resistant stainless-steel pieces.
 
 | Concern                | Choice                                         |
 |------------------------|------------------------------------------------|
-| Framework              | Next.js 15.3 (App Router, Server Components)   |
+| Framework              | Next.js 15.5 (App Router, Server Components)   |
 | UI                     | React 19, Tailwind v4, Framer Motion           |
 | State (client)         | Zustand 5, localStorage persist with TTL       |
 | Database / Storage     | Supabase (Postgres + Storage buckets)          |
+| Auth (customer accounts) | Supabase Auth via `@supabase/ssr` — Google OAuth + email OTP, cookie sessions |
 | Payments               | PayFast (ZA market, ZAR currency)              |
-| Transactional email    | Resend                                         |
-| Shipping / dispatch    | Courier Guy (optional, opt-in via env)         |
+| Transactional email    | Resend (also Supabase Auth's SMTP sender)      |
+| Shipping / dispatch    | Manual via `/admin/fulfil` console (The Courier Guy / PUDO) |
 | Marketing events       | Klaviyo (optional, opt-in via env)             |
-| Analytics              | Google Analytics 4 (optional, opt-in via env)  |
-| Deployment target      | Cloudflare Pages via `@opennextjs/cloudflare`  |
+| Analytics              | Google Analytics 4 + Meta Pixel/CAPI (optional, opt-in via env) |
+| Deployment target      | Cloudflare Workers via `@opennextjs/cloudflare` |
 | Lint / typecheck       | ESLint 9 + `eslint-config-next`, TS 5          |
 
 Node 20+ is required (matches `@types/node` in package.json).
@@ -121,16 +123,19 @@ See `.env.example` for the full list. Quick rundown:
 
 | Var                              | Purpose                                          |
 |----------------------------------|--------------------------------------------------|
-| `COURIER_GUY_API_BASE_URL`       | Set both to enable automated dispatch.           |
-| `COURIER_GUY_API_KEY`            | Set both to enable automated dispatch.           |
-| `COURIER_GUY_SENDER_*`           | Your business pickup address (8 vars).           |
-| `KLAVIYO_API_KEY`                | Set to enable server-side Placed Order + Ordered Product events. |
+| `KLAVIYO_API_KEY`                | Set to enable server-side Placed Order / Ordered Product / Fulfilled Order events. |
 | `NEXT_PUBLIC_GA_ID`              | Set to enable GA script injection.               |
 | `NEXT_PUBLIC_FB_PIXEL_ID`        | Set to enable Meta (Facebook) Pixel injection.   |
+| `META_CAPI_ACCESS_TOKEN`         | Set to enable the server-side Meta Purchase event (deduped against the pixel). |
+| `ADMIN_FULFILMENT_KEY`           | Shared secret for the `/admin/fulfil` console. Blank = console disabled (fails closed). |
 | `S3_BUCKET_NAME`                 | Supabase Storage bucket for product galleries.   |
 
 The optional integrations all have `isXConfigured()` guards — leaving the
 key blank disables the call without breaking the rest of the flow.
+
+**Customer accounts need no extra env vars** — the Supabase URL/anon key
+above cover auth. They DO need one-time Supabase + Google dashboard
+configuration: see [`docs/account-auth-setup.md`](docs/account-auth-setup.md).
 
 ---
 
@@ -138,17 +143,30 @@ key blank disables the call without breaking the rest of the flow.
 
 ```
 src/
+  middleware.ts                Auth session refresh + /account guarding.
+                               INCLUDE-list matcher: only /account/** and
+                               /login — never touches the ITN or storefront.
   app/                         Routes and pages (App Router).
     api/
+      account/delete/          POST — self-serve account deletion.
+      account/marketing/       POST — marketing opt-in/out + Resend sync.
+      admin/fulfil/            GET/POST — fulfilment console API (x-admin-key).
       bestsellers/             GET — top 5 in-stock by review_count.
       checkout/                POST — main checkout orchestrator.
+      checkout/cancel/         GET — PayFast cancel-page handling.
       discount/validate/       POST — code preview (does not consume).
+      orders/[id]/status/      GET — no-PII order status (success-page polling).
       payfast/notify/          POST — PayFast ITN handler (payment finalisation).
-      shipping/quote/          POST — live shipping cost estimate.
       subscribe/               POST — newsletter signup + welcome code.
+    account/                   Signed-in area: overview, orders (+ detail with
+                               tracking timeline + buy-again), wishlist, settings.
+    admin/fulfil/              Fulfilment console UI (admin-key gated).
+    auth/{callback,confirm}/   OAuth code exchange / email token_hash verify.
+    login/                     Google OAuth + email OTP sign-in.
     checkout/                  Form, success page, cancelled page.
+    collections/               Collections landing page.
     products/[slug]/           Product detail + not-found.
-    shop/                      Filterable shop grid.
+    shop/  best-sellers/       Filterable shop grid, best-sellers page.
     care/ faq/ privacy/ shipping/   Static policy pages.
     layout.tsx                 Root layout, fonts, cart drawer mount.
     page.tsx                   Home page composition.
@@ -157,37 +175,48 @@ src/
     analytics/MetaPixel        Meta Pixel script + pageview emitter.
     cart/CartDrawer            Right-side slide-in bag.
     icons/Logo                 Text wordmark.
-    layout/{Navbar, MobileMenu, Footer}
+    layout/{Navbar, MobileMenu, Footer, MarqueeBanner}
     product/ProductDetail      PDP body with variant picker.
     search/SearchOverlay       Full-screen catalogue search.
     sections/                  Home-page sections (Hero, BestSellers, etc.).
     shop/ShopFilterBar         URL-driven filter + sort bar.
     ui/                        ProductCard, ScrollReveal, SectionDivider,
                                TextReveal.
+    wishlist/WishlistButton    Heart toggle (PDP only).
   data/
     navigation.ts              Static nav links.
     testimonials.ts            Hand-curated home-page testimonials.
   hooks/useEmailSubscribe.ts   Newsletter submit hook.
   lib/
-    courier-guy.ts             Shipment dispatch.
+    account.ts                 Profile bootstrap + guest-order claiming.
+    auth/                      Supabase Auth clients: browser (cookie-backed),
+                               server (RLS-scoped SSR), middleware helper,
+                               redirect sanitiser.
     discounts.ts               Resolve / consume / refund codes.
+    email.ts                   Email canonicalisation (welcome-code dedup).
     email-templates.ts         Transactional HTML.
     gtag.ts                    GA helpers (no-op when env blank).
     fpixel.ts                  Meta Pixel helpers (no-op when env blank).
-    klaviyo.ts                 Server-side order events (Placed/Ordered Product).
+    inventory.ts               Atomic stock decrement on payment confirmation.
+    klaviyo.ts                 Server-side Klaviyo events (Events API).
     klaviyo-client.ts          Onsite funnel events (Viewed/Added/Started Checkout).
+    klaviyo-orders.ts          Order → Klaviyo payload mapping.
+    meta-capi.ts               Meta Conversions API purchase events.
     payfast.ts                 Payment-request build + ITN signature + validate.
     queries.ts                 Anon-side Supabase reads.
-    shipping.ts                Shipping price estimator.
-    supabase.ts                Anon Supabase client.
+    shipping.ts                Shipping methods catalogue + pricing.
+    supabase.ts                Anon Supabase client (catalogue reads; auth disabled).
     supabase-server.ts         Service-role Supabase client factory.
     utils.ts                   cn() + formatPrice().
-  stores/cart.ts               Zustand cart with 30-day TTL persist.
+  stores/
+    cart.ts                    Zustand cart with 30-day TTL persist.
+    wishlist.ts                Zustand wishlist mirror (Supabase-backed, RLS).
   types/index.ts               Shared domain types.
 
 scripts/
   import-catalogue.mjs         CSV → Supabase products table upserter.
 
+docs/account-auth-setup.md     One-time Google/Supabase dashboard setup for auth.
 public/                        Static SVG assets (Next.js boilerplate).
 .env.example                   Full env var list with comments.
 findings.md                    Most recent code-review notes (see also
@@ -246,11 +275,16 @@ CheckoutClient (browser)
         │   3. Check amount_gross matches order.total
         │   4. UPDATE orders SET status='paid' WHERE status='pending'
         │      (.select("id") → losers of the race bail before side effects)
-        │   5. Send confirmation emails (Resend)
-        │   6. Track Placed Order (Klaviyo, if configured)
-        │   7. Create shipment (Courier Guy, if configured)
-        │   8. Track Shipped Order (Klaviyo, if configured)
+        │   5. Decrement stock (atomic RPC)
+        │   6. Send confirmation emails (Resend)
+        │   7. Track Placed Order + Ordered Product (Klaviyo, if configured)
+        │   8. Meta CAPI Purchase (if configured, deduped against the pixel)
 ```
+
+Dispatch is a separate, manual step: the merchant opens `/admin/fulfil`
+(gated by `ADMIN_FULFILMENT_KEY`), enters the courier + tracking number,
+and the API marks the order `shipping_status='shipped'` and fires the
+Klaviyo `Fulfilled Order` event.
 
 The ITN is the source of truth for payment state. The success page is
 purely UX — it does NOT confirm anything happened. PayFast retries the
@@ -291,6 +325,43 @@ checkout — cart fields are display-only.
 Persisted carts older than 30 days are dropped on rehydration so a returning
 visitor doesn't checkout at last quarter's prices.
 
+### Customer accounts (Supabase Auth)
+
+Sign-in methods: **Google OAuth** and **passwordless email** (6-digit OTP
+with a signed-link fallback in the same email). No passwords anywhere.
+One-time dashboard setup lives in `docs/account-auth-setup.md`.
+
+```
+/login ──▶ signInWithOAuth (Google) ──▶ /auth/callback?code  ─┐
+       ──▶ signInWithOtp (email)    ──▶ 6-digit verifyOtp     ├─▶ session
+                                    └─▶ /auth/confirm?token_hash ┘  (cookies)
+```
+
+- **Clients.** `lib/auth/client.ts` (cookie-backed browser client — the only
+  GoTrue instance that owns session state) and `lib/auth/server.ts`
+  (per-request SSR client; all `/account` pages query through it so **RLS,
+  not page code, decides what a customer sees**). The old anon singleton
+  (`lib/supabase.ts`) has auth explicitly disabled and stays catalogue-only.
+- **Middleware.** `src/middleware.ts` matches ONLY `/account/:path*` and
+  `/login` — token refresh + redirects happen there, and the PayFast ITN /
+  checkout / storefront can never gain an auth failure mode.
+- **Order ownership.** `/api/checkout` stamps `orders.user_id` from the
+  verified session cookie (never the request body); guests stay `NULL`.
+  On sign-in and on every `/account` visit, `lib/account.ts` claims past
+  guest orders by **exact lowercase match on the verified auth email**
+  (deliberately not the canonicalised form — plus/dot collapsing would link
+  orders the user never proved ownership of).
+- **Account area.** `/account` = overview, order history + detail (tracking
+  timeline, courier link, "order again"), wishlist, settings (details,
+  default address → checkout prefill, marketing toggle, sign out, delete).
+  Deletion keeps order rows (accounting) but detaches them
+  (`user_id → NULL`); profile + wishlist cascade away.
+- **Wishlist.** Hearts on product cards + PDP write straight from the
+  browser to `wishlist_items` under own-row RLS; `stores/wishlist.ts`
+  mirrors it in memory (optimistic toggle, reset on auth change).
+- **Guest checkout is untouched** — signing in is optional; signed-in users
+  just get prefilled details and linked orders.
+
 ---
 
 ## Database
@@ -307,6 +378,8 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `004_discount_rpcs.sql`               | `redeem_discount_code()` and `refund_discount_code()` |
 | `005_email_canonical.sql`             | `discount_codes.email_canonical` + partial unique index over active rows (welcome-code abuse fix — see "Newsletter signup" below) |
 | `006_stock_decrement_rpc.sql`         | `decrement_product_stock()` — atomic, oversell-safe stock debit run on payment confirmation |
+| `007_shipping_method.sql`             | `orders.shipping_method` (PUDO locker vs standard economy) |
+| `008_accounts.sql`                    | Customer accounts: `profiles` (+ signup trigger), `orders.user_id`, `wishlist_items`, customer-facing RLS SELECT policies |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
 enums, CREATE OR REPLACE for functions) so re-running them is safe.
@@ -380,11 +453,20 @@ waybill_number        text nullable
 shipped_at            timestamptz nullable
 payfast_payment_id    text nullable    set at checkout to order.id (our `m_payment_id` to PayFast)
 payfast_pf_payment_id text nullable    set on ITN to PayFast's `pf_payment_id`
+user_id               uuid fk → auth.users, nullable   owner; NULL for guest
+                                       orders and after account deletion
+                                       (ON DELETE SET NULL keeps the record)
+shipping_method       text nullable    'pudo_locker' | 'courier_economy'
 notes                 text nullable
 created_at            timestamptz
 updated_at            timestamptz
 paid_at               timestamptz nullable
 ```
+
+RLS: customers (`authenticated` role) get SELECT on their own rows only
+(`user_id = auth.uid()`); all writes go through the service role
+(checkout, ITN, fulfilment console). Guest orders are invisible to every
+client role.
 
 The column names match the current payment gateway (PayFast). They were
 originally PayFast, briefly stored Paystack values during a Paystack
@@ -406,7 +488,39 @@ created_at          timestamptz
 ```
 
 `product_*` fields are snapshots so a later catalogue rename doesn't break
-an old receipt.
+an old receipt. RLS mirrors `orders`: customers can SELECT items belonging
+to their own orders; writes are service-role only.
+
+**`profiles`** (one row per `auth.users` row, created by the
+`on_auth_user_created` trigger from migration 008)
+```
+id                     uuid pk, fk → auth.users ON DELETE CASCADE
+first_name             text nullable   seeded from Google metadata when present
+last_name              text nullable
+phone                  text nullable
+marketing_opt_in       boolean         default false
+default_address_line1  text nullable   ┐
+default_address_line2  text nullable   │ default shipping address —
+default_city           text nullable   │ prefills checkout for
+default_postal_code    text nullable   │ signed-in customers
+default_country        text            ┘ default 'ZA'
+created_at             timestamptz
+updated_at             timestamptz     trigger-maintained
+```
+
+Own-row SELECT + UPDATE via RLS (customers edit their own profile straight
+from the browser); INSERT is trigger/service-role only.
+
+**`wishlist_items`**
+```
+user_id      uuid fk → auth.users ON DELETE CASCADE
+product_id   uuid fk → products ON DELETE CASCADE
+created_at   timestamptz
+primary key (user_id, product_id)
+```
+
+Own-row SELECT/INSERT/DELETE via RLS — written directly from the browser
+client, no API route in between.
 
 **`discount_codes`**
 ```
@@ -472,9 +586,13 @@ A successful purchase produces these side effects in order:
 8. **Stock decremented** — `decrement_product_stock()` RPC atomically debits `products.quantity` per line (clamped at 0, flips `in_stock=false` at zero, flags any oversell).
 9. **Customer confirmation email** sent (Resend).
 10. **Merchant notification email** sent (Resend) — only if `MERCHANT_NOTIFICATION_EMAIL` is set.
-11. **Klaviyo `Placed Order` event** fired (if `KLAVIYO_API_KEY` set).
-12. **Courier Guy shipment created** (if Courier Guy env vars set), order updated with tracking info.
-13. **Klaviyo `Shipped Order` event** fired (if both Courier Guy and Klaviyo configured).
+11. **Klaviyo `Placed Order` + `Ordered Product` events** fired (if `KLAVIYO_API_KEY` set).
+12. **Meta CAPI `Purchase` event** fired (if `META_CAPI_ACCESS_TOKEN` set), deduped against the browser pixel by order id.
+
+Dispatch happens later, manually: `/admin/fulfil` → enter courier +
+tracking number → order gets `shipping_status='shipped'` + tracking
+columns + a Klaviyo `Fulfilled Order` event. Signed-in customers see the
+progress on `/account/orders/<id>`.
 
 If step 4 (PayFast build) errors, step 3's consume is refunded and the
 order is marked `failed`. If step 6 doesn't fire, the order stays in
@@ -568,14 +686,25 @@ their dashboard — the `notify_url` is sent per transaction in the form
 data. That means rotating between local/staging/production is just a
 matter of changing `NEXT_PUBLIC_SITE_URL`.
 
+### Fulfil an order
+
+Open `/admin/fulfil`, unlock with the `ADMIN_FULFILMENT_KEY` value, pick a
+paid order, enter courier + tracking number (waybill/URL optional) and
+submit. The order flips to `shipping_status='shipped'`, the tracking
+columns are stored (surfaced to the customer on `/account/orders/<id>`),
+and a Klaviyo `Fulfilled Order` event fires for the shipping-confirmation
+flow. Resubmitting corrects the fields; the Klaviyo event dedupes on the
+order id.
+
 ### Disable an integration
 
 Blank out the env var:
 
 - `KLAVIYO_API_KEY=` → no marketing events
-- `COURIER_GUY_API_KEY=` → no automated dispatch (orders still marked paid)
 - `NEXT_PUBLIC_GA_ID=` → no GA script
 - `NEXT_PUBLIC_FB_PIXEL_ID=` → no Meta Pixel script
+- `META_CAPI_ACCESS_TOKEN=` → no server-side Meta Purchase events
+- `ADMIN_FULFILMENT_KEY=` → fulfilment console disabled (fails closed)
 
 The code checks `isXConfigured()` before calling.
 
@@ -663,6 +792,9 @@ uses that local copy.
    003_add_material_size.sql           -- no-op if 000 ran first
    004_discount_rpcs.sql               -- redeem_discount_code, refund_discount_code
    005_email_canonical.sql             -- email_canonical column + partial unique index
+   006_stock_decrement_rpc.sql         -- decrement_product_stock
+   007_shipping_method.sql             -- orders.shipping_method
+   008_accounts.sql                    -- profiles, orders.user_id, wishlist_items, RLS
    ```
    (You can also push them with `supabase db push` if you use the CLI.)
 3. Seed the catalogue. Easiest path: open Studio → Table Editor, insert a
@@ -675,6 +807,11 @@ uses that local copy.
    Storage → New bucket → name `Charmistry Assets` → toggle Public on.
    Upload product images named with the product's slug as a prefix
    (e.g. `mila-bracelet-gold.jpg`).
+5. **Auth (customer accounts).** Follow `docs/account-auth-setup.md`:
+   create the Google OAuth client, enable the Google provider, set the
+   URL configuration, configure Resend as the auth SMTP sender, and
+   customise the Magic Link template to include the `{{ .Token }}`
+   6-digit code.
 
 ### Step 3 — PayFast
 
@@ -704,15 +841,16 @@ uses that local copy.
 
 ### Step 5 — Optional services
 
-- **Courier Guy.** Set all `COURIER_GUY_*` env vars. If you don't, the
-  webhook skips dispatch and the order stays `paid` with
-  `shipping_status='pending'` — you fulfil manually.
+- **Fulfilment console.** Set `ADMIN_FULFILMENT_KEY` (e.g.
+  `openssl rand -hex 24`) to enable `/admin/fulfil` for entering courier +
+  tracking numbers after dispatch. Blank = the console fails closed.
 - **Klaviyo.** The onsite funnel (`Active on Site`, `Viewed Product`, `Added
   to Cart`, `Started Checkout`) runs off `NEXT_PUBLIC_KLAVIYO_COMPANY_ID`. Set
-  `KLAVIYO_API_KEY` to also fire the server-side `Placed Order` and `Ordered
-  Product` events from the PayFast ITN. Skip the key to disable those.
-- **GA.** Set `NEXT_PUBLIC_GA_ID` to inject the gtag script. Skip to
-  disable.
+  `KLAVIYO_API_KEY` to also fire the server-side `Placed Order`, `Ordered
+  Product` and `Fulfilled Order` events. Skip the key to disable those.
+- **GA / Meta.** Set `NEXT_PUBLIC_GA_ID` for gtag, `NEXT_PUBLIC_FB_PIXEL_ID`
+  for the Meta Pixel, and `META_CAPI_ACCESS_TOKEN` for server-side Purchase
+  events. Skip any to disable it.
 
 ### Step 6 — Cloudflare auth and project bootstrap
 
@@ -756,17 +894,9 @@ npx wrangler secret put MERCHANT_NOTIFICATION_EMAIL
 npx wrangler secret put S3_BUCKET_NAME                  # only if using Supabase Storage gallery
 
 # Optional integrations — only set these if you're using them:
-npx wrangler secret put COURIER_GUY_API_BASE_URL
-npx wrangler secret put COURIER_GUY_API_KEY
-npx wrangler secret put COURIER_GUY_SENDER_NAME
-npx wrangler secret put COURIER_GUY_SENDER_EMAIL
-npx wrangler secret put COURIER_GUY_SENDER_PHONE
-npx wrangler secret put COURIER_GUY_SENDER_ADDRESS_LINE1
-npx wrangler secret put COURIER_GUY_SENDER_ADDRESS_LINE2
-npx wrangler secret put COURIER_GUY_SENDER_CITY
-npx wrangler secret put COURIER_GUY_SENDER_POSTAL_CODE
-npx wrangler secret put COURIER_GUY_SENDER_COUNTRY
+npx wrangler secret put ADMIN_FULFILMENT_KEY
 npx wrangler secret put KLAVIYO_API_KEY
+npx wrangler secret put META_CAPI_ACCESS_TOKEN
 ```
 
 Each command prompts for the value and stores it encrypted in your
@@ -813,8 +943,11 @@ First deploy takes ~2-3 minutes. wrangler prints the live URL
    `payfast_pf_payment_id` populated.
 7. Check your customer inbox for the confirmation email and the merchant
    inbox for the new-order alert.
-8. (If Courier Guy is configured) check the same row for
-   `tracking_number`, `tracking_url`, `shipping_status='shipped'`.
+8. Open `/admin/fulfil`, mark the order shipped with a tracking number,
+   then confirm the row shows `shipping_status='shipped'` + tracking
+   columns.
+9. Sign in at `/login` with the email used at checkout — the order should
+   appear under `/account/orders` with the tracking details.
 
 ### Step 11 — Go live with PayFast
 
@@ -935,23 +1068,23 @@ queries change).
 
 ## Known issues
 
-The most recent end-to-end audit is in `findings.md` at the repo root.
+The most recent end-to-end audit is in `findings.md` at the repo root
+(written under an older stack — trust current source over it).
 Specifically still open:
 
-- **Next 15.3 has CVE-2025-66478.** Patched in later 15.x — upgrade is a
-  one-line `package.json` change but wasn't done in this pass because it
-  also affects `eslint-config-next` versioning.
 - **No rate limiting on any API route.** Newsletter signup and discount
   validate are particularly worth limiting in production.
-- **Country field is locked to ZA in the checkout UI** but the shipping
-  estimator has an international branch. Pick one or the other.
 - **Stock oversell race in `/api/checkout`.** The handler reads
-  `products.quantity` and validates `qty <= available`, but doesn't take a
-  row lock or atomically decrement. Two simultaneous checkouts for the
-  last unit can both pass the check and both go through PayFast. The fix
-  is either a `SELECT … FOR UPDATE` inside an RPC (atomic
-  check-then-decrement) or an inventory-reservation table — neither was
-  applied in this pass.
+  `products.quantity` and validates `qty <= available` without a row lock
+  or reservation, so two simultaneous checkouts for the last unit can both
+  reach PayFast. Stock is only *debited* at payment confirmation via the
+  atomic `decrement_product_stock` RPC (clamps at 0 and reports oversells)
+  — so the books stay correct, but a true fix needs checkout-time
+  reservation.
+- **No cookie-consent banner.** GA4, Meta Pixel and Klaviyo onsite all
+  fire unconditionally — POPIA/GDPR gap.
+- **Zero-total (100%-off) orders send no confirmation email.** The R0 path
+  marks paid + decrements stock but skips `sendConfirmationEmail`.
 
 ## Testing
 

@@ -20,6 +20,7 @@ import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MetalType, ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
+import WishlistButton from "@/components/wishlist/WishlistButton";
 import { formatPrice, isAdjustableSize } from "@/lib/utils";
 import { trackAddToCart, trackViewItem } from "@/lib/gtag";
 import {
@@ -442,6 +443,12 @@ export default function ProductDetail({
               </motion.span>
             </AnimatePresence>
           </button>
+
+          <WishlistButton
+            productId={selectedVariant.id}
+            variant="inline"
+            className="self-stretch"
+          />
         </div>
 
         <ul className="mt-10 space-y-3 text-xs text-ink/60 font-body">

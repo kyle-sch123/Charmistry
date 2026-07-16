@@ -159,6 +159,8 @@ export interface Order {
   shipped_at: string | null;
   payfast_payment_id: string | null;
   payfast_pf_payment_id: string | null;
+  /** Owning auth user. NULL for guest orders and after account deletion. */
+  user_id: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -193,5 +195,33 @@ export interface OrderItem {
   unit_price: number;
   quantity: number;
   line_total: number;
+  created_at: string;
+}
+
+// --- Accounts ----------------------------------------------------------
+//
+// One profiles row per auth.users row, created by the on_auth_user_created
+// trigger (migration 008). The default_* address prefills checkout for
+// signed-in customers. All fields except id/timestamps are owner-editable
+// via RLS from /account/settings.
+
+export interface Profile {
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  phone: string | null;
+  marketing_opt_in: boolean;
+  default_address_line1: string | null;
+  default_address_line2: string | null;
+  default_city: string | null;
+  default_postal_code: string | null;
+  default_country: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WishlistItem {
+  user_id: string;
+  product_id: string;
   created_at: string;
 }
