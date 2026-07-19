@@ -11,7 +11,7 @@ export const navLinks: NavLink[] = [
 
 export const collectionLinks: NavLink[] = [
   { label: "All Collections", href: "/collections" },
-  { label: "Everyday Edit", href: "/collections" },
+  { label: "Everyday Edit", href: "/collections/everyday" },
 ];
 
 export const shopCategories: NavLink[] = [

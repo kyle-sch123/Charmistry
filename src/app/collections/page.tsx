@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
@@ -9,16 +10,19 @@ export const metadata: Metadata = {
     "Curated thematic edits — seasonal and story-driven collections of Charmistry jewellery.",
 };
 
+const BUCKET =
+  "https://qkgakhluqruqoifknprg.supabase.co/storage/v1/object/public/Charmistry%20Assets";
+
 const COLLECTIONS = [
   {
     slug: "everyday",
-    name: "Everyday Edit Collection",
-    season: "Year round",
+    name: "The Everyday Edit",
+    season: "Year round · 5 pieces",
     description:
-      "Timeless pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons.",
-    gradient: "from-[#d4a96a] via-[#e8c99a] to-[#f5e4c3]",
-    textDark: true,
-    comingSoon: true,
+      "Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons. Bought together as one edit for R600.",
+    href: "/collections/everyday",
+    image: `${BUCKET}/everyday-nova-lucy.webp`,
+    tag: "Bundle · Save R110",
   },
 ];
 
@@ -72,33 +76,41 @@ export default function CollectionsPage() {
           {/* Collection cards */}
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
             {COLLECTIONS.map((col) => (
-              <div
+              <Link
                 key={col.slug}
-                className={`relative overflow-hidden group h-[420px] md:h-[500px] bg-gradient-to-br ${col.gradient}`}
+                href={col.href}
+                className="relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block"
               >
-                {/* Overlay */}
-                <div className="absolute inset-0 bg-black/10 group-hover:bg-black/20 transition-colors duration-500" />
+                {/* Image */}
+                <Image
+                  src={col.image}
+                  alt={col.name}
+                  fill
+                  sizes="(max-width: 768px) 100vw, 50vw"
+                  className="object-cover object-[center_25%] transition-transform duration-[900ms] ease-out group-hover:scale-105"
+                />
 
-                {/* Coming soon badge */}
-                {col.comingSoon && (
-                  <div className="absolute top-6 right-6 z-10">
-                    <span
-                      className="px-3 py-1.5 bg-paper/80 backdrop-blur-sm text-ink/70 uppercase"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "9px",
-                        letterSpacing: "0.25em",
-                      }}
-                    >
-                      Coming Soon
-                    </span>
-                  </div>
-                )}
+                {/* Overlay — darker at the base so the copy stays legible */}
+                <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent transition-opacity duration-500 group-hover:from-ink/80" />
+
+                {/* Bundle tag */}
+                <div className="absolute top-6 right-6 z-10">
+                  <span
+                    className="px-3 py-1.5 bg-paper/85 backdrop-blur-sm text-ink/80 uppercase"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "9px",
+                      letterSpacing: "0.25em",
+                    }}
+                  >
+                    {col.tag}
+                  </span>
+                </div>
 
                 {/* Content */}
                 <div className="absolute bottom-0 left-0 right-0 p-8">
                   <p
-                    className="mb-2 text-ink/60 uppercase"
+                    className="mb-2 text-ivory/70 uppercase"
                     style={{
                       fontFamily: "var(--font-body)",
                       fontSize: "9px",
@@ -108,7 +120,7 @@ export default function CollectionsPage() {
                     {col.season}
                   </p>
                   <h2
-                    className="text-ink uppercase mb-3 leading-[0.95]"
+                    className="text-ivory uppercase mb-3 leading-[0.95]"
                     style={{
                       fontFamily: "var(--font-heading)",
                       fontSize: "clamp(1.8rem, 4vw, 2.8rem)",
@@ -118,7 +130,7 @@ export default function CollectionsPage() {
                     {col.name}
                   </h2>
                   <p
-                    className="text-ink/60 max-w-sm"
+                    className="text-ivory/70 max-w-sm"
                     style={{
                       fontFamily: "var(--font-body)",
                       fontSize: "11.5px",
@@ -128,8 +140,31 @@ export default function CollectionsPage() {
                   >
                     {col.description}
                   </p>
+                  <span
+                    className="mt-4 inline-flex items-center gap-2 text-ivory uppercase"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "10px",
+                      letterSpacing: "0.22em",
+                    }}
+                  >
+                    Explore the Edit
+                    <svg
+                      className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={1.5}
+                        d="M17 8l4 4m0 0l-4 4m4-4H3"
+                      />
+                    </svg>
+                  </span>
                 </div>
-              </div>
+              </Link>
             ))}
 
             {/* More coming placeholder */}

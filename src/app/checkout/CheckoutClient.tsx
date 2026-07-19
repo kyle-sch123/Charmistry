@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { getAuthBrowserClient } from "@/lib/auth/client";
+import { resolveBundleDiscount } from "@/lib/bundles";
 import { formatPrice } from "@/lib/utils";
 import {
   identifyKlaviyo,
@@ -114,7 +115,20 @@ export default function CheckoutClient() {
     DEFAULT_SHIPPING_METHOD_ID,
   );
 
-  const discountAmount = appliedDiscount?.amount ?? 0;
+  // Cart-aware bundle (e.g. the Everyday Edit) — detected from the line items,
+  // applied automatically, and recomputed identically in /api/checkout so the
+  // shown price and the charged price can't diverge. A bundle takes precedence
+  // over a typed code and hides the code field, so the two can't be stacked.
+  const bundle = useMemo(
+    () =>
+      resolveBundleDiscount(
+        lines.map((l) => ({ slug: l.slug, quantity: l.quantity })),
+      ),
+    [lines],
+  );
+  const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
+  const discountAmount = bundle ? bundleAmount : (appliedDiscount?.amount ?? 0);
+
   // Free over the threshold, otherwise the chosen method's flat price. Derived
   // from the shared catalogue with no round-trip; /api/checkout recomputes the
   // identical value from the method id so display and charge can't diverge.
@@ -338,7 +352,9 @@ export default function CheckoutClient() {
         body: JSON.stringify({
           customer: form,
           lines: lines.map((l) => ({ id: l.id, quantity: l.quantity })),
-          discountCode: appliedDiscount?.code,
+          // Bundle is derived server-side from the lines; only a typed code is
+          // sent, and only when no bundle is active.
+          discountCode: bundle ? undefined : appliedDiscount?.code,
           shippingMethod,
         }),
       });
@@ -671,6 +687,37 @@ export default function CheckoutClient() {
             ))}
           </ul>
 
+          {bundle ? (
+            <div className="mt-6 pt-6 border-t border-ink/10">
+              <p className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
+                Bundle
+              </p>
+              <div className="flex items-center gap-3 border border-gold/40 bg-gold-muted px-4 py-3.5">
+                <svg
+                  className="w-4 h-4 shrink-0 text-gold-dark"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M4.5 12.75l6 6 9-13.5"
+                  />
+                </svg>
+                <div className="flex flex-col min-w-0">
+                  <span className="text-sm font-body text-ink truncate">
+                    {bundle.label}
+                  </span>
+                  <span className="text-[11px] text-ink/55">
+                    −{formatPrice(bundleAmount)} applied automatically
+                  </span>
+                </div>
+              </div>
+            </div>
+          ) : (
           <div className="mt-6 pt-6 border-t border-ink/10">
             <label className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
               Discount code
@@ -725,18 +772,24 @@ export default function CheckoutClient() {
               <p className="mt-2 text-[11px] text-red-600">{discountError}</p>
             )}
           </div>
+          )}
 
           <div className="mt-6 pt-6 border-t border-ink/10 space-y-2">
             <div className="flex justify-between text-sm text-ink/60">
               <span>Subtotal</span>
               <span>{formatPrice(subtotal)}</span>
             </div>
-            {appliedDiscount && (
+            {bundle ? (
+              <div className="flex justify-between text-sm text-ink/60">
+                <span>{bundle.label}</span>
+                <span>−{formatPrice(bundleAmount)}</span>
+              </div>
+            ) : appliedDiscount ? (
               <div className="flex justify-between text-sm text-ink/60">
                 <span>Discount ({appliedDiscount.code})</span>
                 <span>−{formatPrice(appliedDiscount.amount)}</span>
               </div>
-            )}
+            ) : null}
             <div className="flex justify-between gap-4 text-sm text-ink/60">
               <span className="min-w-0">
                 Shipping

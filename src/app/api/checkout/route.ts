@@ -39,6 +39,7 @@ import {
   refundDiscount,
   resolveDiscount,
 } from "@/lib/discounts";
+import { resolveBundleDiscount } from "@/lib/bundles";
 import { decrementProductStock } from "@/lib/inventory";
 
 export const runtime = "nodejs";
@@ -218,29 +219,48 @@ export async function POST(request: Request) {
   }
   const shippingCost = shippingCostForMethod(shippingMethodDef.id, subtotal);
 
-  // Resolve discount (read-only). Consumption happens after order insert so
-  // a failed insert doesn't permanently consume a code.
+  // Resolve the discount. Two mutually-exclusive sources, bundle wins:
+  //
+  //   1. Cart-aware bundle (Everyday Edit) — detected from the line items, not
+  //      a typed code. Automatic and impossible to apply to unrelated products
+  //      because it's keyed to the specific slugs. Not a discount_codes row, so
+  //      there's nothing to consume/refund (discountCodeId stays null).
+  //   2. A typed discount code — only honoured when no bundle applies, so a
+  //      code can't be stacked on top of an already-discounted edit.
+  //
+  // Consumption of a typed code happens after order insert so a failed insert
+  // doesn't permanently consume it.
   let discountAmount = 0;
   let discountCodeText: string | null = null;
   let discountCodeId: string | null = null;
-  const rawDiscount =
-    typeof body.discountCode === "string" ? body.discountCode.trim() : "";
-  if (rawDiscount) {
-    const resolved = await resolveDiscount(
-      supabase,
-      rawDiscount,
-      subtotal,
-      email,
-    );
-    if (typeof resolved === "string") {
-      return Response.json(
-        { error: "discount_invalid", reason: resolved },
-        { status: 400 },
+
+  const bundle = resolveBundleDiscount(
+    orderLines.map((l) => ({ slug: l.product_slug, quantity: l.quantity })),
+  );
+
+  if (bundle) {
+    discountAmount = Number(Math.min(bundle.amount, subtotal).toFixed(2));
+    discountCodeText = bundle.code;
+  } else {
+    const rawDiscount =
+      typeof body.discountCode === "string" ? body.discountCode.trim() : "";
+    if (rawDiscount) {
+      const resolved = await resolveDiscount(
+        supabase,
+        rawDiscount,
+        subtotal,
+        email,
       );
+      if (typeof resolved === "string") {
+        return Response.json(
+          { error: "discount_invalid", reason: resolved },
+          { status: 400 },
+        );
+      }
+      discountAmount = resolved.amount;
+      discountCodeText = resolved.code.code;
+      discountCodeId = resolved.code.id;
     }
-    discountAmount = resolved.amount;
-    discountCodeText = resolved.code.code;
-    discountCodeId = resolved.code.id;
   }
 
   const total = Number(

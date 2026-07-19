@@ -15,6 +15,7 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
+import { resolveBundleDiscount } from "@/lib/bundles";
 import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
 import { trackInitiateCheckout as fbTrackInitiateCheckout } from "@/lib/fpixel";
 import type { MetalType } from "@/types";
@@ -47,6 +48,15 @@ export default function CartDrawer() {
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
   const isUnlocked = subtotal >= FREE_SHIPPING_THRESHOLD;
+
+  // Cart-aware bundle (e.g. the Everyday Edit). Same pure resolver the checkout
+  // summary and /api/checkout use, so the saving shown here is exactly what's
+  // charged. Shown as a line + discounted total so the price isn't a surprise.
+  const bundle = resolveBundleDiscount(
+    lines.map((l) => ({ slug: l.slug, quantity: l.quantity })),
+  );
+  const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
+  const bundleTotal = subtotal - bundleAmount;
 
   // Lock body scroll while the drawer is open
   useEffect(() => {
@@ -295,12 +305,54 @@ export default function CartDrawer() {
                 </ul>
 
                 <footer className="border-t border-ink/10 px-6 py-6 space-y-4 bg-paper-warm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
-                      Subtotal
-                    </span>
-                    <span className="font-display text-2xl">{formatPrice(subtotal)}</span>
-                  </div>
+                  {bundle ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm text-ink/55">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(subtotal)}</span>
+                      </div>
+                      <div
+                        className="flex items-center justify-between text-sm"
+                        style={{ color: "var(--color-gold-dark)" }}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <svg
+                            className="w-3.5 h-3.5 shrink-0"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            viewBox="0 0 24 24"
+                            aria-hidden
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M4.5 12.75l6 6 9-13.5"
+                            />
+                          </svg>
+                          {bundle.label}
+                        </span>
+                        <span>−{formatPrice(bundleAmount)}</span>
+                      </div>
+                      <div className="flex items-center justify-between pt-2 border-t border-ink/10">
+                        <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
+                          Bundle total
+                        </span>
+                        <span className="font-display text-2xl">
+                          {formatPrice(bundleTotal)}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
+                        Subtotal
+                      </span>
+                      <span className="font-display text-2xl">
+                        {formatPrice(subtotal)}
+                      </span>
+                    </div>
+                  )}
                   <p className="text-xs text-ink/50">
                     Shipping &amp; taxes calculated at checkout.
                   </p>
