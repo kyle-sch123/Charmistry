@@ -1,0 +1,62 @@
+name: Deploy
+
+# Ships main to Cloudflare Workers after it passes the gate. Runs on every push
+# to main (i.e. after a PR merges). The gate steps run first and, because steps
+# are sequential, the build/deploy steps are never reached if any gate step
+# fails — so a red test suite blocks the deploy even on a direct push.
+on:
+  push:
+    branches: [main]
+
+# Serialise deploys: never run two at once, and let an in-flight deploy finish
+# rather than cancelling it half-way.
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Gate, build, deploy to Cloudflare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # --- Gate: nothing below runs if any of these fail ---
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm run test:run
+
+      # --- Build + deploy (only reached when the gate is green) ---
+      # build:cf produces the OpenNext/Cloudflare output; NEXT_PUBLIC_* values
+      # are inlined here at build time.
+      - name: Build (OpenNext / Cloudflare)
+        run: npm run build:cf
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
+          NEXT_PUBLIC_KLAVIYO_COMPANY_ID: ${{ secrets.NEXT_PUBLIC_KLAVIYO_COMPANY_ID }}
+          NEXT_PUBLIC_FB_PIXEL_ID: ${{ secrets.NEXT_PUBLIC_FB_PIXEL_ID }}
+          NEXT_PUBLIC_GA_ID: ${{ secrets.NEXT_PUBLIC_GA_ID }}
+
+      # deploy uploads the already-built app via Wrangler. Runtime secrets
+      # (Resend, PayFast, Klaviyo API key, service-role key, etc.) live on the
+      # Worker itself and are NOT re-pushed here — only the deploy credentials.
+      - name: Deploy
+        run: npm run deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
