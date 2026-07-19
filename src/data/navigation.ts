@@ -5,7 +5,13 @@ import { NavLink } from "@/types";
 export const navLinks: NavLink[] = [
   { label: "Shop", href: "/shop" },
   { label: "BestSellers", href: "/best-sellers" },
+  { label: "Collections", href: "/collections" },
   { label: "FAQ", href: "/faq" },
+];
+
+export const collectionLinks: NavLink[] = [
+  { label: "All Collections", href: "/collections" },
+  { label: "Everyday Edit", href: "/collections" },
 ];
 
 export const shopCategories: NavLink[] = [

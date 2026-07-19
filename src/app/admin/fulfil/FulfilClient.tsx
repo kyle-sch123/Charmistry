@@ -92,8 +92,13 @@ export default function FulfilClient() {
     }
   }, []);
 
+  // One-time hydration gate: localStorage only exists client-side, so the
+  // stored key can't be read during render without an SSR mismatch — this is
+  // the documented reason the `hydrated` flag exists. The sync setState here
+  // is deliberate, not an oversight.
   useEffect(() => {
     const stored = localStorage.getItem(KEY_STORAGE);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setHydrated(true);
     if (stored) {
       setAdminKey(stored);

@@ -15,7 +15,7 @@ import Logo from "@/components/icons/Logo";
 import MobileMenu from "./MobileMenu";
 import MarqueeBanner from "./MarqueeBanner";
 import SearchOverlay from "@/components/search/SearchOverlay";
-import { navLinks, shopCategories } from "@/data/navigation";
+import { navLinks, shopCategories, collectionLinks } from "@/data/navigation";
 import { useCart, selectCartCount } from "@/stores/cart";
 
 interface NavbarProps {
@@ -32,6 +32,7 @@ export default function Navbar({ overHero = false }: NavbarProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [shopOpen, setShopOpen] = useState(false);
+  const [collectionsOpen, setCollectionsOpen] = useState(false);
   const closeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const { scrollY } = useScroll();
@@ -75,11 +76,22 @@ export default function Navbar({ overHero = false }: NavbarProps) {
 
   const openShop = () => {
     clearTimeout(closeTimer.current);
+    setCollectionsOpen(false);
     setShopOpen(true);
   };
 
   const scheduleClose = () => {
     closeTimer.current = setTimeout(() => setShopOpen(false), 150);
+  };
+
+  const openCollections = () => {
+    clearTimeout(closeTimer.current);
+    setShopOpen(false);
+    setCollectionsOpen(true);
+  };
+
+  const scheduleCloseCollections = () => {
+    closeTimer.current = setTimeout(() => setCollectionsOpen(false), 150);
   };
 
   useEffect(() => {
@@ -166,6 +178,51 @@ export default function Navbar({ overHero = false }: NavbarProps) {
                   </li>
                 );
               }
+              if (link.href === "/collections") {
+                return (
+                  <li
+                    key={link.href}
+                    className="relative"
+                    onMouseEnter={openCollections}
+                    onMouseLeave={scheduleCloseCollections}
+                  >
+                    <motion.div style={{ color: linkColor }}>
+                      <Link
+                        href={link.href}
+                        className="text-sm tracking-[0.1em] uppercase font-body transition-colors duration-300"
+                      >
+                        {link.label}
+                      </Link>
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {collectionsOpen && (
+                        <motion.div
+                          onMouseEnter={openCollections}
+                          onMouseLeave={scheduleCloseCollections}
+                          className="absolute top-full left-1/2 -translate-x-1/2 mt-4 w-44 bg-paper border border-ink/10 shadow-lg py-2"
+                          initial={{ opacity: 0, y: -6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -6 }}
+                          transition={{ duration: 0.18, ease: "easeOut" }}
+                        >
+                          {collectionLinks.map((col) => (
+                            <Link
+                              key={col.label}
+                              href={col.href}
+                              onClick={() => setCollectionsOpen(false)}
+                              className="block px-5 py-2.5 text-[11px] tracking-[0.18em] uppercase font-body text-ink/55 hover:text-ink hover:bg-ink/[0.03] transition-colors duration-150 cursor-pointer"
+                            >
+                              {col.label}
+                            </Link>
+                          ))}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </li>
+                );
+              }
+
               return (
                 <li key={link.href}>
                   <motion.div style={{ color: linkColor }}>
@@ -206,6 +263,22 @@ export default function Navbar({ overHero = false }: NavbarProps) {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
               </svg>
             </motion.button>
+
+            {/* Account (desktop; mobile reaches it via the menu overlay).
+                Always links to /account — middleware redirects signed-out
+                visitors to /login, so the navbar needs no client auth state
+                and can't cause hydration/layout shift. */}
+            <motion.div style={{ color: iconColor }} className="hidden md:block">
+              <Link
+                href="/account"
+                aria-label="My account"
+                className="w-11 h-11 flex items-center justify-center transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </Link>
+            </motion.div>
 
             {/* Cart */}
             <motion.button

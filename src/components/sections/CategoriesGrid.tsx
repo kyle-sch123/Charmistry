@@ -13,7 +13,13 @@ import Link from "next/link";
 import { getCategories } from "@/lib/queries";
 import type { CategoryWithCount } from "@/types";
 
-const SLUG_ORDER = ["necklaces", "rings", "earrings", "bracelets", "jewellery-boxes"];
+const SLUG_ORDER = [
+  "necklaces",
+  "rings",
+  "earrings",
+  "bracelets",
+  "jewellery-boxes",
+];
 
 const AREA_CLASS: Record<string, string> = {
   necklaces: "cat-n",
@@ -30,9 +36,9 @@ export default function CategoriesGrid() {
     getCategories().then(setCategories);
   }, []);
 
-  const ordered = SLUG_ORDER.map((s) => categories.find((c) => c.slug === s)).filter(
-    Boolean,
-  ) as CategoryWithCount[];
+  const ordered = SLUG_ORDER.map((s) =>
+    categories.find((c) => c.slug === s),
+  ).filter(Boolean) as CategoryWithCount[];
 
   if (!ordered.length) return null;
 
@@ -119,7 +125,11 @@ function CategoryCard({
       initial={{ opacity: 0, scale: 0.97 }}
       whileInView={{ opacity: 1, scale: 1 }}
       viewport={{ once: true }}
-      transition={{ duration: 0.65, delay: 0.05 + index * 0.07, ease: [0.22, 1, 0.36, 1] }}
+      transition={{
+        duration: 0.65,
+        delay: 0.05 + index * 0.07,
+        ease: [0.22, 1, 0.36, 1],
+      }}
     >
       <Link
         href={`/shop?category=${category.slug}`}

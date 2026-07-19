@@ -35,6 +35,7 @@ import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
+import { getAuthBrowserClient } from "@/lib/auth/client";
 import { formatPrice } from "@/lib/utils";
 import {
   identifyKlaviyo,
@@ -49,7 +50,7 @@ import {
   shippingMethodLabel,
   type ShippingMethodId,
 } from "@/lib/shipping";
-import type { CheckoutFormData } from "@/types";
+import type { CheckoutFormData, Profile } from "@/types";
 
 // Where locker shoppers send their preferred locker (mirrors the address used
 // on the shipping / terms pages). Kept as a constant so the note and any future
@@ -99,6 +100,7 @@ export default function CheckoutClient() {
   const [errors, setErrors] = useState<FormErrors>({});
   const [submitting, setSubmitting] = useState(false);
   const [pendingPayment, setPendingPayment] = useState<PendingPayment | null>(null);
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
 
   const [discountInput, setDiscountInput] = useState("");
   const [appliedDiscount, setAppliedDiscount] = useState<{
@@ -132,6 +134,49 @@ export default function CheckoutClient() {
       router.replace("/shop");
     }
   }, [hasHydrated, lines.length, pendingPayment, router]);
+
+  // Prefill for signed-in customers from their profile (saved details +
+  // default address). Only ever fills fields that are still empty — nothing
+  // the shopper has typed is overwritten — and any failure leaves the guest
+  // flow exactly as it was. The order itself is linked to the account
+  // server-side in /api/checkout, not from anything set here.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const supabase = getAuthBrowserClient();
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user || cancelled) return;
+
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("id", user.id)
+          .maybeSingle<Profile>();
+        if (cancelled) return;
+
+        setSignedInEmail(user.email ?? null);
+        setForm((prev) => ({
+          ...prev,
+          email: prev.email || user.email || "",
+          firstName: prev.firstName || profile?.first_name || "",
+          lastName: prev.lastName || profile?.last_name || "",
+          phone: prev.phone || profile?.phone || "",
+          addressLine1: prev.addressLine1 || profile?.default_address_line1 || "",
+          addressLine2: prev.addressLine2 || profile?.default_address_line2 || "",
+          city: prev.city || profile?.default_city || "",
+          postalCode: prev.postalCode || profile?.default_postal_code || "",
+        }));
+      } catch {
+        // Signed out or auth unavailable — guest checkout carries on.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Identify the visitor and fire Klaviyo "Started Checkout" once they've
   // entered a valid email. This is Klaviyo's canonical trigger and is what
@@ -361,6 +406,12 @@ export default function CheckoutClient() {
       {/* Customer form */}
       <form onSubmit={onSubmit} noValidate className="space-y-10">
         <Section title="Contact">
+          {signedInEmail && (
+            <p className="text-[11px] text-ink/45 font-body">
+              Signed in as <span className="text-ink/70">{signedInEmail}</span>{" "}
+              — this order will appear in your account.
+            </p>
+          )}
           <Field
             label="Email"
             value={form.email}
