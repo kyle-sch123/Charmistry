@@ -18,7 +18,7 @@ import Link from "next/link";
 import { getAuthBrowserClient } from "@/lib/auth/client";
 import { computeRatingSummary } from "@/lib/reviews";
 import type { Review, StarRating } from "@/types";
-import { Stars } from "./Stars";
+import { Stars, StarIcon } from "./Stars";
 import ReviewForm from "./ReviewForm";
 
 interface Props {
@@ -124,7 +124,7 @@ export default function ReviewSection({
                   <div key={star} className="flex items-center gap-3 text-sm">
                     <span className="flex items-center gap-1 w-10 text-ink/70 font-body">
                       {star}
-                      <Stars value={1} starClassName="w-3.5 h-3.5" />
+                      <StarIcon className="w-3.5 h-3.5 text-gold" />
                     </span>
                     <div className="flex-1 h-2 rounded-full bg-ink/10 overflow-hidden">
                       <div
