@@ -19,6 +19,7 @@ import type {
   MetalType,
   ProductWithCategory,
   CategoryWithCount,
+  Review,
 } from "@/types";
 
 const PRODUCT_SELECT = "*, categories(name, slug)";
@@ -196,6 +197,50 @@ export async function getProductVariants(
 
   if (error) throw error;
   return data as ProductWithCategory[];
+}
+
+/**
+ * Resolve every product row that makes up a "piece" — the metal variants
+ * sharing a (trimmed) name + category. Reviews are aggregated across this set,
+ * so the API and the read helper below both key off it. Mirrors the grouping
+ * getProductVariants / getShopProducts use. When categoryId is null the piece
+ * is the set of same-named rows without a category.
+ */
+export async function getPieceProductIds(
+  name: string,
+  categoryId: string | null,
+): Promise<string[]> {
+  const trimmed = name.trim();
+  let query = supabase.from("products").select("id").ilike("name", trimmed);
+  query = categoryId
+    ? query.eq("category_id", categoryId)
+    : query.is("category_id", null);
+
+  const { data, error } = await query;
+  if (error) throw error;
+  return (data ?? []).map((r) => r.id as string);
+}
+
+/**
+ * All reviews for a piece (across its metal variants), newest first. Public
+ * read via the anon client — the reviews_anon_read RLS policy allows it. The
+ * caller derives the star summary with computeRatingSummary().
+ */
+export async function getPieceReviews(
+  name: string,
+  categoryId: string | null,
+): Promise<Review[]> {
+  const productIds = await getPieceProductIds(name, categoryId);
+  if (productIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from("reviews")
+    .select("*")
+    .in("product_id", productIds)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+  return (data ?? []) as Review[];
 }
 
 export async function getRelatedProducts(
