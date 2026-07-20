@@ -309,7 +309,7 @@ export default function FulfilClient() {
                     onChange={(v) => setForm((f) => ({ ...f, courier: v }))}
                   />
                   <AdminField
-                    label="Tracking number"
+                    label="Order ID"
                     value={form.trackingNumber}
                     onChange={(v) =>
                       setForm((f) => ({ ...f, trackingNumber: v }))
@@ -321,7 +321,7 @@ export default function FulfilClient() {
                     onChange={(v) => setForm((f) => ({ ...f, trackingUrl: v }))}
                   />
                   <AdminField
-                    label="Waybill (optional)"
+                    label="Waybill"
                     value={form.waybillNumber}
                     onChange={(v) =>
                       setForm((f) => ({ ...f, waybillNumber: v }))
