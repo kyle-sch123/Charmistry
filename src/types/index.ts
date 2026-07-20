@@ -225,3 +225,36 @@ export interface WishlistItem {
   product_id: string;
   created_at: string;
 }
+
+// --- Reviews -----------------------------------------------------------
+//
+// One row per (user, product) written only by the service role via
+// /api/reviews after a purchase check (migration 009). Reviews are scoped to
+// the logical piece: a review on any metal variant is aggregated across every
+// sibling row sharing (name, category_id). author_name is a "First L."
+// snapshot taken from the reviewer profile at submit time.
+
+export type StarRating = 1 | 2 | 3 | 4 | 5;
+
+export interface Review {
+  id: string;
+  product_id: string;
+  user_id: string;
+  rating: number;
+  title: string | null;
+  body: string;
+  author_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Aggregate over a piece's reviews — powers the summary bars + products cache. */
+export interface RatingSummary {
+  /** Mean rating rounded to 2dp, or 0 when there are no reviews. */
+  average: number;
+  count: number;
+  /** Number of reviews at each star level (1–5). */
+  distribution: Record<StarRating, number>;
+  /** Share of reviews at each star level, 0–100, rounded to whole percent. */
+  percentages: Record<StarRating, number>;
+}
