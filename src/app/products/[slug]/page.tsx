@@ -13,12 +13,14 @@ import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductDetail from "@/components/product/ProductDetail";
+import ReviewSection from "@/components/product/ReviewSection";
 import ProductCard from "@/components/ui/ProductCard";
 import {
   getProductBySlug,
   getProductVariants,
   getRelatedProducts,
   getProductImages,
+  getPieceReviews,
 } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 
@@ -56,10 +58,11 @@ export default async function ProductPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [variants, related, bucketImages] = await Promise.all([
+  const [variants, related, bucketImages, reviews] = await Promise.all([
     getProductVariants(product.name, product.category_id),
     getRelatedProducts(product.category_id, product.id, 4),
     getProductImages(product.name),
+    getPieceReviews(product.name, product.category_id).catch(() => []),
   ]);
 
   // Exclude siblings from "You may also like" to avoid duplication with the
@@ -97,6 +100,12 @@ export default async function ProductPage({
             product={product}
             variants={variants}
             bucketImages={bucketImages}
+          />
+
+          <ReviewSection
+            productId={product.id}
+            productSlug={product.slug}
+            initialReviews={reviews}
           />
 
           {filteredRelated.length > 0 && (
