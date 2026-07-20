@@ -25,8 +25,8 @@
  *        updates our DB but does NOT re-send to Klaviyo.
  */
 
-import crypto from "node:crypto";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { isAuthorized } from "@/lib/admin-auth";
 import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
 import {
   KLAVIYO_BRAND,
@@ -43,17 +43,6 @@ export const dynamic = "force-dynamic";
 
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function isAuthorized(request: Request): boolean {
-  const expected = process.env.ADMIN_FULFILMENT_KEY;
-  const provided = request.headers.get("x-admin-key");
-  if (!expected || !provided) return false;
-  // Hash both sides so timingSafeEqual gets equal-length buffers regardless of
-  // what the caller sent.
-  const a = crypto.createHash("sha256").update(expected).digest();
-  const b = crypto.createHash("sha256").update(provided).digest();
-  return crypto.timingSafeEqual(a, b);
-}
 
 /** Paid orders that still need to ship, newest first, with their line items. */
 export async function GET(request: Request) {

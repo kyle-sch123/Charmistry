@@ -75,9 +75,15 @@ const metalSwatch: Record<MetalType, string> = {
 };
 
 function imagesFor(p: ProductWithCategory, bucketImages: string[]): string[] {
+  // Admin-managed photos are stored as full public URLs in images[] (ordered,
+  // primary first) — these win when present. Legacy pieces have no managed
+  // URLs, so we fall back to the bucket listing (discovered by slug) exactly as
+  // before; bare-filename images[] entries from the old CSV import are ignored.
+  const managed = (Array.isArray(p.images) ? p.images : []).filter(
+    (s) => typeof s === "string" && /^https?:\/\//i.test(s),
+  );
+  if (managed.length > 0) return managed;
   if (bucketImages.length > 0) return bucketImages;
-  const arr = Array.isArray(p.images) ? p.images.filter(Boolean) : [];
-  if (arr.length > 0) return arr;
   return p.image_url ? [p.image_url] : [];
 }
 
