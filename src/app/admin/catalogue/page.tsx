@@ -5,7 +5,7 @@
  */
 
 import type { Metadata } from "next";
-import Link from "next/link";
+import AdminNav from "../AdminNav";
 import CatalogueClient from "./CatalogueClient";
 
 export const metadata: Metadata = {
@@ -17,18 +17,8 @@ export default function CataloguePage() {
   return (
     <main className="min-h-screen bg-paper">
       <div className="max-w-5xl mx-auto px-6 py-12 md:py-16">
+        <AdminNav active="catalogue" />
         <header className="mb-10 border-b border-ink/10 pb-6">
-          <div className="flex items-center justify-between">
-            <p className="text-[10px] tracking-[0.3em] uppercase text-ink/45 font-body mb-2">
-              Charmistry · Internal
-            </p>
-            <Link
-              href="/admin/fulfil"
-              className="text-[10px] tracking-[0.2em] uppercase text-ink/45 hover:text-ink transition-colors"
-            >
-              Fulfilment →
-            </Link>
-          </div>
           <h1 className="font-heading text-3xl text-ink uppercase tracking-wide">
             Catalogue
           </h1>
