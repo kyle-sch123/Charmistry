@@ -221,6 +221,17 @@ vi.mock("@/lib/auth/server", () => ({
   getVerifiedUser: async () => H.ctx.user,
 }));
 
+// Klaviyo is stubbed: capture the "Submitted Review" call without hitting the
+// network, and toggle isKlaviyoConfigured() per test.
+const KLAVIYO = vi.hoisted(() => ({
+  track: vi.fn<(...args: unknown[]) => Promise<void>>(),
+  configured: true,
+}));
+vi.mock("@/lib/klaviyo", () => ({
+  trackKlaviyoEvent: (...args: unknown[]) => KLAVIYO.track(...args),
+  isKlaviyoConfigured: () => KLAVIYO.configured,
+}));
+
 // Imported AFTER the mocks are declared. account.ts is NOT mocked — it runs for
 // real against the same fake db, which is the whole point.
 import { POST } from "./route";
@@ -234,9 +245,9 @@ const DECOY = "33333333-3333-3333-3333-333333333333";
 
 function seedCatalogue() {
   H.db.products.push(
-    { id: SILVER, ...PIECE },
-    { id: GOLD, ...PIECE },
-    { id: DECOY, name: "Nova Pendant", category_id: "cat-pendants" },
+    { id: SILVER, ...PIECE, slug: "aurora-ring-silver", categories: { name: "Rings" } },
+    { id: GOLD, ...PIECE, slug: "aurora-ring-gold", categories: { name: "Rings" } },
+    { id: DECOY, name: "Nova Pendant", category_id: "cat-pendants", slug: "nova-pendant" },
   );
 }
 
@@ -294,6 +305,8 @@ const VALID = { rating: 5, title: "Beautiful", body: "Wear it every day." };
 beforeEach(() => {
   H.reset();
   seedCatalogue();
+  KLAVIYO.track.mockClear();
+  KLAVIYO.configured = true;
 });
 
 describe("POST /api/reviews — guest-order claiming gap", () => {
@@ -323,6 +336,21 @@ describe("POST /api/reviews — guest-order claiming gap", () => {
     expect(silver.review_count).toBe(1);
     expect(gold.review_count).toBe(1);
     expect(silver.rating).toBe(5);
+
+    // The reward event fired once, keyed by the buyer's email.
+    expect(KLAVIYO.track).toHaveBeenCalledTimes(1);
+    const [name, customer, props] = KLAVIYO.track.mock.calls[0] as unknown as [
+      string,
+      { email: string; first_name?: string | null },
+      Record<string, unknown>,
+    ];
+    expect(name).toBe("Submitted Review");
+    expect(customer.email).toBe("jane@x.com");
+    expect(customer.first_name).toBe("Jane");
+    expect(props.ProductName).toBe("Aurora Ring");
+    expect(props.Rating).toBe(5);
+    expect(props.$event_id).toBe(review.id);
+    expect(props.ProductCategories).toEqual(["Rings"]);
   });
 
   it("matches the order email case-insensitively when claiming", async () => {
@@ -422,6 +450,9 @@ describe("POST /api/reviews — existing behaviour still holds", () => {
     const silver = H.db.products.find((p) => p.id === SILVER)!;
     expect(silver.review_count).toBe(1);
     expect(silver.rating).toBe(3);
+
+    // The reward fires on the create only — the edit must not re-trigger it.
+    expect(KLAVIYO.track).toHaveBeenCalledTimes(1);
   });
 
   it("returns 401 when unauthenticated", async () => {
@@ -454,5 +485,44 @@ describe("POST /api/reviews — existing behaviour still holds", () => {
     });
     expect(status).toBe(404);
     expect(json?.error).toBe("product_not_found");
+  });
+});
+
+describe("POST /api/reviews — Klaviyo 'Submitted Review' event", () => {
+  it("does not fire when the purchase gate rejects the reviewer", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" }); // no order at all
+
+    const { status } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(403);
+    expect(KLAVIYO.track).not.toHaveBeenCalled();
+  });
+
+  it("still saves the review (201) when Klaviyo is not configured", async () => {
+    KLAVIYO.configured = false;
+    seedGuestOrder({ email: "jane@x.com", productId: SILVER });
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(201);
+    expect(H.db.reviews).toHaveLength(1);
+    expect(KLAVIYO.track).not.toHaveBeenCalled();
+  });
+
+  it("never lets a Klaviyo failure fail an already-saved review", async () => {
+    KLAVIYO.track.mockRejectedValueOnce(new Error("klaviyo 503"));
+    seedGuestOrder({ email: "jane@x.com", productId: SILVER });
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(201);
+    expect((json?.review as Record<string, unknown>).rating).toBe(5);
+    expect(H.db.reviews).toHaveLength(1);
+    expect(KLAVIYO.track).toHaveBeenCalledTimes(1);
   });
 });

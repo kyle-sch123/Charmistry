@@ -24,6 +24,8 @@ export const dynamic = "force-dynamic";
 import { getVerifiedUser } from "@/lib/auth/server";
 import { ensureProfileAndClaimOrders } from "@/lib/account";
 import { createServerSupabase } from "@/lib/supabase-server";
+import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
+import { KLAVIYO_BRAND, klaviyoProductUrl } from "@/lib/klaviyo-orders";
 import {
   computeRatingSummary,
   formatAuthorName,
@@ -35,6 +37,54 @@ const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 type SupabaseServer = ReturnType<typeof createServerSupabase>;
+
+/** The product fields the POST path needs — piece resolution + Klaviyo payload. */
+type ReviewProduct = Pick<
+  Product,
+  "id" | "name" | "category_id" | "slug" | "image_url"
+> & { categories?: { name: string } | { name: string }[] | null };
+
+/**
+ * Emit the "Submitted Review" Klaviyo event so the review-reward flow (coupon
+ * email) can trigger. Fired server-side ONLY after the review is persisted, and
+ * only for a brand-new review — editing an existing one must not re-send the
+ * coupon. Identity comes from the verified session, never the request body.
+ * Best-effort: never throws into the response path; $event_id (the review id)
+ * lets Klaviyo dedupe any retry.
+ */
+async function trackReviewSubmitted(
+  email: string,
+  profile: Pick<Profile, "first_name" | "last_name"> | null,
+  product: ReviewProduct,
+  review: Review,
+): Promise<void> {
+  const categoryName = Array.isArray(product.categories)
+    ? product.categories[0]?.name
+    : product.categories?.name;
+
+  await trackKlaviyoEvent(
+    "Submitted Review",
+    {
+      email,
+      first_name: profile?.first_name,
+      last_name: profile?.last_name,
+    },
+    {
+      $event_id: review.id,
+      ProductID: product.id,
+      ProductName: product.name,
+      SKU: product.slug,
+      ProductURL: klaviyoProductUrl(product.slug),
+      ImageURL: product.image_url ?? undefined,
+      ProductCategories: categoryName ? [categoryName] : [],
+      ProductBrand: KLAVIYO_BRAND,
+      Rating: review.rating,
+      ReviewTitle: review.title ?? undefined,
+      ReviewBody: review.body,
+    },
+    Math.floor(new Date(review.created_at).getTime() / 1000),
+  );
+}
 
 /** All product rows making up the piece the given product belongs to. */
 async function getPieceProductIds(
@@ -110,9 +160,9 @@ export async function POST(request: Request) {
   // --- Resolve the piece ----------------------------------------------------
   const { data: product, error: productError } = await supabase
     .from("products")
-    .select("id, name, category_id")
+    .select("id, name, slug, image_url, category_id, categories(name)")
     .eq("id", productId)
-    .maybeSingle<Pick<Product, "id" | "name" | "category_id">>();
+    .maybeSingle<ReviewProduct>();
   if (productError) {
     console.error("reviews: product lookup failed", productError);
     return Response.json({ error: "service_error" }, { status: 500 });
@@ -216,6 +266,18 @@ export async function POST(request: Request) {
   }
 
   await refreshPieceAggregate(supabase, pieceIds);
+
+  // Reward the review via Klaviyo — but only for a NEW review (edits and
+  // reviews of a second variant of an already-reviewed piece take the update
+  // path and must not re-trigger the coupon). Best-effort: a Klaviyo failure
+  // never fails the already-saved review.
+  if (!existing && saved && user.email && isKlaviyoConfigured()) {
+    try {
+      await trackReviewSubmitted(user.email, profile ?? null, product, saved);
+    } catch (err) {
+      console.error("reviews: Klaviyo 'Submitted Review' event failed", err);
+    }
+  }
 
   return Response.json({ review: saved }, { status: existing ? 200 : 201 });
 }
