@@ -28,7 +28,7 @@ import AddEditButton from "./AddEditButton";
 export const metadata: Metadata = {
   title: "The Everyday Edit | Charmistry",
   description:
-    "Five gold pieces designed to be worn on repeat — the Nova and Lucy necklaces, Kira hoops, Sole ring and Mila bangle. Bought together as one edit for a bundle price.",
+    "Five gold pieces designed to be worn on repeat - the Nova and Lucy necklaces, Kira hoops, Sole ring and Mila bangle. Bought together as one edit for a bundle price.",
 };
 
 export const dynamic = "force-dynamic";
@@ -51,29 +51,29 @@ const BUNDLE_SAVINGS = 110;
 const EDIT = [
   { slug: "nova-necklaces-gold", label: "Nova", role: "Pendant necklace" },
   { slug: "lucy-necklaces-gold", label: "Lucy", role: "Chain necklace" },
-  { slug: "kira-earrings-gold", label: "Kira", role: "Hoop earrings" },
+  { slug: "sia-earrings-gold", label: "Sia", role: "Earrings" },
   { slug: "sole-rings-gold", label: "Sole", role: "Stacking ring" },
   { slug: "mila-bracelets-gold", label: "Mila", role: "Bangle bracelet" },
 ] as const;
 
 const GALLERY = [
   {
-    src: IMG.earring,
-    alt: "Model wearing the Kira gold hoop earrings with a gold pendant necklace",
-    piece: "Kira",
-    caption: "The everyday hoop",
-  },
-  {
-    src: IMG.nova,
-    alt: "Close view of the Nova gold pendant necklace",
-    piece: "Nova",
-    caption: "A pendant that anchors",
+    src: IMG.heroNovaLucy,
+    alt: "Model wearing the Lucy and Nova Necklaces",
+    piece: "Lucy & Nova",
+    caption: "The perfect layer",
   },
   {
     src: IMG.soleMila,
     alt: "Hands wearing the Sole gold ring and the Mila gold bangle",
     piece: "Sole & Mila",
     caption: "For hands, quietly",
+  },
+  {
+    src: IMG.nova,
+    alt: "Close view of the Nova gold pendant necklace",
+    piece: "Sia",
+    caption: "The pair you’ll reach for every day",
   },
 ];
 
@@ -145,7 +145,7 @@ export default async function EverydayEditPage() {
                   lineHeight: 1.8,
                 }}
               >
-                Five gold pieces made to be worn on repeat — a pendant, a chain,
+                Five gold pieces made to be worn on repeat - a pendant, a chain,
                 a pair of hoops, a ring and a bangle that layer into a single,
                 effortless signature. Bought together, they become the edit.
               </p>
@@ -174,7 +174,7 @@ export default async function EverydayEditPage() {
               <div className="mt-6 max-w-sm">
                 <AddEditButton
                   products={products}
-                  label={`Add the Edit — ${formatPrice(bundlePrice)}`}
+                  label={`Add the Edit - ${formatPrice(bundlePrice)}`}
                   showNote
                 />
               </div>
@@ -185,13 +185,13 @@ export default async function EverydayEditPage() {
                 style={{
                   fontFamily: "var(--font-body)",
                   fontSize: "10px",
-                  letterSpacing: "0.22em",
+                  letterSpacing: "0.28em",
                   textTransform: "uppercase",
                 }}
               >
                 Or shop the pieces individually
                 <svg
-                  className="w-3.5 h-3.5"
+                  className="w-3 h-3"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -249,8 +249,8 @@ export default async function EverydayEditPage() {
                   fontWeight: 300,
                 }}
               >
-                Not a special occasion. Just the pieces you reach for from Monday
-                morning to Sunday afternoon — and never take off.
+                Not a special occasion. Just the pieces you reach for from
+                Monday morning to Sunday afternoon.
               </p>
             </ScrollReveal>
           </div>
@@ -342,9 +342,14 @@ export default async function EverydayEditPage() {
 
           <div className="mt-10 grid grid-cols-2 lg:grid-cols-5 gap-x-5 gap-y-10 md:gap-x-7">
             {pieces.map(({ product, label, role }) => (
-              <div key={product.id}>
+              <div key={product.id} className="flex flex-col">
+                {/* Reserve a uniform two-line height on the narrow 2-col mobile
+                    grid so labels that wrap differently ("Lucy · Chain necklace"
+                    vs a shorter role) don't push their card out of alignment
+                    with the row. From md the columns are wide enough for one
+                    line, so the reservation is released. */}
                 <p
-                  className="mb-2 text-gold-dark"
+                  className="mb-2 text-gold-dark leading-[1.4] line-clamp-2 min-h-[2.8em] md:min-h-0"
                   style={{
                     fontFamily: "var(--font-body)",
                     fontSize: "9px",
@@ -403,7 +408,7 @@ export default async function EverydayEditPage() {
                 }}
               >
                 Add all five to your bag and the bundle price applies
-                automatically — {formatPrice(BUNDLE_SAVINGS)} off, with
+                automatically - {formatPrice(BUNDLE_SAVINGS)} off, with
                 complimentary delivery.
               </p>
             </ScrollReveal>
@@ -529,7 +534,7 @@ export default async function EverydayEditPage() {
                   <div className="mt-8">
                     <AddEditButton
                       products={products}
-                      label={`Add the Edit — ${formatPrice(bundlePrice)}`}
+                      label={`Add the Edit - ${formatPrice(bundlePrice)}`}
                       showNote
                     />
                   </div>
