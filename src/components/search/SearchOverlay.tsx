@@ -107,7 +107,7 @@ export default function SearchOverlay({ open, onClose }: Props) {
           aria-modal="true"
           aria-label="Search products"
         >
-          <div className="max-w-4xl mx-auto w-full px-6 md:px-8 pt-8">
+          <div className="max-w-4xl mx-auto w-full px-6 md:px-8 pt-8 flex-1 flex flex-col min-h-0">
             <div className="flex items-center justify-between mb-10">
               <p className="text-[11px] tracking-[0.25em] uppercase text-ink/55 font-body">
                 Search
@@ -144,7 +144,7 @@ export default function SearchOverlay({ open, onClose }: Props) {
               />
             </div>
 
-            <div className="mt-10 flex-1 overflow-y-auto pb-20">
+            <div className="mt-10 flex-1 min-h-0 overflow-y-auto overscroll-contain scrollbar-subtle pb-20">
               {!shouldSearch && (
                 <p className="text-sm text-ink/50">
                   Start typing to search the collection.

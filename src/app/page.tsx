@@ -4,6 +4,7 @@ import Navbar from "@/components/layout/Navbar";
 import MarqueeBanner from "@/components/layout/MarqueeBanner";
 import HeroSection from "@/components/sections/HeroSection";
 import CategoriesGrid from "@/components/sections/CategoriesGrid";
+import CollectionsSection from "@/components/sections/CollectionsSection";
 import BestSellers from "@/components/sections/BestSellers";
 import AboutSection from "@/components/sections/AboutSection";
 import Testimonials from "@/components/sections/Testimonials";
@@ -37,6 +38,9 @@ export default function Home() {
 
         <SectionDivider />
         <CategoriesGrid />
+
+        <SectionDivider />
+        <CollectionsSection />
 
         <SectionDivider />
         <ShippingPayments />

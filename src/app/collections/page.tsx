@@ -188,9 +188,9 @@ export default function CollectionsPage() {
                   lineHeight: 1.7,
                 }}
               >
-                New thematic edits are on their way.
+                New collections coming soon.
                 <br />
-                Check back soon.
+                Check back soon...
               </p>
             </div>
           </div>
