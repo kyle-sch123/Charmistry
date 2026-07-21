@@ -22,6 +22,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 import { getVerifiedUser } from "@/lib/auth/server";
+import { ensureProfileAndClaimOrders } from "@/lib/account";
 import { createServerSupabase } from "@/lib/supabase-server";
 import {
   computeRatingSummary,
@@ -128,6 +129,17 @@ export async function POST(request: Request) {
     return Response.json({ error: "service_error" }, { status: 500 });
   }
   if (pieceIds.length === 0) pieceIds = [product.id];
+
+  // --- Attach any unclaimed guest orders ------------------------------------
+  // A buyer who checked out as a guest and only made an account afterwards may
+  // still have paid orders sitting on user_id = null. Claiming normally happens
+  // on the auth routes / the /account layout, but the client-side email-OTP
+  // sign-in redirects straight back here (next=/products/…) without passing
+  // through any of them, so the order would otherwise stay unattached and the
+  // purchase gate below would wrongly reject a genuine buyer. This is the same
+  // idempotent, email-matched, never-throwing claim; running it here closes
+  // that gap regardless of how the user signed in.
+  await ensureProfileAndClaimOrders(user);
 
   // --- Purchase gate --------------------------------------------------------
   // The reviewer must own a PAID order whose items include any variant of the
