@@ -12,7 +12,7 @@
  * is PUDO under the hood) but is never surfaced to customers.
  *
  * Pricing model:
- * - subtotal >= R600 -> free shipping, whichever method is chosen (the carrier
+ * - subtotal >= R700 -> free shipping, whichever method is chosen (the carrier
  *   is still recorded so fulfilment knows how to ship — it just isn't charged).
  * - otherwise the chosen method's flat price.
  *
@@ -22,7 +22,7 @@
  * gets to assert a price; the server re-derives it from the chosen method id.
  */
 
-export const FREE_SHIPPING_THRESHOLD = 600;
+export const FREE_SHIPPING_THRESHOLD = 700;
 
 export type ShippingMethodId = "pudo_locker" | "courier_economy";
 

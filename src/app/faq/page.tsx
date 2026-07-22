@@ -53,7 +53,7 @@ const faqGroups: FaqGroup[] = [
             <p>
               Shipping is{" "}
               <span className="font-medium text-ink">
-                free on orders over R600
+                free on orders over R700
               </span>
               , whichever option you pick.
             </p>
@@ -227,7 +227,7 @@ const flatFaqs = faqGroups.flatMap((group) =>
 
 const pills = [
   "Shipping from R49",
-  "Free over R600",
+  "Free over R700",
   "Tracked delivery",
   "Secure payments",
 ];

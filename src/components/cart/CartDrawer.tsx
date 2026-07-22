@@ -16,6 +16,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { resolveBundleDiscount } from "@/lib/bundles";
+import { FREE_SHIPPING_THRESHOLD } from "@/lib/shipping";
 import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
 import { trackInitiateCheckout as fbTrackInitiateCheckout } from "@/lib/fpixel";
 import type { MetalType } from "@/types";
@@ -44,7 +45,6 @@ export default function CartDrawer() {
   const updateQuantity = useCart((s) => s.updateQuantity);
   const removeItem = useCart((s) => s.removeItem);
 
-  const FREE_SHIPPING_THRESHOLD = 600;
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - subtotal);
   const progress = Math.min(100, (subtotal / FREE_SHIPPING_THRESHOLD) * 100);
   const isUnlocked = subtotal >= FREE_SHIPPING_THRESHOLD;
@@ -53,7 +53,12 @@ export default function CartDrawer() {
   // summary and /api/checkout use, so the saving shown here is exactly what's
   // charged. Shown as a line + discounted total so the price isn't a surprise.
   const bundle = resolveBundleDiscount(
-    lines.map((l) => ({ slug: l.slug, quantity: l.quantity })),
+    lines.map((l) => ({
+      slug: l.slug,
+      category: l.category,
+      price: l.price,
+      quantity: l.quantity,
+    })),
   );
   const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
   const bundleTotal = subtotal - bundleAmount;
@@ -184,7 +189,7 @@ export default function CartDrawer() {
                       )}
                     </AnimatePresence>
                     {!isUnlocked && (
-                      <span className="text-[10px] font-body text-ink/30 tabular-nums">R600</span>
+                      <span className="text-[10px] font-body text-ink/30 tabular-nums">{formatPrice(FREE_SHIPPING_THRESHOLD)}</span>
                     )}
                   </div>
 

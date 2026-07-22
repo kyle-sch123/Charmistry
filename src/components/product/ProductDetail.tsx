@@ -460,7 +460,7 @@ export default function ProductDetail({
         <ul className="mt-10 space-y-3 text-xs text-ink/60 font-body">
           <li className="flex items-center gap-3">
             <span className="w-1 h-1 bg-gold rounded-full" />
-            Complimentary shipping on orders over R600
+            Complimentary shipping on orders over R700
           </li>
         </ul>
       </div>

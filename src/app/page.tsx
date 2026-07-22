@@ -9,6 +9,7 @@ import BestSellers from "@/components/sections/BestSellers";
 import AboutSection from "@/components/sections/AboutSection";
 import Testimonials from "@/components/sections/Testimonials";
 import ShippingPayments from "@/components/sections/ShippingPayments";
+import AssuranceBanner from "@/components/sections/AssuranceBanner";
 import SectionDivider from "@/components/ui/SectionDivider";
 import Footer from "@/components/layout/Footer";
 
@@ -44,6 +45,8 @@ export default function Home() {
 
         <SectionDivider />
         <ShippingPayments />
+
+        <AssuranceBanner />
       </main>
       <Footer />
     </>

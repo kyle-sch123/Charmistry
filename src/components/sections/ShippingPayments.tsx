@@ -1,4 +1,4 @@
-/** ShippingPayments — trust-signal block (nationwide delivery, free over R600, secure payments). */
+/** ShippingPayments — trust-signal block (nationwide delivery, free over R700, secure payments). */
 
 "use client";
 
@@ -30,7 +30,7 @@ const tags = [
     ),
   },
   {
-    label: "Free Delivery on Orders R600+",
+    label: "Free Delivery on Orders R700+",
     sub: "Complimentary shipping on qualifying orders",
     icon: (
       <svg

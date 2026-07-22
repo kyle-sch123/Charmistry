@@ -276,7 +276,7 @@ const pills = [
   "South Africa only",
   "Secure payments",
   "2–5 business days delivery",
-  "Free shipping over R600",
+  "Free shipping over R700",
 ];
 
 export default function TermsAndConditions() {
