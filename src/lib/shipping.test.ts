@@ -36,6 +36,13 @@ describe("shippingCostForMethod", () => {
   it("still charges one rand below the threshold", () => {
     expect(shippingCostForMethod("pudo_locker", FREE_SHIPPING_THRESHOLD - 1)).toBe(49);
   });
+
+  it("is free when the order is fully covered by a discount (amount <= 0)", () => {
+    // A comp / 100%-off order pays nothing for goods, so it isn't charged
+    // shipping either — keeps the zero-total (PayFast-skip) path reachable.
+    expect(shippingCostForMethod("pudo_locker", 0)).toBe(0);
+    expect(shippingCostForMethod("courier_economy", 0)).toBe(0);
+  });
 });
 
 describe("shippingMethodLabel", () => {

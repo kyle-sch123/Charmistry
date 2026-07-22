@@ -46,7 +46,6 @@ import {
 import {
   SHIPPING_METHODS,
   DEFAULT_SHIPPING_METHOD_ID,
-  FREE_SHIPPING_THRESHOLD,
   shippingCostForMethod,
   shippingMethodLabel,
   type ShippingMethodId,
@@ -122,24 +121,37 @@ export default function CheckoutClient() {
   const bundle = useMemo(
     () =>
       resolveBundleDiscount(
-        lines.map((l) => ({ slug: l.slug, quantity: l.quantity })),
+        lines.map((l) => ({
+          slug: l.slug,
+          category: l.category,
+          price: l.price,
+          quantity: l.quantity,
+        })),
       ),
     [lines],
   );
   const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
   const discountAmount = bundle ? bundleAmount : (appliedDiscount?.amount ?? 0);
 
-  // Free over the threshold, otherwise the chosen method's flat price. Derived
-  // from the shared catalogue with no round-trip; /api/checkout recomputes the
-  // identical value from the method id so display and charge can't diverge.
-  const isFreeShipping = subtotal >= FREE_SHIPPING_THRESHOLD;
+  // Merchandise total after the discount — the amount the customer actually
+  // pays and what the free-shipping threshold is judged on (see below).
+  const discountedSubtotal = Math.max(0, subtotal - discountAmount);
+
+  // Shipping is derived from the shared catalogue on the DISCOUNTED total (what
+  // the customer pays for goods) with no round-trip; /api/checkout recomputes
+  // the identical value from the method id + discounted total so display and
+  // charge can't diverge. `isFreeShipping` reads off that single computed cost
+  // (rather than re-deriving the threshold) so the "Free" label can never
+  // disagree with the price actually shown/charged — including a fully-covered
+  // (100%-off) order, where shipping is free too.
   const shippingCost = useMemo(
-    () => shippingCostForMethod(shippingMethod, subtotal),
-    [shippingMethod, subtotal],
+    () => shippingCostForMethod(shippingMethod, discountedSubtotal),
+    [shippingMethod, discountedSubtotal],
   );
+  const isFreeShipping = shippingCost === 0;
   const total = useMemo(
-    () => Math.max(0, subtotal + shippingCost - discountAmount),
-    [subtotal, shippingCost, discountAmount],
+    () => discountedSubtotal + shippingCost,
+    [discountedSubtotal, shippingCost],
   );
 
   // Empty-cart redirect (only after hydration to avoid SSR flash)

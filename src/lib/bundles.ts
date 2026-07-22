@@ -40,8 +40,48 @@ export const EVERYDAY_EDIT_BUNDLE: BundleDefinition = {
 
 export const BUNDLES: BundleDefinition[] = [EVERYDAY_EDIT_BUNDLE];
 
+/**
+ * A category "stack & save" — a percentage off the qualifying line items once
+ * the cart holds at least `minQuantity` pieces from a given category. Unlike a
+ * slug bundle (fixed ZAR per set) it is priced as a percentage of the
+ * qualifying subtotal, so the resolver needs each line's category + price. Like
+ * a bundle it is cart-aware, automatic, and can't be stacked onto a typed code.
+ */
+export interface CategoryStackDefinition {
+  /** Stored on the order's discount_code column for records/reporting. */
+  code: string;
+  /** Customer-facing label shown in the cart/checkout summary. */
+  label: string;
+  /** Category slug every qualifying line must match (e.g. "rings"). */
+  category: string;
+  /** Minimum total quantity in the category to unlock the discount. */
+  minQuantity: number;
+  /** Percentage off the qualifying category subtotal (0–100). */
+  percentOff: number;
+}
+
+/**
+ * Stack & Save: any 3 rings → 15% off the rings. The 15% is taken off the ring
+ * subtotal only (never the whole cart), and unlocks once the cart holds 3+
+ * rings. Keep the /shop rings banner copy driven off this config so the promo
+ * shown and the discount charged can never drift.
+ */
+export const RINGS_STACK: CategoryStackDefinition = {
+  code: "RINGS-STACK",
+  label: "Stack & Save · rings",
+  category: "rings",
+  minQuantity: 3,
+  percentOff: 15,
+};
+
+export const CATEGORY_STACKS: CategoryStackDefinition[] = [RINGS_STACK];
+
 export interface BundleLine {
   slug: string | null | undefined;
+  /** Category slug of the line's product — required for category stacks. */
+  category?: string | null;
+  /** Unit price (ZAR) — required to price percentage-based category stacks. */
+  price?: number | null;
   quantity: number;
 }
 
@@ -55,10 +95,13 @@ export interface ResolvedBundle {
 }
 
 /**
- * Resolve the best applicable bundle discount for a cart, or null if none
- * applies. "Sets" is the number of complete bundles present — buy two of every
- * edit piece and the discount doubles. The amount is NOT yet capped to the
- * subtotal; the caller should Math.min it against the subtotal.
+ * Resolve the best applicable cart-aware discount, or null if none applies.
+ * Considers both slug bundles (fixed ZAR per complete set, e.g. the Everyday
+ * Edit) and category stacks (a percentage off a category subtotal, e.g. the
+ * rings Stack & Save) and returns whichever saves the most — they never stack
+ * on each other, mirroring the "one automatic discount, no code on top" rule.
+ * The amount is NOT yet capped to the subtotal; the caller should Math.min it
+ * against the subtotal.
  */
 export function resolveBundleDiscount(
   lines: BundleLine[],
@@ -82,6 +125,46 @@ export function resolveBundleDiscount(
     const amount = Number((bundle.discountPerSet * sets).toFixed(2));
     if (!best || amount > best.amount) {
       best = { code: bundle.code, label: bundle.label, amount, sets };
+    }
+  }
+
+  const stack = resolveCategoryStack(lines);
+  if (stack && (!best || stack.amount > best.amount)) best = stack;
+
+  return best;
+}
+
+/**
+ * Best applicable category stack, or null. For each stack, tallies the quantity
+ * and subtotal of lines in its category; once the quantity clears minQuantity,
+ * the discount is percentOff of that category subtotal (all qualifying lines,
+ * not just the first minQuantity). `sets` reports how many minQuantity groups
+ * are present, for reporting parity with slug bundles.
+ */
+function resolveCategoryStack(lines: BundleLine[]): ResolvedBundle | null {
+  let best: ResolvedBundle | null = null;
+  for (const stack of CATEGORY_STACKS) {
+    let qty = 0;
+    let subtotal = 0;
+    for (const line of lines) {
+      if (line.category !== stack.category) continue;
+      const q = Math.floor(Number(line.quantity));
+      if (!Number.isFinite(q) || q < 1) continue;
+      qty += q;
+      const price = Number(line.price);
+      if (Number.isFinite(price) && price > 0) subtotal += price * q;
+    }
+    if (qty < stack.minQuantity || subtotal <= 0) continue;
+
+    const amount = Number(((subtotal * stack.percentOff) / 100).toFixed(2));
+    if (amount <= 0) continue;
+    if (!best || amount > best.amount) {
+      best = {
+        code: stack.code,
+        label: stack.label,
+        amount,
+        sets: Math.floor(qty / stack.minQuantity),
+      };
     }
   }
   return best;

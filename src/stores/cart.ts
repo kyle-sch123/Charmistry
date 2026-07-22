@@ -21,7 +21,7 @@
 
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { CartLine, Product } from "@/types";
+import type { CartLine, Product, ProductWithCategory } from "@/types";
 
 const CART_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000;
 
@@ -34,7 +34,7 @@ interface CartState {
   openCart: () => void;
   closeCart: () => void;
   toggleCart: () => void;
-  addItem: (product: Product, quantity?: number) => void;
+  addItem: (product: Product | ProductWithCategory, quantity?: number) => void;
   removeItem: (id: string) => void;
   updateQuantity: (id: string, quantity: number) => void;
   clear: () => void;
@@ -82,6 +82,8 @@ export const useCart = create<CartState>()(
             price: Number(product.price),
             image_url: product.image_url,
             metal: product.metal ?? null,
+            category:
+              (product as ProductWithCategory).categories?.slug ?? null,
             quantity: clampQty(quantity, max),
             maxQuantity: max,
           };

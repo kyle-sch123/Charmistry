@@ -116,7 +116,7 @@ export default async function ProductPage({
                     You may also like
                   </p>
                   <h2 className="font-display text-3xl md:text-4xl font-light">
-                    Curated for you
+                    Complete the look
                   </h2>
                 </div>
                 <Link
