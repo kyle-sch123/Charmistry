@@ -11,6 +11,22 @@ const EDIT = EVERYDAY_EDIT_BUNDLE.itemSlugs;
 /** One of every edit piece, quantity 1 each. */
 const fullEdit = (): BundleLine[] => EDIT.map((slug) => ({ slug, quantity: 1 }));
 
+describe("EVERYDAY_EDIT_BUNDLE config", () => {
+  // Tripwire: the bundle matches by exact slug, so these MUST stay identical to
+  // the EDIT list in app/collections/everyday/page.tsx. A drift (e.g. the
+  // earring piece changing from Kira to Sia without updating both) silently
+  // stops the discount from ever applying — the bug this test guards against.
+  it("lists the edit's five pieces by their exact catalogue slugs", () => {
+    expect(EVERYDAY_EDIT_BUNDLE.itemSlugs).toEqual([
+      "nova-necklaces-gold",
+      "lucy-necklaces-gold",
+      "sia-earrings-gold",
+      "sole-rings-gold",
+      "mila-bracelets-gold",
+    ]);
+  });
+});
+
 describe("resolveBundleDiscount", () => {
   it("applies the Everyday Edit when every piece is present", () => {
     const result = resolveBundleDiscount(fullEdit());

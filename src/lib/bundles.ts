@@ -31,7 +31,10 @@ export const EVERYDAY_EDIT_BUNDLE: BundleDefinition = {
   itemSlugs: [
     "nova-necklaces-gold",
     "lucy-necklaces-gold",
-    "kira-earrings-gold",
+    // The edit's earring piece is Sia (see EDIT in collections/everyday/page.tsx).
+    // These slugs MUST match that list exactly or the bundle never completes and
+    // no discount reaches checkout — keep the two in sync.
+    "sia-earrings-gold",
     "sole-rings-gold",
     "mila-bracelets-gold",
   ],
