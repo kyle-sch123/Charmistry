@@ -61,6 +61,12 @@ export interface CartLine {
   price: number;
   image_url: string | null;
   metal: MetalType | null;
+  /**
+   * Category slug snapshot (e.g. "rings"), taken at add-time. Powers cart-aware
+   * category stacks (Stack & Save). Null for products without a category, and
+   * absent on lines saved before this field existed — treat missing as null.
+   */
+  category: string | null;
   quantity: number;
   maxQuantity: number;
 }

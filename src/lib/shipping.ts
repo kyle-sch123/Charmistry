@@ -11,9 +11,14 @@
  * Note: the `pudo_locker` method id is retained internally (the locker network
  * is PUDO under the hood) but is never surfaced to customers.
  *
- * Pricing model:
- * - subtotal >= R600 -> free shipping, whichever method is chosen (the carrier
- *   is still recorded so fulfilment knows how to ship — it just isn't charged).
+ * Pricing model — evaluated on the DISCOUNTED merchandise total (what the
+ * customer actually pays for goods), not the pre-discount subtotal, so the
+ * "Free" shown in the bag/checkout matches the charge:
+ * - discounted total >= R700 -> free shipping, whichever method is chosen (the
+ *   carrier is still recorded so fulfilment knows how to ship — just not charged).
+ * - discounted total <= R0 (a comp / 100%-off order) -> free too; we don't
+ *   charge shipping on an order with nothing to pay for, which keeps the
+ *   zero-total (PayFast-skip) path reachable.
  * - otherwise the chosen method's flat price.
  *
  * This module is pure (no server-only imports) so it is the single source of
@@ -22,7 +27,7 @@
  * gets to assert a price; the server re-derives it from the chosen method id.
  */
 
-export const FREE_SHIPPING_THRESHOLD = 600;
+export const FREE_SHIPPING_THRESHOLD = 700;
 
 export type ShippingMethodId = "pudo_locker" | "courier_economy";
 
@@ -90,14 +95,16 @@ export function shippingMethodLabel(
 }
 
 /**
- * The authoritative shipping cost for a chosen method at a given subtotal.
- * Free above the threshold regardless of method; otherwise the method's price.
- * Unknown ids resolve to 0 (the caller is expected to have validated the id).
+ * The authoritative shipping cost for a chosen method at a given (discounted)
+ * merchandise total. Free at/above the threshold, and free when the order is
+ * fully covered by a discount (amount <= 0) so a comp/100%-off order isn't
+ * charged shipping; otherwise the method's flat price. Unknown ids resolve to 0
+ * (the caller is expected to have validated the id).
  */
 export function shippingCostForMethod(
   methodId: ShippingMethodId,
-  subtotal: number,
+  amount: number,
 ): number {
-  if (subtotal >= FREE_SHIPPING_THRESHOLD) return 0;
+  if (amount <= 0 || amount >= FREE_SHIPPING_THRESHOLD) return 0;
   return findMethod(methodId)?.price ?? 0;
 }

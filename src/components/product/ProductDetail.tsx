@@ -32,6 +32,8 @@ import {
   trackAddedToCart as klTrackAddedToCart,
   cartLinesToKlaviyoItems,
 } from "@/lib/klaviyo-client";
+import RingsStackBanner from "@/components/product/RingsStackBanner";
+import { RINGS_STACK } from "@/lib/bundles";
 
 interface Props {
   product: ProductWithCategory;
@@ -141,6 +143,10 @@ export default function ProductDetail({
   const addItem = useCart((s) => s.addItem);
   const maxQty = selectedVariant.quantity ?? 0;
   const disabled = !selectedVariant.in_stock || maxQty <= 0;
+
+  // The Stack & Save promo is a rings-only, category-based discount, so surface
+  // it only on ring pages. Category is stable across metal variants.
+  const isRing = product.categories?.slug === RINGS_STACK.category;
 
   useEffect(() => {
     const item = {
@@ -457,11 +463,24 @@ export default function ProductDetail({
           />
         </div>
 
+        {/* Rings-only "Stack & Save" incentive, right under the CTA. */}
+        {isRing && <RingsStackBanner />}
+
         <ul className="mt-10 space-y-3 text-xs text-ink/60 font-body">
-          <li className="flex items-center gap-3">
-            <span className="w-1 h-1 bg-gold rounded-full" />
-            Complimentary shipping on orders over R600
-          </li>
+          {[
+            "Complimentary shipping on orders over R700",
+            "Waterproof & tarnish-resistant",
+            "Sensitive skin friendly",
+            "Everyday durability",
+          ].map((point) => (
+            <li key={point} className="flex items-center gap-3">
+              <span
+                className="w-1 h-1 bg-gold rounded-full shrink-0"
+                aria-hidden
+              />
+              {point}
+            </li>
+          ))}
         </ul>
       </div>
     </div>

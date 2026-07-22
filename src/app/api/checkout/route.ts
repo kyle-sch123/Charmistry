@@ -78,6 +78,20 @@ function str(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+/**
+ * Pull the category slug off a fetched product row. PostgREST returns the
+ * embedded `categories` relation as a single object for a to-one FK, but tolerate
+ * an array (some join shapes) and a missing/null relation → null.
+ */
+function categorySlugOf(product: {
+  categories?: { slug?: string | null } | { slug?: string | null }[] | null;
+}): string | null {
+  const rel = product.categories;
+  if (!rel) return null;
+  const row = Array.isArray(rel) ? rel[0] : rel;
+  return row?.slug ?? null;
+}
+
 function required(field: string, value: string, errors: string[]): string {
   if (!value) errors.push(`${field} is required`);
   return value;
@@ -144,10 +158,12 @@ export async function POST(request: Request) {
   const productIds = Array.from(lineMap.keys());
   const supabase = createServerSupabase();
 
-  // Fetch authoritative product data. Never trust client prices.
+  // Fetch authoritative product data. Never trust client prices. The category
+  // slug rides along so cart-aware category stacks (e.g. the rings Stack & Save)
+  // are priced from server data, not anything the client asserted.
   const { data: products, error: fetchError } = await supabase
     .from("products")
-    .select("id, name, slug, price, image_url, in_stock, quantity")
+    .select("id, name, slug, price, image_url, in_stock, quantity, categories(slug)")
     .in("id", productIds);
 
   if (fetchError) {
@@ -165,6 +181,8 @@ export async function POST(request: Request) {
     product_name: string;
     product_slug: string;
     product_image_url: string | null;
+    /** Category slug — server-only, used to resolve category stacks. Not persisted. */
+    category: string | null;
     unit_price: number;
     quantity: number;
     line_total: number;
@@ -203,6 +221,7 @@ export async function POST(request: Request) {
       product_name: product.name,
       product_slug: product.slug,
       product_image_url: product.image_url,
+      category: categorySlugOf(product),
       unit_price: unitPrice,
       quantity: qty,
       line_total: lineTotal,
@@ -211,20 +230,15 @@ export async function POST(request: Request) {
 
   subtotal = Number(subtotal.toFixed(2));
 
-  // Resolve the chosen carrier. An unknown (tampered) id is rejected outright;
-  // the cost is re-derived server-side so the client can never assert a price.
-  const shippingMethodDef = resolveShippingMethod(body.shippingMethod);
-  if (!shippingMethodDef) {
-    return Response.json({ error: "invalid_shipping_method" }, { status: 400 });
-  }
-  const shippingCost = shippingCostForMethod(shippingMethodDef.id, subtotal);
-
-  // Resolve the discount. Two mutually-exclusive sources, bundle wins:
+  // Resolve the discount BEFORE shipping — free shipping is judged on the
+  // discounted merchandise total, so the shipping cost depends on the discount.
+  // Two mutually-exclusive sources, bundle wins:
   //
-  //   1. Cart-aware bundle (Everyday Edit) — detected from the line items, not
-  //      a typed code. Automatic and impossible to apply to unrelated products
-  //      because it's keyed to the specific slugs. Not a discount_codes row, so
-  //      there's nothing to consume/refund (discountCodeId stays null).
+  //   1. Cart-aware bundle/stack (Everyday Edit, rings Stack & Save) — detected
+  //      from the line items, not a typed code. Automatic and impossible to
+  //      apply to unrelated products because it's keyed to specific slugs /
+  //      categories. Not a discount_codes row, so there's nothing to
+  //      consume/refund (discountCodeId stays null).
   //   2. A typed discount code — only honoured when no bundle applies, so a
   //      code can't be stacked on top of an already-discounted edit.
   //
@@ -235,7 +249,12 @@ export async function POST(request: Request) {
   let discountCodeId: string | null = null;
 
   const bundle = resolveBundleDiscount(
-    orderLines.map((l) => ({ slug: l.product_slug, quantity: l.quantity })),
+    orderLines.map((l) => ({
+      slug: l.product_slug,
+      category: l.category,
+      price: l.unit_price,
+      quantity: l.quantity,
+    })),
   );
 
   if (bundle) {
@@ -263,9 +282,25 @@ export async function POST(request: Request) {
     }
   }
 
-  const total = Number(
-    Math.max(0, subtotal + shippingCost - discountAmount).toFixed(2),
+  // Merchandise total the customer actually pays. The free-shipping threshold is
+  // applied to THIS, not the pre-discount subtotal, so the amount shown in the
+  // bag / checkout matches what's charged here.
+  const discountedSubtotal = Number(
+    Math.max(0, subtotal - discountAmount).toFixed(2),
   );
+
+  // Resolve the chosen carrier. An unknown (tampered) id is rejected outright;
+  // the cost is re-derived server-side so the client can never assert a price.
+  const shippingMethodDef = resolveShippingMethod(body.shippingMethod);
+  if (!shippingMethodDef) {
+    return Response.json({ error: "invalid_shipping_method" }, { status: 400 });
+  }
+  const shippingCost = shippingCostForMethod(
+    shippingMethodDef.id,
+    discountedSubtotal,
+  );
+
+  const total = Number((discountedSubtotal + shippingCost).toFixed(2));
 
   if (total < 0) {
     return Response.json({ error: "invalid_total" }, { status: 400 });

@@ -11,7 +11,7 @@
  */
 
 const PHRASES = [
-  "Free Shipping Over R600",
+  "Free Shipping Over R700",
   "Live in it: Waterproof + Tarnish-Resistant",
   "Nationwide Shipping From R49",
 ];

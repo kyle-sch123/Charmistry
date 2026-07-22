@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   EVERYDAY_EDIT_BUNDLE,
+  RINGS_STACK,
   resolveBundleDiscount,
   type BundleLine,
 } from "@/lib/bundles";
@@ -69,5 +70,70 @@ describe("resolveBundleDiscount", () => {
     ).toBeNull();
     const zeroQty: BundleLine[] = EDIT.map((slug) => ({ slug, quantity: 0 }));
     expect(resolveBundleDiscount(zeroQty)).toBeNull();
+  });
+});
+
+/** A ring line at R500 each unless overridden. */
+const ring = (n = 1, price = 500): BundleLine => ({
+  slug: `ring-${Math.random()}`,
+  category: "rings",
+  price,
+  quantity: n,
+});
+
+describe("resolveBundleDiscount — rings Stack & Save", () => {
+  it("takes 15% off the ring subtotal once 3 rings are in the cart", () => {
+    const result = resolveBundleDiscount([ring(3, 500)]);
+    expect(result).not.toBeNull();
+    expect(result?.code).toBe(RINGS_STACK.code);
+    // 3 × R500 = R1500 → 15% = R225
+    expect(result?.amount).toBe(225);
+  });
+
+  it("does not apply below the 3-ring threshold", () => {
+    expect(resolveBundleDiscount([ring(2, 500)])).toBeNull();
+  });
+
+  it("counts rings split across separate lines toward the threshold", () => {
+    const result = resolveBundleDiscount([
+      ring(1, 400),
+      ring(1, 600),
+      ring(1, 500),
+    ]);
+    // (400 + 600 + 500) × 15% = 225
+    expect(result?.amount).toBe(225);
+  });
+
+  it("discounts all rings once unlocked, not just the first three", () => {
+    const result = resolveBundleDiscount([ring(4, 500)]);
+    // 4 × R500 = R2000 → 15% = R300
+    expect(result?.amount).toBe(300);
+    expect(result?.sets).toBe(1);
+  });
+
+  it("only discounts rings, never other categories in the same cart", () => {
+    const result = resolveBundleDiscount([
+      ring(3, 500),
+      { slug: "some-necklace", category: "necklaces", price: 1000, quantity: 1 },
+    ]);
+    // Discount base is the rings only: 1500 × 15% = 225 (necklace excluded)
+    expect(result?.amount).toBe(225);
+  });
+
+  it("does not fire on rings that carry no usable price", () => {
+    expect(
+      resolveBundleDiscount([
+        { slug: "r1", category: "rings", price: 0, quantity: 3 },
+      ]),
+    ).toBeNull();
+  });
+
+  it("returns whichever cart-aware discount saves more", () => {
+    // Full Everyday Edit (R110 off) plus 3 separate high-value rings whose
+    // stack (R450) beats the edit → the stack wins.
+    const lines: BundleLine[] = [...fullEdit(), ring(3, 1000)];
+    const result = resolveBundleDiscount(lines);
+    expect(result?.code).toBe(RINGS_STACK.code);
+    expect(result?.amount).toBe(450);
   });
 });
