@@ -17,11 +17,19 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
+import { formatPrice } from "@/lib/utils";
+import { EVERYDAY_EDIT_BUNDLE } from "@/lib/bundles";
 
 const BUCKET =
   "https://qkgakhluqruqoifknprg.supabase.co/storage/v1/object/public/Charmistry%20Assets";
 
 const HREF = "/collections/everyday";
+
+// Bundle pricing mirrors src/app/collections/everyday and the /collections index
+// card — keep in step if the edit's price changes. The saving tracks the
+// EVERYDAY_EDIT_BUNDLE discount so it can't drift from what the cart applies.
+const REGULAR_TOTAL = 825;
+const BUNDLE_PRICE = REGULAR_TOTAL - EVERYDAY_EDIT_BUNDLE.discountPerSet;
 
 type Piece = {
   name: string;
@@ -302,8 +310,8 @@ export default function CollectionsSection() {
               );
             })}
 
-            {/* CTA */}
-            <li className="pt-7">
+            {/* CTA + bundle price */}
+            <li className="pt-7 flex flex-wrap items-center gap-x-6 gap-y-4">
               <Link
                 href={HREF}
                 className="group inline-flex items-center gap-2.5 border border-ink text-ink px-7 py-3.5 hover:bg-ink hover:text-paper transition-colors cursor-pointer"
@@ -329,6 +337,39 @@ export default function CollectionsSection() {
                   />
                 </svg>
               </Link>
+
+              {/* Bundle price — beside the CTA */}
+              <div>
+                <div className="flex items-baseline gap-2">
+                  <span
+                    className="text-ink"
+                    style={{
+                      fontFamily: "var(--font-heading)",
+                      fontSize: "1.6rem",
+                      letterSpacing: "0.02em",
+                    }}
+                  >
+                    {formatPrice(BUNDLE_PRICE)}
+                  </span>
+                  <span
+                    className="text-ink/35 line-through"
+                    style={{ fontFamily: "var(--font-body)", fontSize: "12px" }}
+                  >
+                    {formatPrice(REGULAR_TOTAL)}
+                  </span>
+                </div>
+                <p
+                  className="mt-0.5 text-gold-dark uppercase"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "9.5px",
+                    letterSpacing: "0.2em",
+                  }}
+                >
+                  Bundle price · Save{" "}
+                  {formatPrice(EVERYDAY_EDIT_BUNDLE.discountPerSet)}
+                </p>
+              </div>
             </li>
           </motion.ul>
         </div>
