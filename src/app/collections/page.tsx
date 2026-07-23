@@ -19,10 +19,10 @@ const COLLECTIONS = [
     name: "The Everyday Edit",
     season: "Year round · 5 pieces",
     description:
-      "Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons. Bought together as one edit for R600.",
+      "Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons. Bought together as one edit for R650.",
     href: "/collections/everyday",
     image: `${BUCKET}/everyday-nova-lucy.webp`,
-    tag: "Bundle · Save R110",
+    tag: "Bundle · Save R175",
   },
 ];
 

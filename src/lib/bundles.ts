@@ -38,7 +38,7 @@ export const EVERYDAY_EDIT_BUNDLE: BundleDefinition = {
     "sole-rings-gold",
     "mila-bracelets-gold",
   ],
-  discountPerSet: 110,
+  discountPerSet: 175,
 };
 
 export const BUNDLES: BundleDefinition[] = [EVERYDAY_EDIT_BUNDLE];
