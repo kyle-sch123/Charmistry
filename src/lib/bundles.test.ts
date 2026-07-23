@@ -32,7 +32,7 @@ describe("resolveBundleDiscount", () => {
     const result = resolveBundleDiscount(fullEdit());
     expect(result).not.toBeNull();
     expect(result?.code).toBe("EVERYDAY-EDIT");
-    expect(result?.amount).toBe(110);
+    expect(result?.amount).toBe(175);
     expect(result?.sets).toBe(1);
   });
 
@@ -48,7 +48,7 @@ describe("resolveBundleDiscount", () => {
       ...fullEdit(),
       { slug: "some-other-necklace-silver", quantity: 2 },
     ];
-    expect(resolveBundleDiscount(withExtras)?.amount).toBe(110);
+    expect(resolveBundleDiscount(withExtras)?.amount).toBe(175);
   });
 
   it("counts complete sets by the scarcest piece", () => {
@@ -59,14 +59,14 @@ describe("resolveBundleDiscount", () => {
     }));
     const result = resolveBundleDiscount(lines);
     expect(result?.sets).toBe(1);
-    expect(result?.amount).toBe(110);
+    expect(result?.amount).toBe(175);
   });
 
   it("multiplies the discount for multiple complete sets", () => {
     const twoSets: BundleLine[] = EDIT.map((slug) => ({ slug, quantity: 2 }));
     const result = resolveBundleDiscount(twoSets);
     expect(result?.sets).toBe(2);
-    expect(result?.amount).toBe(220);
+    expect(result?.amount).toBe(350);
   });
 
   it("aggregates duplicate lines of the same slug", () => {
@@ -145,7 +145,7 @@ describe("resolveBundleDiscount — rings Stack & Save", () => {
   });
 
   it("returns whichever cart-aware discount saves more", () => {
-    // Full Everyday Edit (R110 off) plus 3 separate high-value rings whose
+    // Full Everyday Edit (R175 off) plus 3 separate high-value rings whose
     // stack (R450) beats the edit → the stack wins.
     const lines: BundleLine[] = [...fullEdit(), ring(3, 1000)];
     const result = resolveBundleDiscount(lines);
