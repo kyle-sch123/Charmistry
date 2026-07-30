@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   EVERYDAY_EDIT_BUNDLE,
   RINGS_STACK,
+  MIX_MATCH_STACK,
   resolveBundleDiscount,
   type BundleLine,
 } from "@/lib/bundles";
@@ -151,5 +152,100 @@ describe("resolveBundleDiscount — rings Stack & Save", () => {
     const result = resolveBundleDiscount(lines);
     expect(result?.code).toBe(RINGS_STACK.code);
     expect(result?.amount).toBe(450);
+  });
+});
+
+/** One line in a mix-stack category at the given price. */
+const piece = (
+  category: string,
+  price = 400,
+  quantity = 1,
+): BundleLine => ({
+  slug: `${category}-${Math.random()}`,
+  category,
+  price,
+  quantity,
+});
+
+/** One necklace + one earrings + one bracelet — the minimum unlocking trio. */
+const trio = (price = 400): BundleLine[] =>
+  MIX_MATCH_STACK.categories.map((c) => piece(c, price));
+
+describe("MIX_MATCH_STACK config", () => {
+  // Tripwire: the PDP StackBuilder renders its slots and its "15% off" promise
+  // straight from this config. Changing it changes what checkout charges, so
+  // any edit here must be deliberate.
+  it("requires one necklace, one earrings and one bracelet for 15% off", () => {
+    expect(MIX_MATCH_STACK.categories).toEqual([
+      "necklaces",
+      "earrings",
+      "bracelets",
+    ]);
+    expect(MIX_MATCH_STACK.percentOff).toBe(15);
+  });
+});
+
+describe("resolveBundleDiscount — Create Your Own Stack", () => {
+  it("takes 15% off the trio once one of each category is in the cart", () => {
+    const result = resolveBundleDiscount(trio(400));
+    expect(result).not.toBeNull();
+    expect(result?.code).toBe(MIX_MATCH_STACK.code);
+    // (400 + 400 + 400) × 15% = 180
+    expect(result?.amount).toBe(180);
+    expect(result?.sets).toBe(1);
+  });
+
+  it("does not apply while any category is missing", () => {
+    const noBracelet = [piece("necklaces"), piece("earrings")];
+    expect(resolveBundleDiscount(noBracelet)).toBeNull();
+    // Depth in one category can't substitute for breadth across all three.
+    expect(
+      resolveBundleDiscount([piece("necklaces", 400, 3)]),
+    ).toBeNull();
+  });
+
+  it("discounts every piece in the three categories once unlocked", () => {
+    // The rings-stack rule applied across categories: a second necklace joins
+    // the discount base rather than sitting at full price.
+    const result = resolveBundleDiscount([...trio(400), piece("necklaces", 600)]);
+    // (1200 + 600) × 15% = 270
+    expect(result?.amount).toBe(270);
+  });
+
+  it("never discounts categories outside the stack", () => {
+    const result = resolveBundleDiscount([
+      ...trio(400),
+      piece("rings", 900),
+      piece("jewellery-boxes", 800),
+    ]);
+    // Base stays the trio: 1200 × 15% = 180 (ring + box excluded)
+    expect(result?.amount).toBe(180);
+  });
+
+  it("reports sets as the scarcest category's quantity", () => {
+    const result = resolveBundleDiscount([
+      piece("necklaces", 400, 2),
+      piece("earrings", 400, 2),
+      piece("bracelets", 400, 1),
+    ]);
+    expect(result?.sets).toBe(1);
+  });
+
+  it("does not fire on pieces that carry no usable price", () => {
+    expect(
+      resolveBundleDiscount(
+        MIX_MATCH_STACK.categories.map((c) => piece(c, 0)),
+      ),
+    ).toBeNull();
+  });
+
+  it("loses to a rings stack that saves more, and wins when it saves more", () => {
+    // Trio saves 180; three R1000 rings save 450 → rings win.
+    const ringsWin = resolveBundleDiscount([...trio(400), ring(3, 1000)]);
+    expect(ringsWin?.code).toBe(RINGS_STACK.code);
+    // Trio of R1000 pieces saves 450; three R400 rings save 180 → mix wins.
+    const mixWins = resolveBundleDiscount([...trio(1000), ring(3, 400)]);
+    expect(mixWins?.code).toBe(MIX_MATCH_STACK.code);
+    expect(mixWins?.amount).toBe(450);
   });
 });

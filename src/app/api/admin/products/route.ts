@@ -12,8 +12,11 @@
  *          category list, in one round-trip.
  * POST   — create a piece: one row per metal variant with unique slugs.
  * PATCH  — { op: "save" }  edit shared + per-variant fields for a piece.
- *          { op: "images" } set the ordered images[] (+ image_url) for a piece
- *          (reorder / set-primary / delete-from-gallery — no storage I/O).
+ *          { op: "images" } set the ordered images[] for a piece (reorder /
+ *          set-primary — no storage I/O). image_url follows images[0] unless
+ *          the owner picked an explicit thumbnail (see nextThumbnail).
+ *          { op: "thumbnail" } point image_url (the shop-grid / cart / OG
+ *          photo) at one gallery URL without touching the gallery order.
  * DELETE — { op: "variant" } one row, or { op: "piece" } all rows + storage.
  */
 
@@ -26,6 +29,7 @@ import {
   slugify,
   pieceKey,
   isAbsoluteUrl,
+  nextThumbnail,
   storagePathFromPublicUrl,
 } from "@/lib/admin-catalogue";
 import type { BadgeType, MetalType, Product } from "@/types";
@@ -150,6 +154,9 @@ export async function GET(request: Request) {
       in_stock: v.in_stock,
       size: v.size,
       images: effectiveImages(v),
+      // The row's live shop thumbnail — what the shop grid / cart / OG tags
+      // show. Lets ImageManager badge the photo and offer "make thumbnail".
+      image_url: v.image_url,
     }));
     const thumbnail = variants.find((v) => v.images.length > 0)?.images[0] ?? null;
     return {
@@ -314,6 +321,7 @@ interface PatchBody {
   variants?: unknown;
   ids?: unknown;
   images?: unknown;
+  url?: unknown;
 }
 
 export async function PATCH(request: Request) {
@@ -343,12 +351,55 @@ export async function PATCH(request: Request) {
     if (ids.length === 0) {
       return Response.json({ error: "ids_required" }, { status: 400 });
     }
+
+    // Read the rows first: image_url must survive the rewrite when it's an
+    // explicitly-chosen thumbnail (see nextThumbnail), so each row gets its
+    // own update instead of one blanket image_url = images[0].
+    const { data: rows, error: readError } = await supabase
+      .from("products")
+      .select("id, images, image_url")
+      .in("id", ids)
+      .returns<{ id: string; images: string[] | null; image_url: string | null }[]>();
+    if (readError) {
+      console.error("Admin catalogue PATCH images read failed", readError);
+      return Response.json({ error: "service_error" }, { status: 500 });
+    }
+
+    const thumbnails: Record<string, string | null> = {};
+    for (const row of rows ?? []) {
+      const image_url = nextThumbnail(row, images);
+      thumbnails[row.id] = image_url;
+      const { error } = await supabase
+        .from("products")
+        .update({ images, image_url })
+        .eq("id", row.id);
+      if (error) {
+        console.error("Admin catalogue PATCH images failed", error);
+        return Response.json({ error: "service_error" }, { status: 500 });
+      }
+    }
+    return Response.json({ ok: true, thumbnails });
+  }
+
+  // -- thumbnail: point image_url at one of the gallery photos --
+  if (body.op === "thumbnail") {
+    const ids = Array.isArray(body.ids)
+      ? body.ids.filter((v): v is string => typeof v === "string" && UUID_RE.test(v))
+      : [];
+    const url =
+      typeof body.url === "string" && isAbsoluteUrl(body.url) ? body.url : "";
+    if (ids.length === 0) {
+      return Response.json({ error: "ids_required" }, { status: 400 });
+    }
+    if (!url) {
+      return Response.json({ error: "url_required" }, { status: 400 });
+    }
     const { error } = await supabase
       .from("products")
-      .update({ images, image_url: images[0] ?? null })
+      .update({ image_url: url })
       .in("id", ids);
     if (error) {
-      console.error("Admin catalogue PATCH images failed", error);
+      console.error("Admin catalogue PATCH thumbnail failed", error);
       return Response.json({ error: "service_error" }, { status: 500 });
     }
     return Response.json({ ok: true });

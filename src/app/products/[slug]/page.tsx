@@ -14,6 +14,7 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductDetail from "@/components/product/ProductDetail";
 import ReviewSection from "@/components/product/ReviewSection";
+import StackBuilder from "@/components/product/StackBuilder";
 import ProductCard from "@/components/ui/ProductCard";
 import {
   getProductBySlug,
@@ -21,8 +22,10 @@ import {
   getRelatedProducts,
   getProductImages,
   getPieceReviews,
+  getStackCandidates,
 } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
+import { MIX_MATCH_STACK } from "@/lib/bundles";
 
 export const dynamic = "force-dynamic";
 
@@ -58,17 +61,30 @@ export default async function ProductPage({
   const product = await getProductBySlug(slug);
   if (!product) notFound();
 
-  const [variants, related, bucketImages, reviews] = await Promise.all([
-    getProductVariants(product.name, product.category_id),
-    getRelatedProducts(product.category_id, product.id, 4),
-    getProductImages(product.name),
-    getPieceReviews(product.name, product.category_id).catch(() => []),
-  ]);
+  const [variants, related, bucketImages, reviews, stackCandidates] =
+    await Promise.all([
+      getProductVariants(product.name, product.category_id),
+      getRelatedProducts(product.category_id, product.id, 4),
+      getProductImages(product.name),
+      getPieceReviews(product.name, product.category_id).catch(() => []),
+      // The stack builder needs one purchasable piece per stack category; on a
+      // fetch error it simply doesn't render (the discount is a bonus, never a
+      // reason to fail the page).
+      getStackCandidates(MIX_MATCH_STACK.categories).catch(
+        () => ({}) as Record<string, never>,
+      ),
+    ]);
 
   // Exclude siblings from "You may also like" to avoid duplication with the
   // variant selector.
   const variantIds = new Set(variants.map((v) => v.id));
   const filteredRelated = related.filter((r) => !variantIds.has(r.id));
+
+  // The builder (and the banner that anchors to it) need one purchasable
+  // candidate in every stack category — mirrors StackBuilder's own guard.
+  const stackAvailable = MIX_MATCH_STACK.categories.every(
+    (c) => (stackCandidates[c] ?? []).length > 0,
+  );
 
   return (
     <>
@@ -100,7 +116,12 @@ export default async function ProductPage({
             product={product}
             variants={variants}
             bucketImages={bucketImages}
+            stackAvailable={stackAvailable}
           />
+
+          {/* "Create Your Own Stack" — sits above the reviews. Renders only
+              when every stack category has a purchasable candidate. */}
+          <StackBuilder product={product} candidates={stackCandidates} />
 
           <ReviewSection
             productId={product.id}

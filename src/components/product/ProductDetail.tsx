@@ -33,13 +33,16 @@ import {
   cartLinesToKlaviyoItems,
 } from "@/lib/klaviyo-client";
 import RingsStackBanner from "@/components/product/RingsStackBanner";
-import { RINGS_STACK } from "@/lib/bundles";
+import MixStackBanner from "@/components/product/MixStackBanner";
+import { RINGS_STACK, MIX_MATCH_STACK } from "@/lib/bundles";
 
 interface Props {
   product: ProductWithCategory;
   /** All products sharing name+category (metal variants). Includes the current product. */
   variants?: ProductWithCategory[];
   bucketImages?: string[];
+  /** True when the page renders a StackBuilder the mix banner can anchor to. */
+  stackAvailable?: boolean;
 }
 
 function formatSize(size: string | number | null | undefined) {
@@ -93,6 +96,7 @@ export default function ProductDetail({
   product,
   variants = [],
   bucketImages = [],
+  stackAvailable = false,
 }: Props) {
   const allVariants = useMemo(() => {
     const map = new Map<string, ProductWithCategory>();
@@ -147,6 +151,13 @@ export default function ProductDetail({
   // The Stack & Save promo is a rings-only, category-based discount, so surface
   // it only on ring pages. Category is stable across metal variants.
   const isRing = product.categories?.slug === RINGS_STACK.category;
+
+  // Mix-stack pages (necklaces / earrings / bracelets) get the "Create Your
+  // Own Stack" band instead — but only when the page actually rendered the
+  // builder it anchors to.
+  const inMixStack =
+    stackAvailable &&
+    MIX_MATCH_STACK.categories.includes(product.categories?.slug ?? "");
 
   useEffect(() => {
     const item = {
@@ -466,12 +477,16 @@ export default function ProductDetail({
         {/* Rings-only "Stack & Save" incentive, right under the CTA. */}
         {isRing && <RingsStackBanner />}
 
+        {/* Mix-stack incentive for necklace/earring/bracelet pages — anchors
+            down to the StackBuilder module rendered above the reviews. */}
+        {inMixStack && <MixStackBanner />}
+
         <ul className="mt-10 space-y-3 text-xs text-ink/60 font-body">
           {[
-            "Complimentary shipping on orders over R700",
             "Waterproof & tarnish-resistant",
             "Sensitive skin friendly",
             "Everyday durability",
+            "Complimentary shipping on orders over R700",
           ].map((point) => (
             <li key={point} className="flex items-center gap-3">
               <span

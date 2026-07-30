@@ -1,8 +1,15 @@
 /**
  * Photo gallery for one piece: upload (client-side WebP), delete, set-primary,
- * and reorder. Order + primary live in the piece rows' images[] (persisted via
- * PATCH op:"images"), which is what the storefront reads first — so reordering
- * is just rewriting that array, no file renames.
+ * reorder, and set-thumbnail. Order + primary live in the piece rows' images[]
+ * (persisted via PATCH op:"images"), which is what the PDP gallery reads — so
+ * reordering is just rewriting that array, no file renames.
+ *
+ * Two distinct "first photo" concepts, each with its own badge + action:
+ * - Primary   — images[0]; leads the product-page gallery.
+ * - Thumbnail — image_url; the photo on the shop grid, cart, search, OG tags.
+ *   Follows the primary by default; "Thumbnail" pins a different photo (PATCH
+ *   op:"thumbnail"), and the server keeps that pin across reorders/uploads
+ *   until the pinned photo is deleted (see nextThumbnail in admin-catalogue).
  */
 
 "use client";
@@ -16,18 +23,42 @@ export default function ImageManager({
   pieceName,
   ids,
   images,
+  thumbnail,
   onChange,
+  onThumbnailChange,
   request,
 }: {
   pieceName: string;
   ids: string[];
   images: string[];
+  /** The row's live image_url — may sit anywhere in images[], or be stale. */
+  thumbnail: string | null;
   onChange: (images: string[]) => void;
+  onThumbnailChange: (url: string | null) => void;
   request: AdminRequest;
 }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+
+  // What the storefront actually shows: the pinned photo while it exists in
+  // the gallery, otherwise the primary. Mirrors the server's nextThumbnail.
+  const effectiveThumb =
+    thumbnail && images.includes(thumbnail) ? thumbnail : (images[0] ?? null);
+
+  /** Pull the row's recomputed image_url out of a mutation response. */
+  async function syncThumbnail(res: Response) {
+    try {
+      const data = (await res.json()) as {
+        thumbnails?: Record<string, string | null>;
+      };
+      const next = data.thumbnails?.[ids[0]];
+      if (next !== undefined) onThumbnailChange(next);
+    } catch {
+      // Body already consumed / not JSON — leave the local value; the next
+      // full reload straightens it out.
+    }
+  }
 
   async function persist(next: string[]): Promise<boolean> {
     const res = await request("/api/admin/products", {
@@ -40,6 +71,7 @@ export default function ImageManager({
       return false;
     }
     onChange(next);
+    await syncThumbnail(res);
     return true;
   }
 
@@ -94,6 +126,7 @@ export default function ImageManager({
         return;
       }
       onChange(images.filter((u) => u !== url));
+      await syncThumbnail(res);
     } finally {
       setBusy(false);
     }
@@ -103,6 +136,22 @@ export default function ImageManager({
     setBusy(true);
     setError(null);
     await persist([url, ...images.filter((u) => u !== url)]);
+    setBusy(false);
+  }
+
+  async function makeThumbnail(url: string) {
+    setBusy(true);
+    setError(null);
+    const res = await request("/api/admin/products", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "thumbnail", ids, url }),
+    });
+    if (!res.ok) {
+      setError("Couldn't set that photo as the thumbnail. Try again.");
+    } else {
+      onThumbnailChange(url);
+    }
     setBusy(false);
   }
 
@@ -142,6 +191,13 @@ export default function ImageManager({
         />
       </div>
 
+      {images.length > 0 && (
+        <p className="text-[11px] text-ink/45 font-body">
+          Primary leads the product-page gallery · Thumbnail is the photo shown
+          on the shop grid, cart and search.
+        </p>
+      )}
+
       {error && <p className="text-[12px] text-red-600 font-body">{error}</p>}
 
       {images.length === 0 ? (
@@ -167,7 +223,12 @@ export default function ImageManager({
                   Primary
                 </span>
               )}
-              <div className="flex items-center justify-between gap-1 border-t border-ink/10 bg-paper px-1.5 py-1">
+              {url === effectiveThumb && (
+                <span className="absolute right-0 top-0 bg-gold-dark px-2 py-0.5 text-[9px] uppercase tracking-[0.15em] text-paper">
+                  Thumbnail
+                </span>
+              )}
+              <div className="flex flex-wrap items-center justify-between gap-1 border-t border-ink/10 bg-paper px-1.5 py-1">
                 <div className="flex gap-1">
                   <IconBtn label="◀" onClick={() => move(url, -1)} disabled={busy || i === 0} />
                   <IconBtn
@@ -176,7 +237,7 @@ export default function ImageManager({
                     disabled={busy || i === images.length - 1}
                   />
                 </div>
-                <div className="flex gap-1.5">
+                <div className="flex flex-wrap gap-x-1.5 gap-y-0.5">
                   {i !== 0 && (
                     <button
                       type="button"
@@ -185,6 +246,16 @@ export default function ImageManager({
                       className="text-[10px] uppercase tracking-[0.1em] text-ink/60 hover:text-ink cursor-pointer disabled:opacity-40"
                     >
                       Primary
+                    </button>
+                  )}
+                  {url !== effectiveThumb && (
+                    <button
+                      type="button"
+                      onClick={() => makeThumbnail(url)}
+                      disabled={busy}
+                      className="text-[10px] uppercase tracking-[0.1em] text-gold-dark hover:text-ink cursor-pointer disabled:opacity-40"
+                    >
+                      Thumbnail
                     </button>
                   )}
                   <button
