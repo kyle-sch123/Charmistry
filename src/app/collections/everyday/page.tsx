@@ -3,7 +3,7 @@
  *
  * Five gold pieces (Nova + Lucy necklaces, Kira hoops, Sole ring, Mila bangle)
  * sold individually or together as "the edit". Buying the edit applies the
- * CHARM-EDIT bundle code (a fixed R110 off, gated to the edit's subtotal) so the
+ * CHARM-EDIT bundle code (a fixed R175 off, gated to the edit's subtotal) so the
  * five-piece total lands at a round bundle price — see AddEditButton +
  * CheckoutClient for how the code rides through to checkout.
  *
@@ -44,7 +44,7 @@ const IMG = {
 };
 
 /** Kept in step with EVERYDAY_EDIT_BUNDLE.discountPerSet in lib/bundles.ts. */
-const BUNDLE_SAVINGS = 110;
+const BUNDLE_SAVINGS = 175;
 
 // Ordered pieces of the edit. Slugs point at the gold variants — the edit is
 // styled entirely in gold across all four editorial shots.

@@ -5,7 +5,7 @@
  * a code the shopper types: it is detected from the cart contents by
  * resolveBundleDiscount and applied automatically in CheckoutClient and, as the
  * authority, in /api/checkout. So there is nothing to stash or carry over here —
- * getting the five pieces into the bag is all that's needed for the R110 saving.
+ * getting the five pieces into the bag is all that's needed for the R175 saving.
  *
  * Analytics mirror ProductCard.handleAdd so a bundle add is tracked the same as
  * five individual adds: GA + Meta add_to_cart per piece, one Klaviyo Added to
