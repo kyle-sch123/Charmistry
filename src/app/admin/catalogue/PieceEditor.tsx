@@ -28,6 +28,7 @@ function toEditable(v: AdminPiece["variants"][number]): EditableVariant {
     in_stock: v.in_stock,
     size: v.size === null || v.size === undefined ? "" : String(v.size),
     images: v.images ?? [],
+    image_url: v.image_url ?? null,
   };
 }
 

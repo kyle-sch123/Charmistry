@@ -243,6 +243,43 @@ export async function getPieceReviews(
   return (data ?? []) as Review[];
 }
 
+/**
+ * Candidate pieces for the PDP "Create Your Own Stack" builder — purchasable
+ * (in stock, quantity > 0) products across the given category slugs, best
+ * sellers first, de-duplicated to one row per piece (same key as
+ * getShopProducts) and capped per category. Returned keyed by category slug so
+ * the builder can render one slot per category.
+ */
+export async function getStackCandidates(
+  categorySlugs: string[],
+  limitPerCategory = 6,
+): Promise<Record<string, ProductWithCategory[]>> {
+  if (categorySlugs.length === 0) return {};
+  const { data, error } = await supabase
+    .from("products")
+    .select("*, categories!inner(name, slug)")
+    .in("categories.slug", categorySlugs)
+    .eq("in_stock", true)
+    .gt("quantity", 0)
+    .order("review_count", { ascending: false })
+    .order("rating", { ascending: false, nullsFirst: false });
+
+  if (error) throw error;
+
+  const byCategory: Record<string, ProductWithCategory[]> = {};
+  const seenKeys = new Set<string>();
+  for (const product of (data ?? []) as ProductWithCategory[]) {
+    const categorySlug = product.categories?.slug;
+    if (!categorySlug) continue;
+    const key = `${product.name.trim().toLowerCase()}|${product.category_id ?? ""}`;
+    if (seenKeys.has(key)) continue;
+    seenKeys.add(key);
+    const bucket = (byCategory[categorySlug] ??= []);
+    if (bucket.length < limitPerCategory) bucket.push(product);
+  }
+  return byCategory;
+}
+
 export async function getRelatedProducts(
   categoryId: string | null,
   excludeId: string,

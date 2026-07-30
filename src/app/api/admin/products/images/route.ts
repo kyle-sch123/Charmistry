@@ -19,7 +19,12 @@ import crypto from "node:crypto";
 import { createServerSupabase } from "@/lib/supabase-server";
 import { isAuthorized } from "@/lib/admin-auth";
 import { BUCKET_NAME } from "@/lib/storage";
-import { slugify, storagePathFromPublicUrl, isAbsoluteUrl } from "@/lib/admin-catalogue";
+import {
+  slugify,
+  storagePathFromPublicUrl,
+  isAbsoluteUrl,
+  nextThumbnail,
+} from "@/lib/admin-catalogue";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -106,19 +111,23 @@ export async function DELETE(request: Request) {
     if (rmError) console.warn("Admin catalogue image remove failed", rmError);
   }
 
-  // Strip the URL from every affected row and keep image_url pointing at the
-  // remaining primary.
+  // Strip the URL from every affected row. image_url keeps an explicitly
+  // chosen thumbnail alive (nextThumbnail); deleting the thumbnail itself
+  // falls back to the remaining primary.
+  const thumbnails: Record<string, string | null> = {};
   if (ids.length > 0) {
     const { data: rows } = await supabase
       .from("products")
-      .select("id, images")
+      .select("id, images, image_url")
       .in("id", ids)
-      .returns<{ id: string; images: string[] }[]>();
+      .returns<{ id: string; images: string[] | null; image_url: string | null }[]>();
     for (const row of rows ?? []) {
       const next = (row.images ?? []).filter((u) => u !== url);
+      const image_url = nextThumbnail(row, next);
+      thumbnails[row.id] = image_url;
       const { error } = await supabase
         .from("products")
-        .update({ images: next, image_url: next[0] ?? null })
+        .update({ images: next, image_url })
         .eq("id", row.id);
       if (error) {
         console.error("Admin catalogue image strip failed", error);
@@ -127,5 +136,5 @@ export async function DELETE(request: Request) {
     }
   }
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, thumbnails });
 }

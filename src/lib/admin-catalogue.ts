@@ -69,6 +69,31 @@ export function discoverBucketImages(
 }
 
 /**
+ * The shop thumbnail (products.image_url) to keep after a row's gallery
+ * changes. By default the thumbnail shadows the gallery primary (images[0]) —
+ * but once the owner explicitly picks a different photo (op:"thumbnail"),
+ * image_url no longer equals the primary, and that choice must survive
+ * reorders, uploads and unrelated deletes. It falls back to the new primary
+ * only when the chosen photo itself leaves the gallery.
+ *
+ * `row` is the DB state BEFORE the change; `nextImages` the gallery being
+ * written. Rule: keep image_url when it (a) differs from the old primary
+ * (i.e. was explicitly chosen) and (b) is still present in nextImages;
+ * otherwise sync to the new primary.
+ */
+export function nextThumbnail(
+  row: { images: string[] | null; image_url: string | null },
+  nextImages: string[],
+): string | null {
+  const oldPrimary = (row.images ?? []).filter(isAbsoluteUrl)[0] ?? null;
+  const current = row.image_url;
+  if (current && current !== oldPrimary && nextImages.includes(current)) {
+    return current;
+  }
+  return nextImages[0] ?? null;
+}
+
+/**
  * Given a Supabase public URL that points into our bucket, return the object
  * path storage.remove() needs, or null if the URL isn't in our bucket. Public
  * URLs look like `.../storage/v1/object/public/<bucket>/<path>`. The bucket

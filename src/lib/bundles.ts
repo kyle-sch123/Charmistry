@@ -79,6 +79,39 @@ export const RINGS_STACK: CategoryStackDefinition = {
 
 export const CATEGORY_STACKS: CategoryStackDefinition[] = [RINGS_STACK];
 
+/**
+ * A cross-category "mix & match stack" — one piece from each of several
+ * categories unlocks a percentage off. The sibling of CategoryStackDefinition
+ * (one category, quantity threshold): here the threshold is *breadth*, not
+ * depth — the cart must hold at least one piece from every listed category.
+ * Like the rings stack, once unlocked the percentage comes off the subtotal of
+ * ALL lines in the listed categories, not just one trio.
+ */
+export interface MixStackDefinition {
+  /** Stored on the order's discount_code column for records/reporting. */
+  code: string;
+  /** Customer-facing label shown in the cart/checkout summary. */
+  label: string;
+  /** Category slugs — the cart needs at least one piece from each. */
+  categories: string[];
+  /** Percentage off the combined listed-category subtotal (0–100). */
+  percentOff: number;
+}
+
+/**
+ * Create Your Own Stack: a necklace + earrings + a bracelet → 15% off those
+ * pieces, automatically at checkout. Keep the PDP StackBuilder copy driven off
+ * this config so the promo shown and the discount charged can never drift.
+ */
+export const MIX_MATCH_STACK: MixStackDefinition = {
+  code: "MIX-STACK",
+  label: "Create Your Own Stack",
+  categories: ["necklaces", "earrings", "bracelets"],
+  percentOff: 15,
+};
+
+export const MIX_STACKS: MixStackDefinition[] = [MIX_MATCH_STACK];
+
 export interface BundleLine {
   slug: string | null | undefined;
   /** Category slug of the line's product — required for category stacks. */
@@ -134,6 +167,9 @@ export function resolveBundleDiscount(
   const stack = resolveCategoryStack(lines);
   if (stack && (!best || stack.amount > best.amount)) best = stack;
 
+  const mix = resolveMixStack(lines);
+  if (mix && (!best || mix.amount > best.amount)) best = mix;
+
   return best;
 }
 
@@ -168,6 +204,46 @@ function resolveCategoryStack(lines: BundleLine[]): ResolvedBundle | null {
         amount,
         sets: Math.floor(qty / stack.minQuantity),
       };
+    }
+  }
+  return best;
+}
+
+/**
+ * Best applicable mix & match stack, or null. Tallies quantity + subtotal per
+ * listed category; the stack unlocks only when every category holds at least
+ * one piece, and then discounts percentOff of the combined listed-category
+ * subtotal (all qualifying lines — the rings-stack rule applied across
+ * categories). `sets` is the scarcest category's quantity, i.e. how many
+ * complete trios the cart could assemble.
+ */
+function resolveMixStack(lines: BundleLine[]): ResolvedBundle | null {
+  let best: ResolvedBundle | null = null;
+  for (const stack of MIX_STACKS) {
+    const qtyByCategory = new Map<string, number>();
+    let subtotal = 0;
+    for (const line of lines) {
+      if (!line.category || !stack.categories.includes(line.category)) continue;
+      const q = Math.floor(Number(line.quantity));
+      if (!Number.isFinite(q) || q < 1) continue;
+      qtyByCategory.set(
+        line.category,
+        (qtyByCategory.get(line.category) ?? 0) + q,
+      );
+      const price = Number(line.price);
+      if (Number.isFinite(price) && price > 0) subtotal += price * q;
+    }
+
+    let sets = Infinity;
+    for (const category of stack.categories) {
+      sets = Math.min(sets, qtyByCategory.get(category) ?? 0);
+    }
+    if (!Number.isFinite(sets) || sets < 1 || subtotal <= 0) continue;
+
+    const amount = Number(((subtotal * stack.percentOff) / 100).toFixed(2));
+    if (amount <= 0) continue;
+    if (!best || amount > best.amount) {
+      best = { code: stack.code, label: stack.label, amount, sets };
     }
   }
   return best;
