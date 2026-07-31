@@ -28,8 +28,6 @@ export interface EditableVariant {
   size: string;
   /** This variant's own gallery. Managed live by ImageManager (self-persists). */
   images: string[];
-  /** Live shop thumbnail (image_url). Managed live by ImageManager too. */
-  image_url?: string | null;
 }
 
 export default function VariantRow({
@@ -39,6 +37,9 @@ export default function VariantRow({
   removable,
   pieceName,
   request,
+  shopImageUrl = null,
+  onSelectShopImage,
+  onResolvedImageUrl,
 }: {
   variant: EditableVariant;
   onChange: (patch: Partial<EditableVariant>) => void;
@@ -47,6 +48,12 @@ export default function VariantRow({
   /** When present with a saved variant id, enables per-variant photo management. */
   pieceName?: string;
   request?: AdminRequest;
+  /** The piece's shop photo when it belongs to THIS variant; null otherwise. */
+  shopImageUrl?: string | null;
+  /** Tick one of this variant's photos as the piece's shop image. */
+  onSelectShopImage?: (url: string) => void;
+  /** This row's image_url after the server recomputed it post-gallery-change. */
+  onResolvedImageUrl?: (url: string | null) => void;
 }) {
   const preview = sizeLabel(variant.size);
 
@@ -124,9 +131,10 @@ export default function VariantRow({
             pieceName={pieceName}
             ids={[variant.id]}
             images={variant.images}
-            thumbnail={variant.image_url ?? null}
             onChange={(imgs) => onChange({ images: imgs })}
-            onThumbnailChange={(url) => onChange({ image_url: url })}
+            shopImageUrl={shopImageUrl}
+            onSelectShopImage={onSelectShopImage}
+            onResolvedImageUrl={onResolvedImageUrl}
             request={request}
           />
         </div>

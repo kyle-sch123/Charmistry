@@ -46,6 +46,12 @@ export interface Product {
   size: string | number | null;
   image_url: string | null;
   images: string[];
+  /**
+   * Marks this metal variant as the one representing its piece wherever the
+   * catalogue is consolidated to one tile (shop grid, stack builder). Optional
+   * because rows predate migration 010 — treat absent as false.
+   */
+  shop_featured?: boolean;
   in_stock: boolean;
   rating: number | null;
   review_count: number;

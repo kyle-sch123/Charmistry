@@ -15,6 +15,8 @@
  */
 
 import { supabase } from "./supabase";
+import { pickPieceRepresentatives } from "./pieces";
+import { EVERYDAY_EDIT_BUNDLE } from "./bundles";
 import type {
   MetalType,
   ProductWithCategory,
@@ -118,17 +120,10 @@ export async function getShopProducts(
   const { data, error } = await query;
   if (error) throw error;
 
-  const uniqueProducts: ProductWithCategory[] = [];
-  const seenKeys = new Set<string>();
-
-  for (const product of (data ?? []) as ProductWithCategory[]) {
-    const key = `${product.name.trim().toLowerCase()}|${product.category_id ?? ""}`;
-    if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
-    uniqueProducts.push(product);
-  }
-
-  return uniqueProducts;
+  // One tile per piece. Which metal variant represents it is the owner's call
+  // (products.shop_featured, set in /admin/catalogue); with nothing chosen this
+  // falls back to the best-ranked variant.
+  return pickPieceRepresentatives((data ?? []) as ProductWithCategory[]);
 }
 
 /** Min/max price across the catalogue — used to seed the price filter UI. */
@@ -266,14 +261,14 @@ export async function getStackCandidates(
 
   if (error) throw error;
 
+  // Same consolidation the shop grid uses, so a piece shows the owner's chosen
+  // metal + photo here too.
   const byCategory: Record<string, ProductWithCategory[]> = {};
-  const seenKeys = new Set<string>();
-  for (const product of (data ?? []) as ProductWithCategory[]) {
+  for (const product of pickPieceRepresentatives(
+    (data ?? []) as ProductWithCategory[],
+  )) {
     const categorySlug = product.categories?.slug;
     if (!categorySlug) continue;
-    const key = `${product.name.trim().toLowerCase()}|${product.category_id ?? ""}`;
-    if (seenKeys.has(key)) continue;
-    seenKeys.add(key);
     const bucket = (byCategory[categorySlug] ??= []);
     if (bucket.length < limitPerCategory) bucket.push(product);
   }
@@ -315,6 +310,54 @@ export async function searchProducts(
 
   if (error) throw error;
   return data as ProductWithCategory[];
+}
+
+export interface EditPricing {
+  /** Sum of the edit's pieces at their live catalogue prices. */
+  regularTotal: number;
+  /** What the customer actually pays — regularTotal minus the bundle saving. */
+  bundlePrice: number;
+  savings: number;
+}
+
+/**
+ * Live pricing for the Everyday Edit, for every surface that advertises it.
+ *
+ * The edit's price is NOT a constant: it's the sum of five catalogue rows, so
+ * repricing any single piece moves it. Hard-coding the total (as the home page
+ * and /collections index used to) means the advertised price silently drifts
+ * from what /api/checkout charges — the bug this exists to prevent.
+ *
+ * Returns null when a piece can't be resolved, since a partial sum would
+ * advertise a total lower than the cart will charge. Callers should hide the
+ * price rather than show a wrong one.
+ */
+export async function getEditPricing(): Promise<EditPricing | null> {
+  const slugs = EVERYDAY_EDIT_BUNDLE.itemSlugs;
+  const { data, error } = await supabase
+    .from("products")
+    .select("slug, price")
+    .in("slug", slugs);
+
+  if (error) throw error;
+
+  const priceBySlug = new Map(
+    (data ?? []).map((r) => [r.slug as string, Number(r.price)]),
+  );
+
+  let regularTotal = 0;
+  for (const slug of slugs) {
+    const price = priceBySlug.get(slug);
+    if (price === undefined || !Number.isFinite(price)) return null;
+    regularTotal += price;
+  }
+
+  const savings = EVERYDAY_EDIT_BUNDLE.discountPerSet;
+  return {
+    regularTotal: Number(regularTotal.toFixed(2)),
+    bundlePrice: Number(Math.max(0, regularTotal - savings).toFixed(2)),
+    savings,
+  };
 }
 
 export async function getCategories(): Promise<CategoryWithCount[]> {

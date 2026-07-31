@@ -9,6 +9,11 @@
  *
  * Photography + slugs mirror src/app/collections/everyday — keep them in step
  * if the featured collection changes.
+ *
+ * Pricing is NOT hard-coded here: the edit's total is the sum of five live
+ * catalogue rows, so the home page fetches it (getEditPricing) and passes it
+ * in. When it can't be resolved the price block is simply omitted rather than
+ * advertising a figure the cart won't honour.
  */
 
 "use client";
@@ -18,18 +23,12 @@ import { motion } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
 import { formatPrice } from "@/lib/utils";
-import { EVERYDAY_EDIT_BUNDLE } from "@/lib/bundles";
+import type { EditPricing } from "@/lib/queries";
 
 const BUCKET =
   "https://qkgakhluqruqoifknprg.supabase.co/storage/v1/object/public/Charmistry%20Assets";
 
 const HREF = "/collections/everyday";
-
-// Bundle pricing mirrors src/app/collections/everyday and the /collections index
-// card — keep in step if the edit's price changes. The saving tracks the
-// EVERYDAY_EDIT_BUNDLE discount so it can't drift from what the cart applies.
-const REGULAR_TOTAL = 825;
-const BUNDLE_PRICE = REGULAR_TOTAL - EVERYDAY_EDIT_BUNDLE.discountPerSet;
 
 type Piece = {
   name: string;
@@ -79,7 +78,12 @@ const PIECES: Piece[] = [
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-export default function CollectionsSection() {
+export default function CollectionsSection({
+  pricing,
+}: {
+  /** Live edit pricing from getEditPricing; null hides the price block. */
+  pricing?: EditPricing | null;
+}) {
   const [active, setActive] = useState(0);
   const total = String(PIECES.length).padStart(2, "0");
 
@@ -339,37 +343,38 @@ export default function CollectionsSection() {
               </Link>
 
               {/* Bundle price — beside the CTA */}
-              <div>
-                <div className="flex items-baseline gap-2">
-                  <span
-                    className="text-ink"
+              {pricing && (
+                <div>
+                  <div className="flex items-baseline gap-2">
+                    <span
+                      className="text-ink"
+                      style={{
+                        fontFamily: "var(--font-heading)",
+                        fontSize: "1.6rem",
+                        letterSpacing: "0.02em",
+                      }}
+                    >
+                      {formatPrice(pricing.bundlePrice)}
+                    </span>
+                    <span
+                      className="text-ink/35 line-through"
+                      style={{ fontFamily: "var(--font-body)", fontSize: "12px" }}
+                    >
+                      {formatPrice(pricing.regularTotal)}
+                    </span>
+                  </div>
+                  <p
+                    className="mt-0.5 text-gold-dark uppercase"
                     style={{
-                      fontFamily: "var(--font-heading)",
-                      fontSize: "1.6rem",
-                      letterSpacing: "0.02em",
+                      fontFamily: "var(--font-body)",
+                      fontSize: "9.5px",
+                      letterSpacing: "0.2em",
                     }}
                   >
-                    {formatPrice(BUNDLE_PRICE)}
-                  </span>
-                  <span
-                    className="text-ink/35 line-through"
-                    style={{ fontFamily: "var(--font-body)", fontSize: "12px" }}
-                  >
-                    {formatPrice(REGULAR_TOTAL)}
-                  </span>
+                    Bundle price · Save {formatPrice(pricing.savings)}
+                  </p>
                 </div>
-                <p
-                  className="mt-0.5 text-gold-dark uppercase"
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "9.5px",
-                    letterSpacing: "0.2em",
-                  }}
-                >
-                  Bundle price · Save{" "}
-                  {formatPrice(EVERYDAY_EDIT_BUNDLE.discountPerSet)}
-                </p>
-              </div>
+              )}
             </li>
           </motion.ul>
         </div>
