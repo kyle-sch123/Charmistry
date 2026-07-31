@@ -20,13 +20,14 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/ui/ProductCard";
 import ShopFilterBar from "@/components/shop/ShopFilterBar";
+import StackPromoBanner from "@/components/shop/StackPromoBanner";
 import {
   getCategories,
   getPriceBounds,
   getShopProducts,
   type ShopSort,
 } from "@/lib/queries";
-import { RINGS_STACK } from "@/lib/bundles";
+import { RINGS_STACK, MIX_MATCH_STACK } from "@/lib/bundles";
 import type { MetalType } from "@/types";
 
 export const metadata: Metadata = {
@@ -163,40 +164,59 @@ export default async function ShopPage({
           {/* ── Stack & Save promo — rings only. Copy is driven off the same
               RINGS_STACK config the checkout charges, so the two can't drift. ── */}
           {category === RINGS_STACK.category && (
-            <div className="mt-6 flex items-center justify-center gap-3 border border-gold/40 bg-gold-muted px-5 py-3.5 text-center">
-              <svg
-                className="w-4 h-4 shrink-0 text-gold-dark"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={1.6}
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 01-2-2V9a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
-                />
-              </svg>
-              <p
-                className="text-ink"
-                style={{
-                  fontFamily: "var(--font-body)",
-                  fontSize: "12px",
-                  letterSpacing: "0.06em",
-                  lineHeight: 1.6,
-                }}
-              >
-                <span className="uppercase tracking-[0.2em] text-gold-dark">
-                  Stack &amp; Save
-                </span>
-                {" — "}Add any {RINGS_STACK.minQuantity} rings to your bag and get{" "}
-                <span className="text-ink font-medium">
-                  {RINGS_STACK.percentOff}% off
-                </span>
-                , applied automatically at checkout.
-              </p>
-            </div>
+            <StackPromoBanner
+              title="Stack & Save"
+              icon={
+                <svg
+                  className="w-4 h-4 shrink-0 text-gold-dark"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.6}
+                  viewBox="0 0 24 24"
+                  aria-hidden
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    d="M12 8v13m0-13V6a2 2 0 112 2h-2zm0 0V5.5A2.5 2.5 0 109.5 8H12zm-7 4h14M5 12a2 2 0 01-2-2V9a2 2 0 012-2h14a2 2 0 012 2v1a2 2 0 01-2 2M5 12v7a2 2 0 002 2h10a2 2 0 002-2v-7"
+                  />
+                </svg>
+              }
+            >
+              Add any {RINGS_STACK.minQuantity} rings to your bag and get{" "}
+              <span className="text-ink font-medium">
+                {RINGS_STACK.percentOff}% off
+              </span>
+              , applied automatically at checkout.
+            </StackPromoBanner>
+          )}
+
+          {/* ── Create Your Own Stack promo — the three mix-stack categories.
+              Same config-driven rule as above, keyed off MIX_MATCH_STACK. ── */}
+          {category && MIX_MATCH_STACK.categories.includes(category) && (
+            <StackPromoBanner
+              title="Create Your Own Stack"
+              icon={
+                <svg
+                  className="w-4 h-4 shrink-0 text-gold-dark"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth={1.5}
+                  aria-hidden
+                >
+                  <circle cx="8" cy="9" r="4.2" />
+                  <circle cx="16" cy="9" r="4.2" />
+                  <circle cx="12" cy="15.5" r="4.2" />
+                </svg>
+              }
+            >
+              Add a necklace, earrings &amp; a bracelet to your bag and get{" "}
+              <span className="text-ink font-medium">
+                {MIX_MATCH_STACK.percentOff}% off
+              </span>
+              , applied automatically at checkout.
+            </StackPromoBanner>
           )}
 
           {/* ── Products ── */}
