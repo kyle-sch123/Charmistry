@@ -37,6 +37,24 @@ describe("nextThumbnail", () => {
     expect(nextThumbnail(row, [B, C, A])).toBe(B);
   });
 
+  // The shop_featured rows are the ones whose photo the owner ticked, so their
+  // image_url is an explicit choice even when it happens to be the primary —
+  // the differs-from-primary heuristic alone can't see that case.
+  it("keeps a shop-image pin that sits at position 0 across a reorder", () => {
+    const row = { images: [A, B, C], image_url: A, shop_featured: true };
+    expect(nextThumbnail(row, [B, C, A])).toBe(A);
+  });
+
+  it("keeps a shop-image pin from anywhere in the gallery", () => {
+    const row = { images: [A, B, C], image_url: C, shop_featured: true };
+    expect(nextThumbnail(row, [B, C, A])).toBe(C);
+  });
+
+  it("falls back to the new primary when the shop image is deleted", () => {
+    const row = { images: [A, B, C], image_url: B, shop_featured: true };
+    expect(nextThumbnail(row, [C, A])).toBe(C);
+  });
+
   it("adopts the first photo for rows that never had managed images", () => {
     // Legacy rows: bucket-discovered image_url, empty images[]. First managed
     // write wins — matches the pre-thumbnail behaviour.

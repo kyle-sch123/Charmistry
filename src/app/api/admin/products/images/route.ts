@@ -112,15 +112,23 @@ export async function DELETE(request: Request) {
   }
 
   // Strip the URL from every affected row. image_url keeps an explicitly
-  // chosen thumbnail alive (nextThumbnail); deleting the thumbnail itself
-  // falls back to the remaining primary.
+  // chosen photo alive (nextThumbnail); deleting that photo itself falls back
+  // to the remaining primary. select("*") keeps this working pre-migration 010
+  // (shop_featured may not exist yet).
   const thumbnails: Record<string, string | null> = {};
   if (ids.length > 0) {
     const { data: rows } = await supabase
       .from("products")
-      .select("id, images, image_url")
+      .select("*")
       .in("id", ids)
-      .returns<{ id: string; images: string[] | null; image_url: string | null }[]>();
+      .returns<
+        {
+          id: string;
+          images: string[] | null;
+          image_url: string | null;
+          shop_featured?: boolean | null;
+        }[]
+      >();
     for (const row of rows ?? []) {
       const next = (row.images ?? []).filter((u) => u !== url);
       const image_url = nextThumbnail(row, next);

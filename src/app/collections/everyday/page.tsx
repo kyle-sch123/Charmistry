@@ -21,6 +21,7 @@ import Footer from "@/components/layout/Footer";
 import ProductCard from "@/components/ui/ProductCard";
 import ScrollReveal from "@/components/ui/ScrollReveal";
 import { getProductBySlug } from "@/lib/queries";
+import { EVERYDAY_EDIT_BUNDLE } from "@/lib/bundles";
 import { formatPrice } from "@/lib/utils";
 import type { ProductWithCategory } from "@/types";
 import AddEditButton from "./AddEditButton";
@@ -43,8 +44,8 @@ const IMG = {
   soleMila: `${BUCKET}/everyday-sole-mila.webp`,
 };
 
-/** Kept in step with EVERYDAY_EDIT_BUNDLE.discountPerSet in lib/bundles.ts. */
-const BUNDLE_SAVINGS = 175;
+/** The saving the cart actually applies — never re-type it as a literal. */
+const BUNDLE_SAVINGS = EVERYDAY_EDIT_BUNDLE.discountPerSet;
 
 // Ordered pieces of the edit. Slugs point at the gold variants — the edit is
 // styled entirely in gold across all four editorial shots.

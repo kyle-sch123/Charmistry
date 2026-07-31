@@ -28,7 +28,6 @@ function toEditable(v: AdminPiece["variants"][number]): EditableVariant {
     in_stock: v.in_stock,
     size: v.size === null || v.size === undefined ? "" : String(v.size),
     images: v.images ?? [],
-    image_url: v.image_url ?? null,
   };
 }
 
@@ -76,6 +75,18 @@ export default function PieceEditor({
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
+  // The piece's shop photo — which variant, and which of its photos. Lives here
+  // rather than in a VariantRow because only ONE photo across the whole piece
+  // can hold it, so the checkboxes have to be mutually exclusive.
+  const [shopImage, setShopImage] = useState<{
+    variantId: string;
+    url: string;
+  } | null>(() => {
+    const chosen = piece.variants.find((v) => v.shop_featured);
+    const url = chosen?.image_url ?? chosen?.images[0];
+    return chosen && url ? { variantId: chosen.id, url } : null;
+  });
+
   const ids = variants.map((v) => v.id).filter((id): id is string => Boolean(id));
   const priceRange = (() => {
     const nums = piece.variants.map((v) => v.price);
@@ -87,6 +98,34 @@ export default function PieceEditor({
   function patchVariant(index: number, patch: Partial<EditableVariant>) {
     setVariants((cur) => cur.map((v, i) => (i === index ? { ...v, ...patch } : v)));
     setSaved(false);
+  }
+
+  /**
+   * Tick a photo as the piece's shop image. Persists immediately (like the
+   * photo tools, not the Save button) and optimistically moves the tick so the
+   * click feels instant; a failure puts it back where it was.
+   */
+  async function selectShopImage(variantId: string, url: string) {
+    const previous = shopImage;
+    setShopImage({ variantId, url });
+    setError(null);
+    const res = await request("/api/admin/products", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ op: "shop_image", ids, id: variantId, url }),
+    });
+    if (!res.ok) {
+      setShopImage(previous);
+      const body = await res.json().catch(() => ({}));
+      setError(
+        body?.error === "migration_required"
+          ? "The database is missing the shop_featured column — run migration 010 first."
+          : "Couldn't set that photo as the shop image. Try again.",
+      );
+    }
+    // Deliberately no onChanged() — a refetch would remount this editor and
+    // discard any unsaved field edits. The local tick + header preview below
+    // already reflect the new choice.
   }
 
   function addVariant() {
@@ -200,10 +239,10 @@ export default function PieceEditor({
         onClick={() => setOpen((v) => !v)}
         className="flex w-full items-center gap-3 px-5 py-4 text-left cursor-pointer"
       >
-        {piece.thumbnail ? (
+        {shopImage?.url ?? piece.thumbnail ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={piece.thumbnail}
+            src={shopImage?.url ?? piece.thumbnail ?? ""}
             alt=""
             className="h-12 w-12 shrink-0 border border-ink/10 object-cover"
           />
@@ -283,6 +322,19 @@ export default function PieceEditor({
                 removable={variants.length > 1}
                 pieceName={piece.name}
                 request={request}
+                shopImageUrl={
+                  shopImage && shopImage.variantId === v.id ? shopImage.url : null
+                }
+                onSelectShopImage={(url) => {
+                  if (v.id) void selectShopImage(v.id, url);
+                }}
+                onResolvedImageUrl={(url) => {
+                  // This variant's gallery changed and the server recomputed
+                  // its photo — follow it only while this row holds the tick.
+                  const id = v.id;
+                  if (!id || shopImage?.variantId !== id) return;
+                  setShopImage(url ? { variantId: id, url } : null);
+                }}
               />
             ))}
           </div>

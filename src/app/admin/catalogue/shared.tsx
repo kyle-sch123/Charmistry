@@ -43,8 +43,10 @@ export interface AdminVariant {
   size: string | number | null;
   /** This variant's own gallery (per-metal), primary first. */
   images: string[];
-  /** The row's live shop thumbnail (products.image_url) — shop grid / cart / OG. */
+  /** The row's live photo (products.image_url) — cart / search / OG. */
   image_url: string | null;
+  /** True on the one variant that represents the piece on the shop grid. */
+  shop_featured: boolean;
 }
 
 export interface AdminPiece {

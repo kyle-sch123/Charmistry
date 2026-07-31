@@ -15,8 +15,9 @@
  *          { op: "images" } set the ordered images[] for a piece (reorder /
  *          set-primary — no storage I/O). image_url follows images[0] unless
  *          the owner picked an explicit thumbnail (see nextThumbnail).
- *          { op: "thumbnail" } point image_url (the shop-grid / cart / OG
- *          photo) at one gallery URL without touching the gallery order.
+ *          { op: "shop_image" } choose the photo — and so the metal variant —
+ *          that represents this piece on the shop grid (sets shop_featured on
+ *          that row, image_url to that photo, clears the flag on siblings).
  * DELETE — { op: "variant" } one row, or { op: "piece" } all rows + storage.
  */
 
@@ -154,11 +155,18 @@ export async function GET(request: Request) {
       in_stock: v.in_stock,
       size: v.size,
       images: effectiveImages(v),
-      // The row's live shop thumbnail — what the shop grid / cart / OG tags
-      // show. Lets ImageManager badge the photo and offer "make thumbnail".
+      // The row's live photo — what the cart / search / OG tags show, and the
+      // shop grid too when this variant is the piece's chosen one.
       image_url: v.image_url,
+      shop_featured: v.shop_featured ?? false,
     }));
-    const thumbnail = variants.find((v) => v.images.length > 0)?.images[0] ?? null;
+    // Collapsed-row preview: the owner's chosen shop photo when there is one,
+    // else the first photo available — mirrors what the storefront resolves.
+    const chosen = variants.find((v) => v.shop_featured);
+    const thumbnail =
+      (chosen && (chosen.image_url ?? chosen.images[0])) ??
+      variants.find((v) => v.images.length > 0)?.images[0] ??
+      null;
     return {
       key: piece.key,
       name: piece.name,
@@ -322,6 +330,7 @@ interface PatchBody {
   ids?: unknown;
   images?: unknown;
   url?: unknown;
+  id?: unknown;
 }
 
 export async function PATCH(request: Request) {
@@ -353,13 +362,21 @@ export async function PATCH(request: Request) {
     }
 
     // Read the rows first: image_url must survive the rewrite when it's an
-    // explicitly-chosen thumbnail (see nextThumbnail), so each row gets its
-    // own update instead of one blanket image_url = images[0].
+    // explicitly-chosen photo (see nextThumbnail), so each row gets its own
+    // update instead of one blanket image_url = images[0]. select("*") rather
+    // than naming shop_featured so this still works pre-migration 010.
     const { data: rows, error: readError } = await supabase
       .from("products")
-      .select("id, images, image_url")
+      .select("*")
       .in("id", ids)
-      .returns<{ id: string; images: string[] | null; image_url: string | null }[]>();
+      .returns<
+        {
+          id: string;
+          images: string[] | null;
+          image_url: string | null;
+          shop_featured?: boolean | null;
+        }[]
+      >();
     if (readError) {
       console.error("Admin catalogue PATCH images read failed", readError);
       return Response.json({ error: "service_error" }, { status: 500 });
@@ -381,25 +398,47 @@ export async function PATCH(request: Request) {
     return Response.json({ ok: true, thumbnails });
   }
 
-  // -- thumbnail: point image_url at one of the gallery photos --
-  if (body.op === "thumbnail") {
+  // -- shop_image: choose the photo (and therefore the metal variant) that
+  //    represents this piece on the shop grid --
+  if (body.op === "shop_image") {
+    // `ids` is every row of the piece; `id` the variant owning the photo.
     const ids = Array.isArray(body.ids)
       ? body.ids.filter((v): v is string => typeof v === "string" && UUID_RE.test(v))
       : [];
+    const id = typeof body.id === "string" ? body.id : "";
     const url =
       typeof body.url === "string" && isAbsoluteUrl(body.url) ? body.url : "";
     if (ids.length === 0) {
       return Response.json({ error: "ids_required" }, { status: 400 });
     }
+    if (!UUID_RE.test(id) || !ids.includes(id)) {
+      return Response.json({ error: "invalid_variant_id" }, { status: 400 });
+    }
     if (!url) {
       return Response.json({ error: "url_required" }, { status: 400 });
     }
+
+    // Clear the piece first so the flag can never land on two rows. If the
+    // column is missing the deploy is ahead of migration 010 — say so plainly
+    // rather than failing as a generic 500.
+    const { error: clearError } = await supabase
+      .from("products")
+      .update({ shop_featured: false })
+      .in("id", ids);
+    if (clearError) {
+      if (clearError.code === "42703") {
+        return Response.json({ error: "migration_required" }, { status: 409 });
+      }
+      console.error("Admin catalogue PATCH shop_image clear failed", clearError);
+      return Response.json({ error: "service_error" }, { status: 500 });
+    }
+
     const { error } = await supabase
       .from("products")
-      .update({ image_url: url })
-      .in("id", ids);
+      .update({ shop_featured: true, image_url: url })
+      .eq("id", id);
     if (error) {
-      console.error("Admin catalogue PATCH thumbnail failed", error);
+      console.error("Admin catalogue PATCH shop_image failed", error);
       return Response.json({ error: "service_error" }, { status: 500 });
     }
     return Response.json({ ok: true });

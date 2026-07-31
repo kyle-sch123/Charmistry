@@ -3,6 +3,8 @@ import Image from "next/image";
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { getEditPricing, type EditPricing } from "@/lib/queries";
+import { formatPrice } from "@/lib/utils";
 
 export const metadata: Metadata = {
   title: "Collections | Charmistry",
@@ -13,20 +15,27 @@ export const metadata: Metadata = {
 const BUCKET =
   "https://qkgakhluqruqoifknprg.supabase.co/storage/v1/object/public/Charmistry%20Assets";
 
-const COLLECTIONS = [
+// Prices are interpolated from live catalogue data (see getEditPricing) — the
+// edit's total is the sum of five product rows, so it can't be written down
+// here without drifting from what the cart charges.
+const collections = (pricing: EditPricing | null) => [
   {
     slug: "everyday",
     name: "The Everyday Edit",
     season: "Year round · 5 pieces",
-    description:
-      "Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons. Bought together as one edit for R650.",
+    description: `Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons.${
+      pricing ? ` Bought together as one edit for ${formatPrice(pricing.bundlePrice)}.` : ""
+    }`,
     href: "/collections/everyday",
     image: `${BUCKET}/everyday-nova-lucy.webp`,
-    tag: "Bundle · Save R175",
+    tag: pricing ? `Bundle · Save ${formatPrice(pricing.savings)}` : "Bundle",
   },
 ];
 
-export default function CollectionsPage() {
+export default async function CollectionsPage() {
+  const pricing = await getEditPricing().catch(() => null);
+  const COLLECTIONS = collections(pricing);
+
   return (
     <>
       <Navbar />
