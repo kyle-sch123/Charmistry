@@ -184,6 +184,44 @@ const sections = [
   },
   {
     num: "08",
+    title: "The Charmistry Guarantee",
+    content: (
+      <>
+        <p>
+          Every piece is backed by the Charmistry Guarantee for{" "}
+          <span className="font-medium text-ink">
+            6 months from delivery
+          </span>
+          . If your piece tarnishes, discolours or develops a manufacturing
+          fault under normal wear — a failed clasp, lifting plating, a lost
+          stone — we&apos;ll{" "}
+          <span className="font-medium text-ink">replace it free</span>. If
+          the piece has since been discontinued, we&apos;ll issue{" "}
+          <span className="font-medium text-ink">110% store credit</span>{" "}
+          instead.
+        </p>
+        <p>
+          To claim, email{" "}
+          <a
+            href="mailto:charmistryza@gmail.com"
+            className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
+          >
+            charmistryza@gmail.com
+          </a>{" "}
+          or WhatsApp us with a photo of the piece and your order number —
+          that&apos;s all we need.
+        </p>
+        <p>
+          The guarantee doesn&apos;t cover loss, theft, or damage from misuse
+          (for example a chain snapped by pulling, or a piece that&apos;s been
+          cut or bent). It applies in addition to your rights under the
+          Consumer Protection Act, never instead of them.
+        </p>
+      </>
+    ),
+  },
+  {
+    num: "09",
     title: "Lost or Damaged Parcels",
     content: (
       <>
@@ -196,7 +234,7 @@ const sections = [
     ),
   },
   {
-    num: "09",
+    num: "10",
     title: "Promotions & Discount Codes",
     content: (
       <>
@@ -210,7 +248,7 @@ const sections = [
     ),
   },
   {
-    num: "10",
+    num: "11",
     title: "Intellectual Property",
     content: (
       <>
@@ -223,7 +261,7 @@ const sections = [
     ),
   },
   {
-    num: "11",
+    num: "12",
     title: "Limitation of Liability",
     content: (
       <>
@@ -237,7 +275,7 @@ const sections = [
     ),
   },
   {
-    num: "12",
+    num: "13",
     title: "Privacy",
     content: (
       <>
@@ -250,7 +288,7 @@ const sections = [
     ),
   },
   {
-    num: "13",
+    num: "14",
     title: "Contact Information",
     content: (
       <>

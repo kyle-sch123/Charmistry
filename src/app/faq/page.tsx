@@ -175,6 +175,36 @@ const faqGroups: FaqGroup[] = [
           </>
         ),
       },
+      {
+        q: "What does the 6-month Charmistry Guarantee cover?",
+        a: (
+          <>
+            <p>
+              Every piece is guaranteed for{" "}
+              <span className="font-medium text-ink">
+                6 months from delivery
+              </span>
+              . If it tarnishes, discolours or develops a manufacturing fault
+              under normal wear — a failed clasp, lifting plating, a lost
+              stone — we&apos;ll replace it free, or issue{" "}
+              <span className="font-medium text-ink">110% store credit</span>{" "}
+              if the piece has been discontinued. Just email{" "}
+              <a href="mailto:charmistryza@gmail.com" className={linkClass}>
+                charmistryza@gmail.com
+              </a>{" "}
+              or WhatsApp us a photo with your order number.
+            </p>
+            <p>
+              Loss, theft and damage from misuse aren&apos;t covered. The full
+              terms live on our{" "}
+              <Link href="/shipping" className={linkClass}>
+                Shipping &amp; Returns
+              </Link>{" "}
+              page.
+            </p>
+          </>
+        ),
+      },
     ],
   },
   {

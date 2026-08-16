@@ -527,6 +527,7 @@ export default function ProductDetail({
             "Waterproof & tarnish-resistant",
             "Sensitive skin friendly",
             "Everyday durability",
+            "Backed by the 6-month Charmistry Guarantee",
             "Complimentary shipping on orders over R700",
           ].map((point) => (
             <li key={point} className="flex items-center gap-3">
