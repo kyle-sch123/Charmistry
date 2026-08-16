@@ -9,10 +9,11 @@ export const navLinks: NavLink[] = [
   { label: "FAQ", href: "/faq" },
 ];
 
+// The Daily Affair link returns here when the collection launches (its page
+// is built but gated — see collections/daily-affair/page.tsx).
 export const collectionLinks: NavLink[] = [
   { label: "All Collections", href: "/collections" },
   { label: "Everyday Edit", href: "/collections/everyday" },
-  { label: "The Daily Affair", href: "/collections/daily-affair" },
 ];
 
 export const shopCategories: NavLink[] = [

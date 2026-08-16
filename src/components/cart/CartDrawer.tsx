@@ -72,6 +72,11 @@ export default function CartDrawer() {
     };
   }, [isOpen, cartSlugs]);
 
+  // "Frequently bought with" starts open (it's the upsell) but folds away for
+  // shoppers who want the drawer compact. State survives open/close of the
+  // drawer within a session; it intentionally doesn't persist.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
+
   const addSuggestion = (p: ProductWithCategory) => {
     addItem(p, 1);
     const item = {
@@ -416,15 +421,51 @@ export default function CartDrawer() {
                   ))}
                 </ul>
 
-                {/* Frequently bought with — compact upsell strip pinned above
-                    the totals, mirroring the classic "make it a set" cart
-                    pattern. Suggestions exclude pieces already in the bag. */}
+                {/* Frequently bought with — collapsible upsell strip pinned
+                    above the totals, mirroring the classic "make it a set"
+                    cart pattern. Suggestions exclude pieces already in the
+                    bag. */}
                 {suggestions.length > 0 && (
                   <div className="border-t border-ink/10 px-6 pt-4 pb-4">
-                    <p className="mb-3 text-[10px] tracking-[0.22em] uppercase text-ink/50 font-body">
-                      Frequently bought with
-                    </p>
-                    <ul className="space-y-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setSuggestionsOpen((o) => !o)}
+                      aria-expanded={suggestionsOpen}
+                      aria-controls="cart-suggestions"
+                      className="flex w-full items-center justify-between gap-3 text-left cursor-pointer group/fbw"
+                    >
+                      <span className="text-[10px] tracking-[0.22em] uppercase text-ink/50 group-hover/fbw:text-ink/80 font-body transition-colors">
+                        Frequently bought with
+                      </span>
+                      <svg
+                        className={`h-3.5 w-3.5 shrink-0 text-ink/40 group-hover/fbw:text-ink/70 transition-all duration-300 ${
+                          suggestionsOpen ? "rotate-180" : ""
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.6}
+                        aria-hidden
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {suggestionsOpen && (
+                        <motion.div
+                          key="fbw-list"
+                          id="cart-suggestions"
+                          className="overflow-hidden"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                        >
+                          <ul className="space-y-2.5 pt-3">
                       {suggestions.map((p) => (
                         <li key={p.id} className="flex items-center gap-3">
                           <Link
@@ -464,7 +505,10 @@ export default function CartDrawer() {
                           </button>
                         </li>
                       ))}
-                    </ul>
+                          </ul>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
                   </div>
                 )}
 

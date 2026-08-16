@@ -13,10 +13,16 @@
  */
 
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import ScrollReveal from "@/components/ui/ScrollReveal";
+
+// Launch gate — the page is fully built but Kyle doesn't want it reachable
+// before the campaign photos land. Flip to true (and restore the /collections
+// card link + collections nav entry, see navigation.ts) to launch.
+const COLLECTION_LIVE = false;
 
 export const metadata: Metadata = {
   title: "The Daily Affair | Charmistry",
@@ -73,6 +79,7 @@ const TEASER_PIECES = [
 ];
 
 export default function DailyAffairPage() {
+  if (!COLLECTION_LIVE) notFound();
   return (
     <>
       <Navbar />

@@ -28,7 +28,7 @@ const collections = (pricing: EditPricing | null) => [
     description: `Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons.${
       pricing ? ` Bought together as one edit for ${formatPrice(pricing.bundlePrice)}.` : ""
     }`,
-    href: "/collections/everyday",
+    href: "/collections/everyday" as string | null,
     image: `${BUCKET}/everyday-nova-lucy.webp` as string | null,
     tag: pricing ? `Bundle · Save ${formatPrice(pricing.savings)}` : "Bundle",
   },
@@ -38,7 +38,9 @@ const collections = (pricing: EditPricing | null) => [
     season: "New · 4 pieces",
     description:
       "The evening counterpart to the Everyday Edit — pieces for the romance hiding inside an ordinary day. Full reveal coming soon.",
-    href: "/collections/daily-affair",
+    // Not yet clickable — the page is built but gated until launch (see
+    // collections/daily-affair/page.tsx). Set the href to launch the card.
+    href: null as string | null,
     image: null as string | null,
     tag: "Coming soon",
   },
@@ -96,12 +98,11 @@ export default async function CollectionsPage() {
 
           {/* Collection cards */}
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {COLLECTIONS.map((col) => (
-              <Link
-                key={col.slug}
-                href={col.href}
-                className="relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block"
-              >
+            {COLLECTIONS.map((col) => {
+              const cardClass =
+                "relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block";
+              const inner = (
+                <>
                 {/* Image — or the ink reveal treatment while there's no photo */}
                 {col.image ? (
                   <Image
@@ -175,32 +176,58 @@ export default async function CollectionsPage() {
                   >
                     {col.description}
                   </p>
-                  <span
-                    className="mt-4 inline-flex items-center gap-2 text-ivory uppercase"
-                    style={{
-                      fontFamily: "var(--font-body)",
-                      fontSize: "10px",
-                      letterSpacing: "0.22em",
-                    }}
-                  >
-                    Explore the Edit
-                    <svg
-                      className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {col.href ? (
+                    <span
+                      className="mt-4 inline-flex items-center gap-2 text-ivory uppercase"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.22em",
+                      }}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M17 8l4 4m0 0l-4 4m4-4H3"
-                      />
-                    </svg>
-                  </span>
+                      Explore the Edit
+                      <svg
+                        className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span
+                      className="mt-4 inline-flex items-center gap-2 text-ivory/50 uppercase"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.22em",
+                      }}
+                    >
+                      Reveal coming soon
+                    </span>
+                  )}
                 </div>
-              </Link>
-            ))}
+                </>
+              );
+
+              return col.href ? (
+                <Link key={col.slug} href={col.href} className={cardClass}>
+                  {inner}
+                </Link>
+              ) : (
+                // Teaser card — deliberately not a link until the collection
+                // launches.
+                <div key={col.slug} className={`${cardClass} cursor-default`}>
+                  {inner}
+                </div>
+              );
+            })}
 
             {/* More coming placeholder */}
             <div className="h-[420px] md:h-[500px] border border-dashed border-ink/15 flex flex-col items-center justify-center gap-4 text-center px-8">
