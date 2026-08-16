@@ -130,7 +130,7 @@ export default async function AsSeenOnYou({
   }
 
   return (
-    <section aria-label="As seen on you" className="bg-paper py-16 md:py-24">
+    <section aria-label="As seen on you" className="bg-paper py-10 md:py-14">
       <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>
