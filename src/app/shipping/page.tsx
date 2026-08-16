@@ -141,41 +141,43 @@ const sections = [
     content: (
       <>
         <p>
-          Changed your mind? In line with the Electronic Communications and
-          Transactions Act (ECTA), you may return any online purchase within{" "}
-          <span className="font-medium text-ink">7 days of delivery</span> — no
-          reason needed. To qualify, items must be:
-        </p>
-        <ul>
-          <li>unworn and in their original condition</li>
-          <li>in their original packaging</li>
-          <li>
-            unopened in the case of earrings, which cannot be returned once the
-            seal is broken, for hygiene reasons
-          </li>
-        </ul>
-        <p>
-          To start a return, email{" "}
+          <span className="font-medium text-ink">
+            Changed your mind? You have 7 days.
+          </span>{" "}
+          If you&apos;ve received your order and it&apos;s not right, let us
+          know within{" "}
+          <span className="font-medium text-ink">7 days of delivery</span> at{" "}
           <a
             href="mailto:charmistryza@gmail.com"
             className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
           >
             charmistryza@gmail.com
           </a>{" "}
-          within 7 days of receiving your order. The cost of returning a
-          change-of-mind item is for the customer&apos;s account; once the
-          return is received and checked, we will refund the purchase price in
-          full within 30 days.
+          or on WhatsApp.
         </p>
         <p>
-          If the wrong item was received, or the item arrives damaged or
-          faulty, contact us within{" "}
-          <span className="font-medium text-ink">7 days of delivery</span> at
-          the same address. Customers may be required to provide photographs of
-          the item and packaging for assessment. If approved, Charmistry will
-          replace the item, provide store credit, or issue a refund — and the
-          return shipping for faulty or incorrect items is covered by
-          Charmistry.
+          <span className="font-medium text-ink">
+            Exchange or store credit — free.
+          </span>{" "}
+          We&apos;ll cover the return courier. Swap for another size, colour or
+          piece, or take 110% store credit.
+        </p>
+        <p>
+          <span className="font-medium text-ink">Prefer a refund?</span> No
+          problem. Return the item unworn, in its original packaging, within 7
+          days and we&apos;ll refund you in full. You cover the return courier
+          (roughly R60 via a Courier Guy locker — we&apos;ll send you the
+          details).
+        </p>
+        <p>
+          <span className="font-medium text-ink">
+            Something wrong with your piece?
+          </span>{" "}
+          If it arrived faulty, damaged or incorrect, that&apos;s on us — we
+          cover the return and replace it. Just send a photo within 7 days.
+        </p>
+        <p className="italic">
+          Earrings can&apos;t be returned once the hygiene seal is broken.
         </p>
       </>
     ),

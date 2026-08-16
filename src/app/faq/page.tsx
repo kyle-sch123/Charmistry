@@ -149,20 +149,24 @@ const faqGroups: FaqGroup[] = [
         a: (
           <>
             <p>
-              You can return any purchase within{" "}
-              <span className="font-medium text-ink">7 days of delivery</span>{" "}
-              for a full refund — even if you simply changed your mind. Items
-              must be unworn, in their original condition and packaging;
-              earrings can&apos;t be returned once opened, for hygiene reasons.
-              Return shipping for change-of-mind returns is for your account.
-            </p>
-            <p>
-              If something arrives wrong, damaged or faulty, email{" "}
+              Changed your mind? You have{" "}
+              <span className="font-medium text-ink">7 days from delivery</span>{" "}
+              — email{" "}
               <a href="mailto:charmistryza@gmail.com" className={linkClass}>
                 charmistryza@gmail.com
               </a>{" "}
-              within 7 days and we&apos;ll cover the return. Full details live
-              on our{" "}
+              or WhatsApp us. Exchanges and{" "}
+              <span className="font-medium text-ink">110% store credit</span>{" "}
+              are free (we cover the return courier). Prefer a refund? Return
+              the item unworn in its original packaging and we&apos;ll refund
+              you in full — you cover the return courier (roughly R60 via a
+              Courier Guy locker). Earrings can&apos;t be returned once the
+              hygiene seal is broken.
+            </p>
+            <p>
+              If something arrives faulty, damaged or incorrect, that&apos;s on
+              us — we cover the return and replace it; just send a photo within
+              7 days. Full details live on our{" "}
               <Link href="/shipping" className={linkClass}>
                 Shipping &amp; Returns
               </Link>{" "}

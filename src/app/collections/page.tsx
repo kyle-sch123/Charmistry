@@ -18,6 +18,8 @@ const BUCKET =
 // Prices are interpolated from live catalogue data (see getEditPricing) — the
 // edit's total is the sum of five product rows, so it can't be written down
 // here without drifting from what the cart charges.
+// A null image renders the card as an ink "reveal" tile (no photo yet) — the
+// Daily Affair swaps to a real campaign image once photography lands.
 const collections = (pricing: EditPricing | null) => [
   {
     slug: "everyday",
@@ -27,8 +29,18 @@ const collections = (pricing: EditPricing | null) => [
       pricing ? ` Bought together as one edit for ${formatPrice(pricing.bundlePrice)}.` : ""
     }`,
     href: "/collections/everyday",
-    image: `${BUCKET}/everyday-nova-lucy.webp`,
+    image: `${BUCKET}/everyday-nova-lucy.webp` as string | null,
     tag: pricing ? `Bundle · Save ${formatPrice(pricing.savings)}` : "Bundle",
+  },
+  {
+    slug: "daily-affair",
+    name: "The Daily Affair",
+    season: "New · 4 pieces",
+    description:
+      "The evening counterpart to the Everyday Edit — pieces for the romance hiding inside an ordinary day. Full reveal coming soon.",
+    href: "/collections/daily-affair",
+    image: null as string | null,
+    tag: "Coming soon",
   },
 ];
 
@@ -90,14 +102,28 @@ export default async function CollectionsPage() {
                 href={col.href}
                 className="relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block"
               >
-                {/* Image */}
-                <Image
-                  src={col.image}
-                  alt={col.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover object-[center_25%] transition-transform duration-[900ms] ease-out group-hover:scale-105"
-                />
+                {/* Image — or the ink reveal treatment while there's no photo */}
+                {col.image ? (
+                  <Image
+                    src={col.image}
+                    alt={col.name}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover object-[center_25%] transition-transform duration-[900ms] ease-out group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-ink">
+                    <div
+                      className="absolute -top-24 -right-24 h-96 w-96 rounded-full opacity-[0.16] transition-opacity duration-500 group-hover:opacity-[0.24]"
+                      style={{
+                        background:
+                          "radial-gradient(circle, var(--color-gold) 0%, transparent 65%)",
+                      }}
+                      aria-hidden
+                    />
+                    <div className="absolute inset-5 border border-paper/10" aria-hidden />
+                  </div>
+                )}
 
                 {/* Overlay — darker at the base so the copy stays legible */}
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent transition-opacity duration-500 group-hover:from-ink/80" />
