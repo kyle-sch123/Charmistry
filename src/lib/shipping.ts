@@ -19,6 +19,10 @@
  * - discounted total <= R0 (a comp / 100%-off order) -> free too; we don't
  *   charge shipping on an order with nothing to pay for, which keeps the
  *   zero-total (PayFast-skip) path reachable.
+ * - a cart-earned shipping perk (see resolveShippingPerk in lib/bundles.ts):
+ *   "all_methods" (Everyday Edit) ships free on any method; "locker_only"
+ *   (the stack promos) ships free on the locker method only — Standard
+ *   Economy stays at its flat price.
  * - otherwise the chosen method's flat price.
  *
  * This module is pure (no server-only imports) so it is the single source of
@@ -30,6 +34,14 @@
 export const FREE_SHIPPING_THRESHOLD = 700;
 
 export type ShippingMethodId = "pudo_locker" | "courier_economy";
+
+/**
+ * A shipping perk earned by the cart's contents (resolved in lib/bundles.ts):
+ * - "locker_only"  — the locker-to-locker method ships free; other methods
+ *   keep their flat price (the Stack & Save / Create Your Own Stack reward).
+ * - "all_methods"  — every method ships free (the Everyday Edit reward).
+ */
+export type ShippingPerk = "locker_only" | "all_methods";
 
 export interface ShippingMethodDef {
   id: ShippingMethodId;
@@ -96,15 +108,20 @@ export function shippingMethodLabel(
 
 /**
  * The authoritative shipping cost for a chosen method at a given (discounted)
- * merchandise total. Free at/above the threshold, and free when the order is
+ * merchandise total. Free at/above the threshold, free when the order is
  * fully covered by a discount (amount <= 0) so a comp/100%-off order isn't
- * charged shipping; otherwise the method's flat price. Unknown ids resolve to 0
- * (the caller is expected to have validated the id).
+ * charged shipping, and free when a cart-earned perk covers the chosen method
+ * (all methods for "all_methods", the locker method only for "locker_only");
+ * otherwise the method's flat price. Unknown ids resolve to 0 (the caller is
+ * expected to have validated the id).
  */
 export function shippingCostForMethod(
   methodId: ShippingMethodId,
   amount: number,
+  perk?: ShippingPerk | null,
 ): number {
   if (amount <= 0 || amount >= FREE_SHIPPING_THRESHOLD) return 0;
+  if (perk === "all_methods") return 0;
+  if (perk === "locker_only" && methodId === "pudo_locker") return 0;
   return findMethod(methodId)?.price ?? 0;
 }

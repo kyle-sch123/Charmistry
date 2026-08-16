@@ -33,7 +33,7 @@ const gilda = Gilda_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Charmistry | Water & Tarnish Resistant Jewellery",
+  title: "Charmistry | Waterproof & Tarnish-resistant jewellery",
   description:
     "Charmistry is a South African Jewellery brand offering modern, minimal charm bracelets and curated accessories designed to mix, match and personalise your everyday style.",
 };

@@ -39,7 +39,7 @@ import {
   refundDiscount,
   resolveDiscount,
 } from "@/lib/discounts";
-import { resolveBundleDiscount } from "@/lib/bundles";
+import { resolveBundleDiscount, resolveShippingPerk } from "@/lib/bundles";
 import { decrementProductStock } from "@/lib/inventory";
 
 export const runtime = "nodejs";
@@ -234,13 +234,17 @@ export async function POST(request: Request) {
   // discounted merchandise total, so the shipping cost depends on the discount.
   // Two mutually-exclusive sources, bundle wins:
   //
-  //   1. Cart-aware bundle/stack (Everyday Edit, rings Stack & Save) — detected
-  //      from the line items, not a typed code. Automatic and impossible to
-  //      apply to unrelated products because it's keyed to specific slugs /
-  //      categories. Not a discount_codes row, so there's nothing to
-  //      consume/refund (discountCodeId stays null).
+  //   1. Cart-aware slug bundle (the Everyday Edit) — detected from the line
+  //      items, not a typed code. Automatic and impossible to apply to
+  //      unrelated products because it's keyed to specific slugs. Not a
+  //      discount_codes row, so there's nothing to consume/refund
+  //      (discountCodeId stays null).
   //   2. A typed discount code — only honoured when no bundle applies, so a
   //      code can't be stacked on top of an already-discounted edit.
+  //
+  // The category/mix stacks are NOT discounts any more — they award free
+  // locker-to-locker shipping (resolved below, independent of this block), so
+  // they neither appear as a discount line nor block a typed code.
   //
   // Consumption of a typed code happens after order insert so a failed insert
   // doesn't permanently consume it.
@@ -248,14 +252,13 @@ export async function POST(request: Request) {
   let discountCodeText: string | null = null;
   let discountCodeId: string | null = null;
 
-  const bundle = resolveBundleDiscount(
-    orderLines.map((l) => ({
-      slug: l.product_slug,
-      category: l.category,
-      price: l.unit_price,
-      quantity: l.quantity,
-    })),
-  );
+  const bundleLines = orderLines.map((l) => ({
+    slug: l.product_slug,
+    category: l.category,
+    price: l.unit_price,
+    quantity: l.quantity,
+  }));
+  const bundle = resolveBundleDiscount(bundleLines);
 
   if (bundle) {
     discountAmount = Number(Math.min(bundle.amount, subtotal).toFixed(2));
@@ -295,9 +298,11 @@ export async function POST(request: Request) {
   if (!shippingMethodDef) {
     return Response.json({ error: "invalid_shipping_method" }, { status: 400 });
   }
+  const shippingPerk = resolveShippingPerk(bundleLines);
   const shippingCost = shippingCostForMethod(
     shippingMethodDef.id,
     discountedSubtotal,
+    shippingPerk?.perk,
   );
 
   const total = Number((discountedSubtotal + shippingCost).toFixed(2));

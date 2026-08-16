@@ -34,6 +34,7 @@ import {
 } from "@/lib/klaviyo-client";
 import RingsStackBanner from "@/components/product/RingsStackBanner";
 import MixStackBanner from "@/components/product/MixStackBanner";
+import ProductLightbox from "@/components/product/ProductLightbox";
 import { RINGS_STACK, MIX_MATCH_STACK } from "@/lib/bundles";
 
 interface Props {
@@ -135,6 +136,8 @@ export default function ProductDetail({
   }, [selectedVariant, allVariants, bucketImages]);
 
   const [activeImage, setActiveImage] = useState(0);
+  // Gallery index the lightbox opened on, or null while closed.
+  const [lightboxAt, setLightboxAt] = useState<number | null>(null);
   const [quantity, setQuantity] = useState(1);
   const [justAdded, setJustAdded] = useState(false);
 
@@ -239,7 +242,10 @@ export default function ProductDetail({
           </div>
         )}
 
-        <div className="relative flex-1 aspect-[4/5] overflow-hidden bg-stone">
+        <div
+          className="group/gallery relative flex-1 aspect-[4/5] overflow-hidden bg-stone cursor-zoom-in"
+          onClick={() => gallery[activeImage] && setLightboxAt(activeImage)}
+        >
           <AnimatePresence mode="wait">
             <motion.div
               key={activeImage}
@@ -266,7 +272,42 @@ export default function ProductDetail({
               {selectedVariant.badge}
             </span>
           )}
+          {/* Zoom affordance — the whole image opens the lightbox; this makes
+              that discoverable and gives keyboard users a focusable control. */}
+          {gallery[activeImage] && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setLightboxAt(activeImage);
+              }}
+              aria-label="Zoom in on photo"
+              className="absolute bottom-4 right-4 z-10 flex h-9 w-9 items-center justify-center bg-paper/85 text-ink/70 border border-ink/15 opacity-0 group-hover/gallery:opacity-100 focus-visible:opacity-100 max-lg:opacity-100 hover:text-ink hover:bg-paper transition-all cursor-zoom-in"
+            >
+              <svg
+                className="h-4 w-4"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={1.6}
+                aria-hidden
+              >
+                <circle cx="11" cy="11" r="6.5" />
+                <path strokeLinecap="round" d="M16 16l4.5 4.5M11 8.5v5M8.5 11h5" />
+              </svg>
+            </button>
+          )}
         </div>
+
+        <ProductLightbox
+          images={gallery}
+          alt={product.name}
+          openAt={lightboxAt}
+          onClose={(lastIndex) => {
+            setLightboxAt(null);
+            setActiveImage(lastIndex);
+          }}
+        />
       </div>
 
       {/* Details */}

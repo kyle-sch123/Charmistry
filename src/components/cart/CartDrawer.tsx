@@ -15,27 +15,11 @@ import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
-import { resolveBundleDiscount } from "@/lib/bundles";
+import { resolveBundleDiscount, resolveShippingPerk } from "@/lib/bundles";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/shipping";
 import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
 import { trackInitiateCheckout as fbTrackInitiateCheckout } from "@/lib/fpixel";
-import type { MetalType } from "@/types";
-
-const metalLabels: Record<MetalType, string> = {
-  gold: "Gold",
-  silver: "Silver",
-  rose_gold: "Rose Gold",
-  white_gold: "White Gold",
-  platinum: "Platinum",
-};
-
-const metalSwatch: Record<MetalType, string> = {
-  gold: "linear-gradient(135deg, #F5E6C8 0%, #C9A84C 55%, #9A7B2F 100%)",
-  silver: "linear-gradient(135deg, #F5F5F5 0%, #C8C8C8 55%, #8A8A8E 100%)",
-  rose_gold: "linear-gradient(135deg, #FFD7CC 0%, #E0A899 55%, #B4735F 100%)",
-  white_gold: "linear-gradient(135deg, #FAFAFA 0%, #E4E4E4 55%, #B4B4B4 100%)",
-  platinum: "linear-gradient(135deg, #F0F0F0 0%, #D2D2D2 55%, #9A9A9A 100%)",
-};
+import { metalLabels, metalSwatch } from "@/lib/metals";
 
 export default function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
@@ -48,24 +32,41 @@ export default function CartDrawer() {
   // Cart-aware bundle (e.g. the Everyday Edit). Same pure resolver the checkout
   // summary and /api/checkout use, so the saving shown here is exactly what's
   // charged. Shown as a line + discounted total so the price isn't a surprise.
-  const bundle = resolveBundleDiscount(
-    lines.map((l) => ({
-      slug: l.slug,
-      category: l.category,
-      price: l.price,
-      quantity: l.quantity,
-    })),
-  );
+  const bundleLines = lines.map((l) => ({
+    slug: l.slug,
+    category: l.category,
+    price: l.price,
+    quantity: l.quantity,
+  }));
+  const bundle = resolveBundleDiscount(bundleLines);
   const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
   const bundleTotal = subtotal - bundleAmount;
+
+  // Cart-earned shipping perk — the stacks free the locker method, the
+  // Everyday Edit frees any method. Same resolver as checkout/api.
+  const shippingPerk = resolveShippingPerk(bundleLines);
+  // A stack perk that isn't already covered by the bundle line above gets its
+  // own footer row (a stack is not a discount line — nothing to subtract).
+  const stackPerk =
+    shippingPerk && shippingPerk.code !== bundle?.code ? shippingPerk : null;
 
   // Free shipping is judged on the discounted total (what the customer actually
   // pays), not the pre-discount subtotal — so the "away from free delivery"
   // figure reconciles with the bundle total shown below, and matches the charge
   // (/api/checkout applies the threshold to the same discounted amount).
+  // A cart-earned perk unlocks the bar outright, below the threshold.
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - bundleTotal);
-  const progress = Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
-  const isUnlocked = bundleTotal >= FREE_SHIPPING_THRESHOLD;
+  const thresholdUnlocked = bundleTotal >= FREE_SHIPPING_THRESHOLD;
+  const isUnlocked = thresholdUnlocked || shippingPerk != null;
+  const progress = isUnlocked
+    ? 100
+    : Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
+  // Over the threshold everything ships free anyway, so only advertise the
+  // narrower locker-only wording when the perk is doing the unlocking.
+  const unlockedLabel =
+    !thresholdUnlocked && shippingPerk?.perk === "locker_only"
+      ? "Free locker delivery unlocked"
+      : "Free delivery unlocked";
 
   // Lock body scroll while the drawer is open
   useEffect(() => {
@@ -176,7 +177,7 @@ export default function CartDrawer() {
                             className="text-[10px] tracking-[0.22em] uppercase font-body"
                             style={{ color: "var(--color-gold)" }}
                           >
-                            Free delivery unlocked
+                            {unlockedLabel}
                           </p>
                         </motion.div>
                       ) : (
@@ -353,13 +354,40 @@ export default function CartDrawer() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
-                        Subtotal
-                      </span>
-                      <span className="font-display text-2xl">
-                        {formatPrice(subtotal)}
-                      </span>
+                    <div className="space-y-2">
+                      {stackPerk && (
+                        <div
+                          className="flex items-center justify-between text-sm"
+                          style={{ color: "var(--color-gold-dark)" }}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <svg
+                              className="w-3.5 h-3.5 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                              aria-hidden
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                            {stackPerk.label}
+                          </span>
+                          <span>Free locker shipping</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
+                          Subtotal
+                        </span>
+                        <span className="font-display text-2xl">
+                          {formatPrice(subtotal)}
+                        </span>
+                      </div>
                     </div>
                   )}
                   <p className="text-xs text-ink/50">

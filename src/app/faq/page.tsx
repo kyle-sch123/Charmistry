@@ -149,21 +149,20 @@ const faqGroups: FaqGroup[] = [
         a: (
           <>
             <p>
-              For hygiene reasons we only accept returns on{" "}
-              <span className="font-medium text-ink">
-                faulty, damaged or incorrect items
-              </span>{" "}
-              — not for change of mind, incorrect sizing, or normal wear and
-              tear.
+              You can return any purchase within{" "}
+              <span className="font-medium text-ink">7 days of delivery</span>{" "}
+              for a full refund — even if you simply changed your mind. Items
+              must be unworn, in their original condition and packaging;
+              earrings can&apos;t be returned once opened, for hygiene reasons.
+              Return shipping for change-of-mind returns is for your account.
             </p>
             <p>
-              If something arrives wrong or damaged, email{" "}
+              If something arrives wrong, damaged or faulty, email{" "}
               <a href="mailto:charmistryza@gmail.com" className={linkClass}>
                 charmistryza@gmail.com
               </a>{" "}
-              within{" "}
-              <span className="font-medium text-ink">7 days of delivery</span>.
-              Full details live on our{" "}
+              within 7 days and we&apos;ll cover the return. Full details live
+              on our{" "}
               <Link href="/shipping" className={linkClass}>
                 Shipping &amp; Returns
               </Link>{" "}

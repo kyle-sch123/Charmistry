@@ -2,11 +2,12 @@
  * RingsStackBanner — the "Stack & Save" incentive shown on ring product pages,
  * just beneath the add-to-bag button.
  *
- * A compact gold band mirroring the /shop rings promo: add enough rings and a
- * percentage comes off automatically at checkout. Copy is driven off the
- * RINGS_STACK config (the same object /api/checkout charges) so the promise
- * shown here can never drift from the discount actually applied. The whole band
- * links through to the rings collection so a shopper can act on it in one tap.
+ * A compact gold band mirroring the /shop rings promo: add enough rings and
+ * locker-to-locker shipping is free, automatically at checkout. Copy is driven
+ * off the RINGS_STACK config (the same object /api/checkout honours) so the
+ * promise shown here can never drift from the perk actually applied. The whole
+ * band links through to the rings collection so a shopper can act on it in one
+ * tap.
  */
 
 import Link from "next/link";
@@ -17,7 +18,7 @@ export default function RingsStackBanner() {
     <Link
       href={`/shop?category=${RINGS_STACK.category}`}
       className="group mt-8 flex items-center gap-3.5 border border-gold/40 bg-gold-muted px-4 py-3.5 transition-colors duration-300 hover:border-gold/70 hover:bg-gold/25 cursor-pointer"
-      aria-label={`Stack & Save: add any ${RINGS_STACK.minQuantity} rings for ${RINGS_STACK.percentOff}% off. Shop the rings collection.`}
+      aria-label={`Stack & Save: add any ${RINGS_STACK.minQuantity} rings for free locker-to-locker shipping. Shop the rings collection.`}
     >
       {/* Stacked rings */}
       <svg
@@ -46,7 +47,7 @@ export default function RingsStackBanner() {
           Stack &amp; Save
         </span>
         {" — "}Add any {RINGS_STACK.minQuantity} rings for{" "}
-        <span className="font-medium">{RINGS_STACK.percentOff}% off</span>,
+        <span className="font-medium">free locker-to-locker shipping</span>,
         applied automatically at checkout.
       </p>
 

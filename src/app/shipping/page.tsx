@@ -141,31 +141,41 @@ const sections = [
     content: (
       <>
         <p>
-          Due to hygiene reasons and the nature of jewellery products, we do not
-          accept returns or exchanges for:
+          Changed your mind? In line with the Electronic Communications and
+          Transactions Act (ECTA), you may return any online purchase within{" "}
+          <span className="font-medium text-ink">7 days of delivery</span> — no
+          reason needed. To qualify, items must be:
         </p>
         <ul>
-          <li>change of mind</li>
-          <li>incorrect sizing selected by the customer</li>
-          <li>normal wear and tear</li>
+          <li>unworn and in their original condition</li>
+          <li>in their original packaging</li>
+          <li>
+            unopened in the case of earrings, which cannot be returned once the
+            seal is broken, for hygiene reasons
+          </li>
         </ul>
         <p>
-          However, if the wrong item was received, or the item arrives damaged
-          or faulty, please contact us within{" "}
-          <span className="font-medium text-ink">7 days of delivery</span> at{" "}
+          To start a return, email{" "}
           <a
             href="mailto:charmistryza@gmail.com"
             className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
           >
             charmistryza@gmail.com
-          </a>
-          .
+          </a>{" "}
+          within 7 days of receiving your order. The cost of returning a
+          change-of-mind item is for the customer&apos;s account; once the
+          return is received and checked, we will refund the purchase price in
+          full within 30 days.
         </p>
         <p>
-          Customers may be required to provide photographs of the item and
-          packaging for assessment. If approved, Charmistry will replace the
-          item, provide store credit, or issue a refund. Return shipping costs
-          for approved faulty or incorrect items will be covered by Charmistry.
+          If the wrong item was received, or the item arrives damaged or
+          faulty, contact us within{" "}
+          <span className="font-medium text-ink">7 days of delivery</span> at
+          the same address. Customers may be required to provide photographs of
+          the item and packaging for assessment. If approved, Charmistry will
+          replace the item, provide store credit, or issue a refund — and the
+          return shipping for faulty or incorrect items is covered by
+          Charmistry.
         </p>
       </>
     ),
