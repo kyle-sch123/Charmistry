@@ -168,7 +168,7 @@ export default async function EverydayEditPage() {
                     textTransform: "uppercase",
                   }}
                 >
-                  Save {formatPrice(BUNDLE_SAVINGS)}
+                  Save {formatPrice(BUNDLE_SAVINGS)} + Free delivery
                 </span>
               </div>
 
@@ -409,7 +409,8 @@ export default async function EverydayEditPage() {
                 }}
               >
                 Add all five to your bag and the bundle price applies
-                automatically - {formatPrice(BUNDLE_SAVINGS)} off.
+                automatically - {formatPrice(BUNDLE_SAVINGS)} off, with free
+                delivery included.
               </p>
             </ScrollReveal>
 
@@ -517,6 +518,17 @@ export default async function EverydayEditPage() {
                       }}
                     >
                       Save {formatPrice(BUNDLE_SAVINGS)}
+                    </span>
+                    <span
+                      className="inline-flex items-center border border-gold/50 text-gold-dark px-3 py-1.5"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.16em",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      Free delivery
                     </span>
                   </div>
 

@@ -3,15 +3,18 @@
  * shown between the product detail and the reviews.
  *
  * Three slots (one per MIX_MATCH_STACK category: necklace, earrings, bracelet)
- * each hold a swappable candidate piece. Keeping all three ticked prices the
- * set at percentOff below the sum — the SAME discount resolveBundleDiscount
- * grants at checkout, so the promise here is exactly what's charged. When the
- * viewed product belongs to one of the slots it's pinned there as "This item".
+ * each hold a swappable candidate piece. Keeping all three ticked earns free
+ * locker-to-locker shipping — the SAME perk resolveShippingPerk grants at
+ * checkout, so the promise here is exactly what's honoured. When the viewed
+ * product belongs to one of the slots it's pinned there as "This item".
  *
  * Candidates arrive from the server (getStackCandidates: purchasable pieces,
- * best sellers first, one row per piece). The module renders nothing unless
- * every slot has at least one candidate — an incomplete stack can't earn the
- * discount and would just be noise.
+ * best sellers first, EVERY metal variant row). A Gold/Silver toggle filters
+ * the candidate pool by metal; within a view the rows are consolidated to one
+ * tile per piece (pickPieceRepresentatives — the shop-grid rule) and capped.
+ * The module renders nothing unless every slot has at least one candidate in
+ * the unfiltered view — an incomplete stack can't earn the perk and would just
+ * be noise; the toggle only offers metals every slot can satisfy.
  */
 
 "use client";
@@ -20,10 +23,12 @@ import { useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import type { ProductWithCategory } from "@/types";
+import type { MetalType, ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { MIX_MATCH_STACK } from "@/lib/bundles";
+import { pickPieceRepresentatives } from "@/lib/pieces";
+import { metalLabels, metalSwatch } from "@/lib/metals";
 import { trackAddToCart } from "@/lib/gtag";
 import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
 import {
@@ -44,15 +49,51 @@ const pieceKey = (p: ProductWithCategory) =>
 const purchasable = (p: ProductWithCategory) =>
   p.in_stock && (p.quantity ?? 0) > 0;
 
+/** Metals the toggle can offer — the two the catalogue actually stocks. */
+const METAL_CHOICES: MetalType[] = ["gold", "silver"];
+
+const MAX_PER_SLOT = 6;
+
 export default function StackBuilder({ product, candidates }: Props) {
-  // One ordered candidate list per stack category. The viewed product leads
-  // its own category's list (replacing any row of the same piece) so the slot
-  // defaults to "This item", exactly like the classic bought-together module.
+  // Metals for which EVERY slot has at least one purchasable candidate — a
+  // metal that would leave a slot empty is never offered, so choosing one can
+  // never break the stack (or hide the module mid-interaction).
+  const availableMetals = useMemo(
+    () =>
+      METAL_CHOICES.filter((metal) =>
+        MIX_MATCH_STACK.categories.every(
+          (categorySlug) =>
+            (candidates[categorySlug] ?? []).some((p) => p.metal === metal) ||
+            (product.categories?.slug === categorySlug &&
+              purchasable(product) &&
+              product.metal === metal),
+        ),
+      ),
+    [candidates, product],
+  );
+
+  const [metalFilter, setMetalFilter] = useState<"all" | MetalType>("all");
+
+  // One ordered candidate list per stack category, for the chosen metal view.
+  // Variant rows are filtered by metal first, then consolidated to one tile
+  // per piece (owner's shop_featured pick wins — the shop-grid rule) and
+  // capped. The viewed product leads its own category's list (replacing any
+  // row of the same piece) so the slot defaults to "This item", exactly like
+  // the classic bought-together module — unless it doesn't match the chosen
+  // metal, in which case the view is a plain browse.
   const slots = useMemo(
     () =>
       MIX_MATCH_STACK.categories.map((categorySlug) => {
-        let items = candidates[categorySlug] ?? [];
-        if (product.categories?.slug === categorySlug && purchasable(product)) {
+        let rows = candidates[categorySlug] ?? [];
+        if (metalFilter !== "all") {
+          rows = rows.filter((p) => p.metal === metalFilter);
+        }
+        let items = pickPieceRepresentatives(rows).slice(0, MAX_PER_SLOT);
+        if (
+          product.categories?.slug === categorySlug &&
+          purchasable(product) &&
+          (metalFilter === "all" || product.metal === metalFilter)
+        ) {
           items = [
             product,
             ...items.filter((p) => pieceKey(p) !== pieceKey(product)),
@@ -60,7 +101,7 @@ export default function StackBuilder({ product, candidates }: Props) {
         }
         return { categorySlug, items };
       }),
-    [candidates, product],
+    [candidates, product, metalFilter],
   );
 
   const [indexBySlot, setIndexBySlot] = useState<number[]>(() =>
@@ -73,7 +114,16 @@ export default function StackBuilder({ product, candidates }: Props) {
 
   const addItem = useCart((s) => s.addItem);
 
-  // Guard AFTER the hooks so React sees a stable hook order.
+  const changeMetalFilter = (metal: "all" | MetalType) => {
+    setMetalFilter(metal);
+    // Restart every slot at its best-ranked candidate — the old indices point
+    // into a differently-filtered list and would land on arbitrary pieces.
+    setIndexBySlot(slots.map(() => 0));
+  };
+
+  // Guard AFTER the hooks so React sees a stable hook order. Judged on the
+  // unfiltered pool (metalFilter only ever narrows to metals every slot can
+  // satisfy, so a chosen metal can never empty a slot this guard would miss).
   if (slots.some((s) => s.items.length === 0)) return null;
 
   const active = slots.map(
@@ -82,9 +132,6 @@ export default function StackBuilder({ product, candidates }: Props) {
   const selection = active.filter((_, i) => checked[i]);
   const subtotal = selection.reduce((acc, p) => acc + Number(p.price), 0);
   const fullStack = selection.length === slots.length;
-  const saving = fullStack
-    ? Number(((subtotal * MIX_MATCH_STACK.percentOff) / 100).toFixed(2))
-    : 0;
 
   const swap = (slot: number, dir: -1 | 1) => {
     setIndexBySlot((cur) =>
@@ -135,7 +182,7 @@ export default function StackBuilder({ product, candidates }: Props) {
       className="mt-24 border border-ink/10 bg-paper-warm/50 p-6 md:p-10 scroll-mt-28"
     >
       <p className="text-[11px] tracking-[0.25em] uppercase text-gold-dark font-body mb-2">
-        Stack &amp; Save · {MIX_MATCH_STACK.percentOff}% off
+        Stack &amp; Save · Free locker shipping
       </p>
       <h2
         id="stack-builder-heading"
@@ -144,10 +191,45 @@ export default function StackBuilder({ product, candidates }: Props) {
         Create your own stack
       </h2>
       <p className="mt-3 font-body text-[14px] leading-relaxed text-ink/65 max-w-xl">
-        Pick a necklace, earrings and a bracelet — keep all three and{" "}
-        {MIX_MATCH_STACK.percentOff}% comes off the set automatically at
-        checkout.
+        Pick a necklace, earrings and a bracelet — keep all three and your
+        order ships free, locker-to-locker, automatically at checkout.
       </p>
+
+      {/* Gold / Silver view — only metals every slot can satisfy are offered */}
+      {availableMetals.length > 0 && (
+        <div
+          className="mt-6 flex items-center gap-2"
+          role="radiogroup"
+          aria-label="Filter stack pieces by metal"
+        >
+          {(["all", ...availableMetals] as const).map((metal) => {
+            const selected = metalFilter === metal;
+            return (
+              <button
+                key={metal}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => changeMetalFilter(metal)}
+                className={`flex items-center gap-1.5 border px-3.5 py-1.5 text-[10px] tracking-[0.18em] uppercase font-body transition-colors cursor-pointer ${
+                  selected
+                    ? "border-ink bg-ink text-paper"
+                    : "border-ink/20 text-ink/60 hover:border-ink/50 hover:text-ink"
+                }`}
+              >
+                {metal !== "all" && (
+                  <span
+                    className="w-2.5 h-2.5 rounded-full ring-1 ring-ink/15"
+                    style={{ background: metalSwatch[metal] }}
+                    aria-hidden
+                  />
+                )}
+                {metal === "all" ? "All metals" : metalLabels[metal]}
+              </button>
+            );
+          })}
+        </div>
+      )}
 
       <div className="mt-8 flex flex-col gap-8 lg:flex-row lg:items-start">
         {/* Slots */}
@@ -265,24 +347,19 @@ export default function StackBuilder({ product, candidates }: Props) {
             {selection.length === 1 ? "piece" : "pieces"}
           </p>
           <div className="mt-2 flex items-baseline gap-3">
-            {fullStack && (
-              <span className="font-body text-sm text-ink/45 line-through">
-                {formatPrice(subtotal)}
-              </span>
-            )}
             <span className="font-display text-3xl">
-              {formatPrice(Math.max(0, subtotal - saving))}
+              {formatPrice(subtotal)}
             </span>
           </div>
           {fullStack ? (
             <p className="mt-1.5 font-body text-[12px] text-gold-dark">
-              You save {formatPrice(saving)} ({MIX_MATCH_STACK.percentOff}%
-              off), applied automatically at checkout.
+              Free locker-to-locker shipping, applied automatically at
+              checkout.
             </p>
           ) : (
             <p className="mt-1.5 font-body text-[12px] text-ink/55">
-              Keep all {slots.length} pieces to save{" "}
-              {MIX_MATCH_STACK.percentOff}%.
+              Keep all {slots.length} pieces to unlock free locker-to-locker
+              shipping.
             </p>
           )}
 

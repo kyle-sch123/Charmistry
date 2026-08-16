@@ -43,6 +43,22 @@ describe("shippingCostForMethod", () => {
     expect(shippingCostForMethod("pudo_locker", 0)).toBe(0);
     expect(shippingCostForMethod("courier_economy", 0)).toBe(0);
   });
+
+  it("frees only the locker method under a locker_only perk (the stacks)", () => {
+    expect(shippingCostForMethod("pudo_locker", 100, "locker_only")).toBe(0);
+    // Standard Economy keeps its flat price — the perk is locker-specific.
+    expect(shippingCostForMethod("courier_economy", 100, "locker_only")).toBe(79);
+  });
+
+  it("frees every method under an all_methods perk (the Everyday Edit)", () => {
+    expect(shippingCostForMethod("pudo_locker", 100, "all_methods")).toBe(0);
+    expect(shippingCostForMethod("courier_economy", 100, "all_methods")).toBe(0);
+  });
+
+  it("treats an absent perk exactly like the pre-perk behaviour", () => {
+    expect(shippingCostForMethod("pudo_locker", 100, null)).toBe(49);
+    expect(shippingCostForMethod("pudo_locker", FREE_SHIPPING_THRESHOLD, null)).toBe(0);
+  });
 });
 
 describe("shippingMethodLabel", () => {

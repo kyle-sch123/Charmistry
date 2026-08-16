@@ -241,13 +241,17 @@ export async function getPieceReviews(
 /**
  * Candidate pieces for the PDP "Create Your Own Stack" builder — purchasable
  * (in stock, quantity > 0) products across the given category slugs, best
- * sellers first, de-duplicated to one row per piece (same key as
- * getShopProducts) and capped per category. Returned keyed by category slug so
- * the builder can render one slot per category.
+ * sellers first, returned keyed by category slug so the builder can render one
+ * slot per category.
+ *
+ * Unlike the shop grid, rows are NOT consolidated to one per piece here: the
+ * builder's Gold/Silver toggle filters by metal client-side, so it needs every
+ * variant row. The builder itself applies pickPieceRepresentatives after
+ * filtering (one tile per piece within the chosen metal view) and caps what it
+ * shows.
  */
 export async function getStackCandidates(
   categorySlugs: string[],
-  limitPerCategory = 6,
 ): Promise<Record<string, ProductWithCategory[]>> {
   if (categorySlugs.length === 0) return {};
   const { data, error } = await supabase
@@ -261,16 +265,11 @@ export async function getStackCandidates(
 
   if (error) throw error;
 
-  // Same consolidation the shop grid uses, so a piece shows the owner's chosen
-  // metal + photo here too.
   const byCategory: Record<string, ProductWithCategory[]> = {};
-  for (const product of pickPieceRepresentatives(
-    (data ?? []) as ProductWithCategory[],
-  )) {
+  for (const product of (data ?? []) as ProductWithCategory[]) {
     const categorySlug = product.categories?.slug;
     if (!categorySlug) continue;
-    const bucket = (byCategory[categorySlug] ??= []);
-    if (bucket.length < limitPerCategory) bucket.push(product);
+    (byCategory[categorySlug] ??= []).push(product);
   }
   return byCategory;
 }

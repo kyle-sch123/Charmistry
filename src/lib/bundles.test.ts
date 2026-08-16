@@ -4,6 +4,7 @@ import {
   RINGS_STACK,
   MIX_MATCH_STACK,
   resolveBundleDiscount,
+  resolveShippingPerk,
   type BundleLine,
 } from "@/lib/bundles";
 
@@ -98,60 +99,58 @@ const ring = (n = 1, price = 500): BundleLine => ({
   quantity: n,
 });
 
-describe("resolveBundleDiscount — rings Stack & Save", () => {
-  it("takes 15% off the ring subtotal once 3 rings are in the cart", () => {
-    const result = resolveBundleDiscount([ring(3, 500)]);
+describe("RINGS_STACK config", () => {
+  // Tripwire: the /shop rings banner and the PDP RingsStackBanner render their
+  // promise straight from this config, and checkout honours it. Any edit here
+  // must be deliberate.
+  it("rewards 3 rings with free locker-to-locker shipping", () => {
+    expect(RINGS_STACK.category).toBe("rings");
+    expect(RINGS_STACK.minQuantity).toBe(3);
+    expect(RINGS_STACK.shippingPerk).toBe("locker_only");
+  });
+});
+
+describe("resolveShippingPerk — rings Stack & Save", () => {
+  it("frees the locker method once 3 rings are in the cart", () => {
+    const result = resolveShippingPerk([ring(3, 500)]);
     expect(result).not.toBeNull();
     expect(result?.code).toBe(RINGS_STACK.code);
-    // 3 × R500 = R1500 → 15% = R225
-    expect(result?.amount).toBe(225);
+    expect(result?.perk).toBe("locker_only");
   });
 
   it("does not apply below the 3-ring threshold", () => {
-    expect(resolveBundleDiscount([ring(2, 500)])).toBeNull();
+    expect(resolveShippingPerk([ring(2, 500)])).toBeNull();
   });
 
   it("counts rings split across separate lines toward the threshold", () => {
-    const result = resolveBundleDiscount([
+    const result = resolveShippingPerk([
       ring(1, 400),
       ring(1, 600),
       ring(1, 500),
     ]);
-    // (400 + 600 + 500) × 15% = 225
-    expect(result?.amount).toBe(225);
-  });
-
-  it("discounts all rings once unlocked, not just the first three", () => {
-    const result = resolveBundleDiscount([ring(4, 500)]);
-    // 4 × R500 = R2000 → 15% = R300
-    expect(result?.amount).toBe(300);
-    expect(result?.sets).toBe(1);
-  });
-
-  it("only discounts rings, never other categories in the same cart", () => {
-    const result = resolveBundleDiscount([
-      ring(3, 500),
-      { slug: "some-necklace", category: "necklaces", price: 1000, quantity: 1 },
-    ]);
-    // Discount base is the rings only: 1500 × 15% = 225 (necklace excluded)
-    expect(result?.amount).toBe(225);
-  });
-
-  it("does not fire on rings that carry no usable price", () => {
-    expect(
-      resolveBundleDiscount([
-        { slug: "r1", category: "rings", price: 0, quantity: 3 },
-      ]),
-    ).toBeNull();
-  });
-
-  it("returns whichever cart-aware discount saves more", () => {
-    // Full Everyday Edit (R175 off) plus 3 separate high-value rings whose
-    // stack (R450) beats the edit → the stack wins.
-    const lines: BundleLine[] = [...fullEdit(), ring(3, 1000)];
-    const result = resolveBundleDiscount(lines);
     expect(result?.code).toBe(RINGS_STACK.code);
-    expect(result?.amount).toBe(450);
+  });
+
+  it("qualifies regardless of line prices — the perk is not priced", () => {
+    // Unlike the old 15%-off stack, a price of 0 can't zero the reward out.
+    const result = resolveShippingPerk([
+      { slug: "r1", category: "rings", price: 0, quantity: 3 },
+    ]);
+    expect(result?.perk).toBe("locker_only");
+  });
+
+  it("no longer produces a ZAR discount line", () => {
+    // The stacks moved from 15% off to a shipping perk — the discount
+    // resolver must ignore them entirely (which is also what lets a typed
+    // code coexist with a stack now).
+    expect(resolveBundleDiscount([ring(3, 1000)])).toBeNull();
+  });
+
+  it("prefers the Everyday Edit's any-method perk over the locker perk", () => {
+    const lines: BundleLine[] = [...fullEdit(), ring(3, 1000)];
+    const result = resolveShippingPerk(lines);
+    expect(result?.code).toBe(EVERYDAY_EDIT_BUNDLE.code);
+    expect(result?.perk).toBe("all_methods");
   });
 });
 
@@ -172,80 +171,64 @@ const trio = (price = 400): BundleLine[] =>
   MIX_MATCH_STACK.categories.map((c) => piece(c, price));
 
 describe("MIX_MATCH_STACK config", () => {
-  // Tripwire: the PDP StackBuilder renders its slots and its "15% off" promise
-  // straight from this config. Changing it changes what checkout charges, so
-  // any edit here must be deliberate.
-  it("requires one necklace, one earrings and one bracelet for 15% off", () => {
+  // Tripwire: the PDP StackBuilder renders its slots and its free-shipping
+  // promise straight from this config. Changing it changes what checkout
+  // honours, so any edit here must be deliberate.
+  it("requires one necklace, one earrings and one bracelet for the perk", () => {
     expect(MIX_MATCH_STACK.categories).toEqual([
       "necklaces",
       "earrings",
       "bracelets",
     ]);
-    expect(MIX_MATCH_STACK.percentOff).toBe(15);
+    expect(MIX_MATCH_STACK.shippingPerk).toBe("locker_only");
   });
 });
 
-describe("resolveBundleDiscount — Create Your Own Stack", () => {
-  it("takes 15% off the trio once one of each category is in the cart", () => {
-    const result = resolveBundleDiscount(trio(400));
+describe("resolveShippingPerk — Create Your Own Stack", () => {
+  it("frees the locker method once one of each category is in the cart", () => {
+    const result = resolveShippingPerk(trio(400));
     expect(result).not.toBeNull();
     expect(result?.code).toBe(MIX_MATCH_STACK.code);
-    // (400 + 400 + 400) × 15% = 180
-    expect(result?.amount).toBe(180);
-    expect(result?.sets).toBe(1);
+    expect(result?.perk).toBe("locker_only");
   });
 
   it("does not apply while any category is missing", () => {
     const noBracelet = [piece("necklaces"), piece("earrings")];
-    expect(resolveBundleDiscount(noBracelet)).toBeNull();
+    expect(resolveShippingPerk(noBracelet)).toBeNull();
     // Depth in one category can't substitute for breadth across all three.
+    expect(resolveShippingPerk([piece("necklaces", 400, 3)])).toBeNull();
+  });
+
+  it("no longer produces a ZAR discount line", () => {
+    expect(resolveBundleDiscount(trio(1000))).toBeNull();
+  });
+
+  it("returns one perk when both stacks qualify", () => {
+    // Same tier ("locker_only") — the mix stack is checked first and wins;
+    // either way the customer outcome is identical: the locker ships free.
+    const result = resolveShippingPerk([...trio(400), ring(3, 400)]);
+    expect(result?.perk).toBe("locker_only");
+    expect(result?.code).toBe(MIX_MATCH_STACK.code);
+  });
+});
+
+describe("resolveShippingPerk — Everyday Edit", () => {
+  it("frees every method when the full edit is in the cart", () => {
+    const result = resolveShippingPerk(fullEdit());
+    expect(result?.code).toBe(EVERYDAY_EDIT_BUNDLE.code);
+    expect(result?.perk).toBe("all_methods");
+  });
+
+  it("keeps the R175 discount alongside the perk", () => {
+    // The edit's reward is additive: money off AND free delivery.
+    expect(resolveBundleDiscount(fullEdit())?.amount).toBe(175);
+    expect(resolveShippingPerk(fullEdit())?.perk).toBe("all_methods");
+  });
+
+  it("returns null for an empty or unqualifying cart", () => {
+    expect(resolveShippingPerk([])).toBeNull();
     expect(
-      resolveBundleDiscount([piece("necklaces", 400, 3)]),
+      resolveShippingPerk([{ slug: "random-piece", quantity: 2 }]),
     ).toBeNull();
-  });
-
-  it("discounts every piece in the three categories once unlocked", () => {
-    // The rings-stack rule applied across categories: a second necklace joins
-    // the discount base rather than sitting at full price.
-    const result = resolveBundleDiscount([...trio(400), piece("necklaces", 600)]);
-    // (1200 + 600) × 15% = 270
-    expect(result?.amount).toBe(270);
-  });
-
-  it("never discounts categories outside the stack", () => {
-    const result = resolveBundleDiscount([
-      ...trio(400),
-      piece("rings", 900),
-      piece("jewellery-boxes", 800),
-    ]);
-    // Base stays the trio: 1200 × 15% = 180 (ring + box excluded)
-    expect(result?.amount).toBe(180);
-  });
-
-  it("reports sets as the scarcest category's quantity", () => {
-    const result = resolveBundleDiscount([
-      piece("necklaces", 400, 2),
-      piece("earrings", 400, 2),
-      piece("bracelets", 400, 1),
-    ]);
-    expect(result?.sets).toBe(1);
-  });
-
-  it("does not fire on pieces that carry no usable price", () => {
-    expect(
-      resolveBundleDiscount(
-        MIX_MATCH_STACK.categories.map((c) => piece(c, 0)),
-      ),
-    ).toBeNull();
-  });
-
-  it("loses to a rings stack that saves more, and wins when it saves more", () => {
-    // Trio saves 180; three R1000 rings save 450 → rings win.
-    const ringsWin = resolveBundleDiscount([...trio(400), ring(3, 1000)]);
-    expect(ringsWin?.code).toBe(RINGS_STACK.code);
-    // Trio of R1000 pieces saves 450; three R400 rings save 180 → mix wins.
-    const mixWins = resolveBundleDiscount([...trio(1000), ring(3, 400)]);
-    expect(mixWins?.code).toBe(MIX_MATCH_STACK.code);
-    expect(mixWins?.amount).toBe(450);
   });
 });

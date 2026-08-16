@@ -185,7 +185,7 @@ export default async function ShopPage({
             >
               Add any {RINGS_STACK.minQuantity} rings to your bag and get{" "}
               <span className="text-ink font-medium">
-                {RINGS_STACK.percentOff}% off
+                free locker-to-locker shipping
               </span>
               , applied automatically at checkout.
             </StackPromoBanner>
@@ -213,7 +213,7 @@ export default async function ShopPage({
             >
               Add a necklace, earrings &amp; a bracelet to your bag and get{" "}
               <span className="text-ink font-medium">
-                {MIX_MATCH_STACK.percentOff}% off
+                free locker-to-locker shipping
               </span>
               , applied automatically at checkout.
             </StackPromoBanner>

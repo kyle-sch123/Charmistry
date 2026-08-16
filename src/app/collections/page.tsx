@@ -18,6 +18,8 @@ const BUCKET =
 // Prices are interpolated from live catalogue data (see getEditPricing) — the
 // edit's total is the sum of five product rows, so it can't be written down
 // here without drifting from what the cart charges.
+// A null image renders the card as an ink "reveal" tile (no photo yet) — the
+// Daily Affair swaps to a real campaign image once photography lands.
 const collections = (pricing: EditPricing | null) => [
   {
     slug: "everyday",
@@ -26,9 +28,21 @@ const collections = (pricing: EditPricing | null) => [
     description: `Timeless gold pieces designed to be worn on repeat, from Monday mornings to Sunday afternoons.${
       pricing ? ` Bought together as one edit for ${formatPrice(pricing.bundlePrice)}.` : ""
     }`,
-    href: "/collections/everyday",
-    image: `${BUCKET}/everyday-nova-lucy.webp`,
+    href: "/collections/everyday" as string | null,
+    image: `${BUCKET}/everyday-nova-lucy.webp` as string | null,
     tag: pricing ? `Bundle · Save ${formatPrice(pricing.savings)}` : "Bundle",
+  },
+  {
+    slug: "daily-affair",
+    name: "The Daily Affair",
+    season: "New · 4 pieces",
+    description:
+      "The evening counterpart to the Everyday Edit — pieces for the romance hiding inside an ordinary day. Full reveal coming soon.",
+    // Not yet clickable — the page is built but gated until launch (see
+    // collections/daily-affair/page.tsx). Set the href to launch the card.
+    href: null as string | null,
+    image: null as string | null,
+    tag: "Coming soon",
   },
 ];
 
@@ -84,20 +98,33 @@ export default async function CollectionsPage() {
 
           {/* Collection cards */}
           <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-            {COLLECTIONS.map((col) => (
-              <Link
-                key={col.slug}
-                href={col.href}
-                className="relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block"
-              >
-                {/* Image */}
-                <Image
-                  src={col.image}
-                  alt={col.name}
-                  fill
-                  sizes="(max-width: 768px) 100vw, 50vw"
-                  className="object-cover object-[center_25%] transition-transform duration-[900ms] ease-out group-hover:scale-105"
-                />
+            {COLLECTIONS.map((col) => {
+              const cardClass =
+                "relative overflow-hidden group h-[420px] md:h-[500px] bg-stone block";
+              const inner = (
+                <>
+                {/* Image — or the ink reveal treatment while there's no photo */}
+                {col.image ? (
+                  <Image
+                    src={col.image}
+                    alt={col.name}
+                    fill
+                    sizes="(max-width: 768px) 100vw, 50vw"
+                    className="object-cover object-[center_25%] transition-transform duration-[900ms] ease-out group-hover:scale-105"
+                  />
+                ) : (
+                  <div className="absolute inset-0 bg-ink">
+                    <div
+                      className="absolute -top-24 -right-24 h-96 w-96 rounded-full opacity-[0.16] transition-opacity duration-500 group-hover:opacity-[0.24]"
+                      style={{
+                        background:
+                          "radial-gradient(circle, var(--color-gold) 0%, transparent 65%)",
+                      }}
+                      aria-hidden
+                    />
+                    <div className="absolute inset-5 border border-paper/10" aria-hidden />
+                  </div>
+                )}
 
                 {/* Overlay — darker at the base so the copy stays legible */}
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/70 via-ink/10 to-transparent transition-opacity duration-500 group-hover:from-ink/80" />
@@ -149,32 +176,58 @@ export default async function CollectionsPage() {
                   >
                     {col.description}
                   </p>
-                  <span
-                    className="mt-4 inline-flex items-center gap-2 text-ivory uppercase"
-                    style={{
-                      fontFamily: "var(--font-body)",
-                      fontSize: "10px",
-                      letterSpacing: "0.22em",
-                    }}
-                  >
-                    Explore the Edit
-                    <svg
-                      className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
+                  {col.href ? (
+                    <span
+                      className="mt-4 inline-flex items-center gap-2 text-ivory uppercase"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.22em",
+                      }}
                     >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={1.5}
-                        d="M17 8l4 4m0 0l-4 4m4-4H3"
-                      />
-                    </svg>
-                  </span>
+                      Explore the Edit
+                      <svg
+                        className="w-3.5 h-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={1.5}
+                          d="M17 8l4 4m0 0l-4 4m4-4H3"
+                        />
+                      </svg>
+                    </span>
+                  ) : (
+                    <span
+                      className="mt-4 inline-flex items-center gap-2 text-ivory/50 uppercase"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.22em",
+                      }}
+                    >
+                      Reveal coming soon
+                    </span>
+                  )}
                 </div>
-              </Link>
-            ))}
+                </>
+              );
+
+              return col.href ? (
+                <Link key={col.slug} href={col.href} className={cardClass}>
+                  {inner}
+                </Link>
+              ) : (
+                // Teaser card — deliberately not a link until the collection
+                // launches.
+                <div key={col.slug} className={`${cardClass} cursor-default`}>
+                  {inner}
+                </div>
+              );
+            })}
 
             {/* More coming placeholder */}
             <div className="h-[420px] md:h-[500px] border border-dashed border-ink/15 flex flex-col items-center justify-center gap-4 text-center px-8">

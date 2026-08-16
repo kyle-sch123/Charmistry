@@ -9,33 +9,30 @@
 
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
+import type { ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
-import { resolveBundleDiscount } from "@/lib/bundles";
+import { resolveBundleDiscount, resolveShippingPerk } from "@/lib/bundles";
 import { FREE_SHIPPING_THRESHOLD } from "@/lib/shipping";
-import { trackRemoveFromCart, trackBeginCheckout } from "@/lib/gtag";
-import { trackInitiateCheckout as fbTrackInitiateCheckout } from "@/lib/fpixel";
-import type { MetalType } from "@/types";
-
-const metalLabels: Record<MetalType, string> = {
-  gold: "Gold",
-  silver: "Silver",
-  rose_gold: "Rose Gold",
-  white_gold: "White Gold",
-  platinum: "Platinum",
-};
-
-const metalSwatch: Record<MetalType, string> = {
-  gold: "linear-gradient(135deg, #F5E6C8 0%, #C9A84C 55%, #9A7B2F 100%)",
-  silver: "linear-gradient(135deg, #F5F5F5 0%, #C8C8C8 55%, #8A8A8E 100%)",
-  rose_gold: "linear-gradient(135deg, #FFD7CC 0%, #E0A899 55%, #B4735F 100%)",
-  white_gold: "linear-gradient(135deg, #FAFAFA 0%, #E4E4E4 55%, #B4B4B4 100%)",
-  platinum: "linear-gradient(135deg, #F0F0F0 0%, #D2D2D2 55%, #9A9A9A 100%)",
-};
+import {
+  trackRemoveFromCart,
+  trackBeginCheckout,
+  trackAddToCart,
+} from "@/lib/gtag";
+import {
+  trackInitiateCheckout as fbTrackInitiateCheckout,
+  trackAddToCart as fbTrackAddToCart,
+} from "@/lib/fpixel";
+import {
+  trackAddedToCart as klTrackAddedToCart,
+  cartLinesToKlaviyoItems,
+} from "@/lib/klaviyo-client";
+import { metalLabels, metalSwatch } from "@/lib/metals";
+import PaymentIcons from "@/components/icons/PaymentIcons";
 
 export default function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
@@ -44,28 +41,103 @@ export default function CartDrawer() {
   const closeCart = useCart((s) => s.closeCart);
   const updateQuantity = useCart((s) => s.updateQuantity);
   const removeItem = useCart((s) => s.removeItem);
+  const addItem = useCart((s) => s.addItem);
+
+  // "Frequently bought with" — up to 3 best-selling pieces not already in the
+  // bag. Keyed on the cart's slug set (not `lines`) so quantity taps don't
+  // refetch; adding a suggested piece changes the set, which refetches and
+  // drops it from the strip.
+  const [suggestions, setSuggestions] = useState<ProductWithCategory[]>([]);
+  const cartSlugs = useMemo(
+    () =>
+      lines
+        .map((l) => l.slug)
+        .filter(Boolean)
+        .sort()
+        .join(","),
+    [lines],
+  );
+  useEffect(() => {
+    if (!isOpen || cartSlugs === "") return;
+    let cancelled = false;
+    fetch(`/api/cart/suggestions?exclude=${encodeURIComponent(cartSlugs)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!cancelled && Array.isArray(d?.products)) setSuggestions(d.products);
+      })
+      // The strip is a bonus — a failed fetch just leaves it empty.
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, cartSlugs]);
+
+  // "Frequently bought with" starts open (it's the upsell) but folds away for
+  // shoppers who want the drawer compact. State survives open/close of the
+  // drawer within a session; it intentionally doesn't persist.
+  const [suggestionsOpen, setSuggestionsOpen] = useState(true);
+
+  const addSuggestion = (p: ProductWithCategory) => {
+    addItem(p, 1);
+    const item = {
+      item_id: p.id,
+      item_name: p.name,
+      item_category: p.categories?.name ?? undefined,
+      item_variant: p.metal ?? undefined,
+      price: Number(p.price),
+      quantity: 1,
+      slug: p.slug,
+      image_url: p.image_url,
+    };
+    trackAddToCart(item);
+    fbTrackAddToCart(item);
+    // Zustand updates synchronously — same pattern as StackBuilder's add.
+    const cartState = useCart.getState();
+    klTrackAddedToCart(
+      item,
+      cartLinesToKlaviyoItems(cartState.lines),
+      selectCartSubtotal(cartState),
+    );
+  };
 
   // Cart-aware bundle (e.g. the Everyday Edit). Same pure resolver the checkout
   // summary and /api/checkout use, so the saving shown here is exactly what's
   // charged. Shown as a line + discounted total so the price isn't a surprise.
-  const bundle = resolveBundleDiscount(
-    lines.map((l) => ({
-      slug: l.slug,
-      category: l.category,
-      price: l.price,
-      quantity: l.quantity,
-    })),
-  );
+  const bundleLines = lines.map((l) => ({
+    slug: l.slug,
+    category: l.category,
+    price: l.price,
+    quantity: l.quantity,
+  }));
+  const bundle = resolveBundleDiscount(bundleLines);
   const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
   const bundleTotal = subtotal - bundleAmount;
+
+  // Cart-earned shipping perk — the stacks free the locker method, the
+  // Everyday Edit frees any method. Same resolver as checkout/api.
+  const shippingPerk = resolveShippingPerk(bundleLines);
+  // A stack perk that isn't already covered by the bundle line above gets its
+  // own footer row (a stack is not a discount line — nothing to subtract).
+  const stackPerk =
+    shippingPerk && shippingPerk.code !== bundle?.code ? shippingPerk : null;
 
   // Free shipping is judged on the discounted total (what the customer actually
   // pays), not the pre-discount subtotal — so the "away from free delivery"
   // figure reconciles with the bundle total shown below, and matches the charge
   // (/api/checkout applies the threshold to the same discounted amount).
+  // A cart-earned perk unlocks the bar outright, below the threshold.
   const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - bundleTotal);
-  const progress = Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
-  const isUnlocked = bundleTotal >= FREE_SHIPPING_THRESHOLD;
+  const thresholdUnlocked = bundleTotal >= FREE_SHIPPING_THRESHOLD;
+  const isUnlocked = thresholdUnlocked || shippingPerk != null;
+  const progress = isUnlocked
+    ? 100
+    : Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
+  // Over the threshold everything ships free anyway, so only advertise the
+  // narrower locker-only wording when the perk is doing the unlocking.
+  const unlockedLabel =
+    !thresholdUnlocked && shippingPerk?.perk === "locker_only"
+      ? "Free locker delivery unlocked"
+      : "Free delivery unlocked";
 
   // Lock body scroll while the drawer is open
   useEffect(() => {
@@ -176,7 +248,7 @@ export default function CartDrawer() {
                             className="text-[10px] tracking-[0.22em] uppercase font-body"
                             style={{ color: "var(--color-gold)" }}
                           >
-                            Free delivery unlocked
+                            {unlockedLabel}
                           </p>
                         </motion.div>
                       ) : (
@@ -197,28 +269,64 @@ export default function CartDrawer() {
                     )}
                   </div>
 
-                  {/* Progress track */}
-                  <div className="relative h-[2px] bg-stone rounded-full overflow-hidden">
-                    <motion.div
-                      className="absolute inset-y-0 left-0 rounded-full"
-                      style={{
-                        background:
-                          "linear-gradient(90deg, var(--color-gold-dark), var(--color-gold), var(--color-gold-light))",
-                      }}
-                      initial={{ width: "0%" }}
-                      animate={{ width: `${progress}%` }}
-                      transition={{ type: "spring", damping: 28, stiffness: 160, mass: 0.8 }}
-                    />
-                    {isUnlocked && (
-                      <div
-                        className="absolute inset-0 animate-shimmer"
+                  {/* Progress track + the free-delivery milestone circle. The
+                      line runs under the circle so the fill visually "reaches"
+                      the milestone when delivery unlocks. */}
+                  <div className="relative flex h-8 items-center pr-3.5">
+                    <div className="relative h-[2px] w-full bg-stone rounded-full overflow-hidden">
+                      <motion.div
+                        className="absolute inset-y-0 left-0 rounded-full"
                         style={{
                           background:
-                            "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
-                          backgroundSize: "200% 100%",
+                            "linear-gradient(90deg, var(--color-gold-dark), var(--color-gold), var(--color-gold-light))",
                         }}
+                        initial={{ width: "0%" }}
+                        animate={{ width: `${progress}%` }}
+                        transition={{ type: "spring", damping: 28, stiffness: 160, mass: 0.8 }}
                       />
-                    )}
+                      {isUnlocked && (
+                        <div
+                          className="absolute inset-0 animate-shimmer"
+                          style={{
+                            background:
+                              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
+                            backgroundSize: "200% 100%",
+                          }}
+                        />
+                      )}
+                    </div>
+                    <div
+                      className={`absolute right-0 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-500 ${
+                        isUnlocked
+                          ? "border-transparent text-paper shadow-[0_2px_10px_rgba(201,168,76,0.45)]"
+                          : "border-ink/20 bg-paper text-ink/35"
+                      }`}
+                      style={
+                        isUnlocked
+                          ? {
+                              background:
+                                "linear-gradient(135deg, var(--color-gold-dark), var(--color-gold))",
+                            }
+                          : undefined
+                      }
+                      aria-hidden
+                    >
+                      {/* Delivery van — the milestone's reward is shipping */}
+                      <svg
+                        className="h-3.5 w-3.5"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.6}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      >
+                        <rect x="1" y="5" width="13" height="10" rx="1" />
+                        <path d="M14 9h4l3 4v2h-7V9z" />
+                        <circle cx="5.5" cy="17.5" r="1.8" />
+                        <circle cx="17.5" cy="17.5" r="1.8" />
+                      </svg>
+                    </div>
                   </div>
                 </div>
 
@@ -313,6 +421,97 @@ export default function CartDrawer() {
                   ))}
                 </ul>
 
+                {/* Frequently bought with — collapsible upsell strip pinned
+                    above the totals, mirroring the classic "make it a set"
+                    cart pattern. Suggestions exclude pieces already in the
+                    bag. */}
+                {suggestions.length > 0 && (
+                  <div className="border-t border-ink/10 px-6 pt-4 pb-4">
+                    <button
+                      type="button"
+                      onClick={() => setSuggestionsOpen((o) => !o)}
+                      aria-expanded={suggestionsOpen}
+                      aria-controls="cart-suggestions"
+                      className="flex w-full items-center justify-between gap-3 text-left cursor-pointer group/fbw"
+                    >
+                      <span className="text-[10px] tracking-[0.22em] uppercase text-ink/50 group-hover/fbw:text-ink/80 font-body transition-colors">
+                        Frequently bought with
+                      </span>
+                      <svg
+                        className={`h-3.5 w-3.5 shrink-0 text-ink/40 group-hover/fbw:text-ink/70 transition-all duration-300 ${
+                          suggestionsOpen ? "rotate-180" : ""
+                        }`}
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={1.6}
+                        aria-hidden
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19 9l-7 7-7-7"
+                        />
+                      </svg>
+                    </button>
+                    <AnimatePresence initial={false}>
+                      {suggestionsOpen && (
+                        <motion.div
+                          key="fbw-list"
+                          id="cart-suggestions"
+                          className="overflow-hidden"
+                          initial={{ height: 0, opacity: 0 }}
+                          animate={{ height: "auto", opacity: 1 }}
+                          exit={{ height: 0, opacity: 0 }}
+                          transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
+                        >
+                          <ul className="space-y-2.5 pt-3">
+                      {suggestions.map((p) => (
+                        <li key={p.id} className="flex items-center gap-3">
+                          <Link
+                            href={`/products/${p.slug}`}
+                            onClick={closeCart}
+                            className="relative h-12 w-10 shrink-0 overflow-hidden bg-stone"
+                          >
+                            {p.image_url && (
+                              <Image
+                                src={p.image_url}
+                                alt={p.name}
+                                fill
+                                className="object-cover"
+                                sizes="40px"
+                              />
+                            )}
+                          </Link>
+                          <div className="min-w-0 flex-1">
+                            <Link
+                              href={`/products/${p.slug}`}
+                              onClick={closeCart}
+                              className="block truncate font-display text-[15px] leading-snug hover:text-ink/70 transition-colors"
+                            >
+                              {p.name}
+                            </Link>
+                            <span className="font-body text-xs text-ink/55">
+                              {formatPrice(Number(p.price))}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => addSuggestion(p)}
+                            aria-label={`Add ${p.name} to bag`}
+                            className="shrink-0 border border-ink/20 px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase font-body text-ink/70 hover:bg-ink hover:text-paper hover:border-ink transition-colors cursor-pointer"
+                          >
+                            + Add
+                          </button>
+                        </li>
+                      ))}
+                          </ul>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                )}
+
                 <footer className="border-t border-ink/10 px-6 py-6 space-y-4 bg-paper-warm">
                   {bundle ? (
                     <div className="space-y-2">
@@ -353,13 +552,40 @@ export default function CartDrawer() {
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center justify-between">
-                      <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
-                        Subtotal
-                      </span>
-                      <span className="font-display text-2xl">
-                        {formatPrice(subtotal)}
-                      </span>
+                    <div className="space-y-2">
+                      {stackPerk && (
+                        <div
+                          className="flex items-center justify-between text-sm"
+                          style={{ color: "var(--color-gold-dark)" }}
+                        >
+                          <span className="flex items-center gap-1.5">
+                            <svg
+                              className="w-3.5 h-3.5 shrink-0"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth={2}
+                              viewBox="0 0 24 24"
+                              aria-hidden
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M4.5 12.75l6 6 9-13.5"
+                              />
+                            </svg>
+                            {stackPerk.label}
+                          </span>
+                          <span>Free locker shipping</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
+                          Subtotal
+                        </span>
+                        <span className="font-display text-2xl">
+                          {formatPrice(subtotal)}
+                        </span>
+                      </div>
                     </div>
                   )}
                   <p className="text-xs text-ink/50">
@@ -390,6 +616,7 @@ export default function CartDrawer() {
                   >
                     Continue Shopping
                   </Link>
+                  <PaymentIcons className="pt-1" />
                 </footer>
               </>
             )}

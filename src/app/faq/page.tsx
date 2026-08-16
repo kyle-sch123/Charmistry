@@ -149,21 +149,54 @@ const faqGroups: FaqGroup[] = [
         a: (
           <>
             <p>
-              For hygiene reasons we only accept returns on{" "}
-              <span className="font-medium text-ink">
-                faulty, damaged or incorrect items
-              </span>{" "}
-              — not for change of mind, incorrect sizing, or normal wear and
-              tear.
-            </p>
-            <p>
-              If something arrives wrong or damaged, email{" "}
+              Changed your mind? You have{" "}
+              <span className="font-medium text-ink">7 days from delivery</span>{" "}
+              — email{" "}
               <a href="mailto:charmistryza@gmail.com" className={linkClass}>
                 charmistryza@gmail.com
               </a>{" "}
-              within{" "}
-              <span className="font-medium text-ink">7 days of delivery</span>.
-              Full details live on our{" "}
+              or WhatsApp us. Exchanges and{" "}
+              <span className="font-medium text-ink">110% store credit</span>{" "}
+              are free (we cover the return courier). Prefer a refund? Return
+              the item unworn in its original packaging and we&apos;ll refund
+              you in full — you cover the return courier (roughly R60 via a
+              Courier Guy locker). Earrings can&apos;t be returned once the
+              hygiene seal is broken.
+            </p>
+            <p>
+              If something arrives faulty, damaged or incorrect, that&apos;s on
+              us — we cover the return and replace it; just send a photo within
+              7 days. Full details live on our{" "}
+              <Link href="/shipping" className={linkClass}>
+                Shipping &amp; Returns
+              </Link>{" "}
+              page.
+            </p>
+          </>
+        ),
+      },
+      {
+        q: "What does the 6-month Charmistry Guarantee cover?",
+        a: (
+          <>
+            <p>
+              Every piece is guaranteed for{" "}
+              <span className="font-medium text-ink">
+                6 months from delivery
+              </span>
+              . If it tarnishes, discolours or develops a manufacturing fault
+              under normal wear — a failed clasp, lifting plating, a lost
+              stone — we&apos;ll replace it free, or issue{" "}
+              <span className="font-medium text-ink">110% store credit</span>{" "}
+              if the piece has been discontinued. Just email{" "}
+              <a href="mailto:charmistryza@gmail.com" className={linkClass}>
+                charmistryza@gmail.com
+              </a>{" "}
+              or WhatsApp us a photo with your order number.
+            </p>
+            <p>
+              Loss, theft and damage from misuse aren&apos;t covered. The full
+              terms live on our{" "}
               <Link href="/shipping" className={linkClass}>
                 Shipping &amp; Returns
               </Link>{" "}

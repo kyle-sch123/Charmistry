@@ -15,6 +15,7 @@ import CollectionsSection from "@/components/sections/CollectionsSection";
 import BestSellers from "@/components/sections/BestSellers";
 import AboutSection from "@/components/sections/AboutSection";
 import Testimonials from "@/components/sections/Testimonials";
+import AsSeenOnYou from "@/components/sections/AsSeenOnYou";
 import ShippingPayments from "@/components/sections/ShippingPayments";
 import AssuranceBanner from "@/components/sections/AssuranceBanner";
 import SectionDivider from "@/components/ui/SectionDivider";
@@ -54,6 +55,9 @@ export default async function Home() {
 
         <SectionDivider />
         <CollectionsSection pricing={editPricing} />
+
+        <SectionDivider />
+        <AsSeenOnYou />
 
         <SectionDivider />
         <ShippingPayments />

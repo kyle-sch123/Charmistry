@@ -15,6 +15,7 @@ import Footer from "@/components/layout/Footer";
 import ProductDetail from "@/components/product/ProductDetail";
 import ReviewSection from "@/components/product/ReviewSection";
 import StackBuilder from "@/components/product/StackBuilder";
+import AsSeenOnYou from "@/components/sections/AsSeenOnYou";
 import ProductCard from "@/components/ui/ProductCard";
 import {
   getProductBySlug,
@@ -122,6 +123,9 @@ export default async function ProductPage({
           {/* "Create Your Own Stack" — sits above the reviews. Renders only
               when every stack category has a purchasable candidate. */}
           <StackBuilder product={product} candidates={stackCandidates} />
+
+          {/* Latest @charmistry_za posts — social proof under the builder. */}
+          <AsSeenOnYou variant="product" />
 
           <ReviewSection
             productId={product.id}
