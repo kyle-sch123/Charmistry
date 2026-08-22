@@ -1,6 +1,10 @@
-/** Site footer — nav columns (Shop, Care, Connect) and the wordmark. */
-
-"use client";
+/**
+ * Site footer — nav columns (Shop, Care, Connect) and the wordmark.
+ *
+ * Server component: static markup plus <Link>s, rendered on every page.
+ * Marking it "use client" only bought it a hydration pass it has no state
+ * to spend.
+ */
 
 import Link from "next/link";
 
@@ -54,7 +58,7 @@ export default function Footer() {
               Charmistry
             </h2>
             <p
-              className="text-paper/40 uppercase"
+              className="text-paper/55 uppercase"
               style={{
                 fontFamily: "var(--font-body)",
                 fontSize: "10px",
@@ -70,7 +74,7 @@ export default function Footer() {
             {NAV_COLS.map((col) => (
               <div key={col.heading}>
                 <p
-                  className="text-paper/35 uppercase mb-5"
+                  className="text-paper/55 uppercase mb-5"
                   style={{
                     fontFamily: "var(--font-body)",
                     fontSize: "9px",

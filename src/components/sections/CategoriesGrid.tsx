@@ -43,7 +43,7 @@ export default function CategoriesGrid() {
   if (!ordered.length) return null;
 
   return (
-    <section className="bg-paper py-0">
+    <section className="bg-paper py-0 defer-paint">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         {/* Heading */}
         <motion.h2

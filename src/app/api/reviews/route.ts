@@ -1,19 +1,33 @@
 /**
- * Reviews endpoint — purchase-gated writes + public list.
+ * Reviews endpoint — signed-in writes + public list.
  *
- * Why a route (and not a direct browser RLS write like the wishlist): three
- * things must happen server-side with the service role, and none can be trusted
- * to the client —
- *   1. Purchase gate: the reviewer must own a PAID order containing the piece.
- *   2. Aggregate cache: products.rating / products.review_count are recomputed
+ * Any signed-in account may review any piece; there is deliberately NO
+ * purchase gate. It used to require a PAID order containing the piece, which
+ * left genuine customers unable to review (guest checkouts, gifts, orders
+ * placed on another account) and kept the review count near zero.
+ *
+ * Sign-in is still required, and it is what keeps the endpoint honest: the
+ * identity comes from the verified session cookie (getVerifiedUser), never
+ * from the request body, and the one-review-per-piece rule below is keyed to
+ * it. Dropping that too would make this an unauthenticated write endpoint with
+ * no rate limiting.
+ *
+ * Why a route (and not a direct browser RLS write like the wishlist): two
+ * things must happen server-side with the service role, and neither can be
+ * trusted to the client —
+ *   1. Aggregate cache: products.rating / products.review_count are recomputed
  *      across every metal variant of the piece so the PDP header and shop cards
  *      stay accurate.
- *   3. One review per user per piece: the piece spans multiple product rows, so
+ *   2. One review per user per piece: the piece spans multiple product rows, so
  *      the upsert has to look across variant ids, not a single (user, product).
  *
- * Identity comes from the verified session cookie (getVerifiedUser) — never
- * from the request body. author_name is snapshotted from the profile as a
- * "First L." string so the public read path never touches profiles.
+ * DELETE removes the caller's own review for a piece. It is scoped to
+ * `user_id = session user` on the server, so the productId in the query can
+ * only ever reach the caller's own row — there is no way to spell a request
+ * that deletes someone else's review.
+ *
+ * author_name is snapshotted from the profile as a "First L." string so the
+ * public read path never touches profiles.
  *
  * Reviews are scoped to the logical piece: rows sharing (name, category_id).
  */
@@ -180,34 +194,15 @@ export async function POST(request: Request) {
   }
   if (pieceIds.length === 0) pieceIds = [product.id];
 
-  // --- Attach any unclaimed guest orders ------------------------------------
-  // A buyer who checked out as a guest and only made an account afterwards may
-  // still have paid orders sitting on user_id = null. Claiming normally happens
-  // on the auth routes / the /account layout, but the client-side email-OTP
-  // sign-in redirects straight back here (next=/products/…) without passing
-  // through any of them, so the order would otherwise stay unattached and the
-  // purchase gate below would wrongly reject a genuine buyer. This is the same
-  // idempotent, email-matched, never-throwing claim; running it here closes
-  // that gap regardless of how the user signed in.
+  // --- Make sure a profile exists -------------------------------------------
+  // The author name below is snapshotted from the profile row, and a reviewer
+  // arriving straight from the client-side email-OTP sign-in
+  // (next=/products/…) has never passed through the auth routes or the
+  // /account layout that normally create it. This is the same idempotent,
+  // never-throwing helper those paths use; it also opportunistically attaches
+  // any guest orders matching the verified email, which is harmless here and
+  // useful for the shopper's order history.
   await ensureProfileAndClaimOrders(user);
-
-  // --- Purchase gate --------------------------------------------------------
-  // The reviewer must own a PAID order whose items include any variant of the
-  // piece. Service role bypasses RLS, so scope explicitly to this user.
-  const { data: purchased, error: purchaseError } = await supabase
-    .from("order_items")
-    .select("id, orders!inner(user_id, status)")
-    .in("product_id", pieceIds)
-    .eq("orders.user_id", user.id)
-    .eq("orders.status", "paid")
-    .limit(1);
-  if (purchaseError) {
-    console.error("reviews: purchase check failed", purchaseError);
-    return Response.json({ error: "service_error" }, { status: 500 });
-  }
-  if (!purchased || purchased.length === 0) {
-    return Response.json({ error: "not_purchased" }, { status: 403 });
-  }
 
   // --- Author name snapshot -------------------------------------------------
   const { data: profile } = await supabase
@@ -280,6 +275,72 @@ export async function POST(request: Request) {
   }
 
   return Response.json({ review: saved }, { status: existing ? 200 : 201 });
+}
+
+/**
+ * DELETE /api/reviews?productId=<uuid> — remove the caller's own review of the
+ * piece. Idempotent-ish: 404 when they have nothing to delete, so a double-tap
+ * can't be mistaken for a permissions problem.
+ *
+ * The Klaviyo "Submitted Review" event is deliberately NOT retracted — the
+ * reward coupon has already been issued and dropping the review shouldn't try
+ * to claw it back.
+ */
+export async function DELETE(request: Request) {
+  const user = await getVerifiedUser();
+  if (!user) {
+    return Response.json({ error: "unauthorised" }, { status: 401 });
+  }
+
+  const productId = new URL(request.url).searchParams.get("productId") ?? "";
+  if (!UUID_RE.test(productId)) {
+    return Response.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const supabase = createServerSupabase();
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, name, category_id")
+    .eq("id", productId)
+    .maybeSingle<Pick<Product, "id" | "name" | "category_id">>();
+  if (productError) {
+    console.error("reviews: product lookup failed", productError);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (!product) {
+    return Response.json({ error: "product_not_found" }, { status: 404 });
+  }
+
+  let pieceIds: string[];
+  try {
+    pieceIds = await getPieceProductIds(supabase, product);
+  } catch (err) {
+    console.error("reviews: piece lookup failed", err);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (pieceIds.length === 0) pieceIds = [product.id];
+
+  // Scoped to this user AND this piece. The service role bypasses RLS, so the
+  // user_id filter is the only thing standing between a request and someone
+  // else's review — it is not optional.
+  const { data: deleted, error: deleteError } = await supabase
+    .from("reviews")
+    .delete()
+    .eq("user_id", user.id)
+    .in("product_id", pieceIds)
+    .select("id")
+    .returns<Pick<Review, "id">[]>();
+  if (deleteError) {
+    console.error("reviews: delete failed", deleteError);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (!deleted || deleted.length === 0) {
+    return Response.json({ error: "review_not_found" }, { status: 404 });
+  }
+
+  await refreshPieceAggregate(supabase, pieceIds);
+
+  return Response.json({ deleted: deleted.map((r) => r.id) }, { status: 200 });
 }
 
 /**

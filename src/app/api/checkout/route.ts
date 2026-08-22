@@ -242,9 +242,9 @@ export async function POST(request: Request) {
   //   2. A typed discount code — only honoured when no bundle applies, so a
   //      code can't be stacked on top of an already-discounted edit.
   //
-  // The category/mix stacks are NOT discounts any more — they award free
-  // locker-to-locker shipping (resolved below, independent of this block), so
-  // they neither appear as a discount line nor block a typed code.
+  // The category/mix stacks resolve through the same `bundle` call (they take
+  // a percentage off their qualifying lines), so they behave exactly like the
+  // edit here: they show as a discount line and they suppress a typed code.
   //
   // Consumption of a typed code happens after order insert so a failed insert
   // doesn't permanently consume it.

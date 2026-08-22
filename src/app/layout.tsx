@@ -49,6 +49,16 @@ export default function RootLayout({
       className={`${cormorant.variable} ${outfit.variable} ${gilda.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {/* Every product and category image on the site is served from this
+            Supabase Storage origin, and the first request for one is discovered
+            late (client-fetched sections). Warming the connection saves the
+            DNS + TLS round trips off that first image. React hoists these into
+            <head>. */}
+        <link rel="preconnect" href="https://qkgakhluqruqoifknprg.supabase.co" />
+        <link
+          rel="dns-prefetch"
+          href="https://qkgakhluqruqoifknprg.supabase.co"
+        />
         <GoogleAnalytics />
         <MetaPixel />
         <Klaviyo />

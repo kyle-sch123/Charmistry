@@ -14,7 +14,7 @@ const track = [...testimonials, ...testimonials];
 
 export default function Testimonials() {
   return (
-    <section className="bg-paper py-0 overflow-hidden">
+    <section className="bg-paper py-0 overflow-hidden defer-paint">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         <div className="grid grid-cols-1 lg:grid-cols-[1fr_minmax(340px,420px)] xl:grid-cols-[1fr_460px] gap-6 lg:gap-8 items-center">
           {/* ── Right (desktop): sticky heading ── */}
@@ -126,7 +126,7 @@ function TestimonialCard({ testimonial }: { testimonial: Testimonial }) {
       "
     >
       {/* Stars */}
-      <div className="flex gap-1" aria-label="5 stars">
+      <div className="flex gap-1" role="img" aria-label="5 stars">
         {Array.from({ length: 5 }).map((_, i) => (
           <StarIcon key={i} />
         ))}
