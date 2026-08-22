@@ -1,0 +1,22 @@
+# Cache rules for the static assets Cloudflare Workers serves from
+# .open-next/assets (everything under public/ is copied in alongside _next).
+#
+# Workers Assets was answering /_next/static/* with `max-age=0,
+# must-revalidate`, so every repeat visit re-validated every chunk, stylesheet
+# and font. Those filenames are content-hashed by the build, so they can never
+# go stale — a year plus `immutable` is the correct answer for them.
+
+/_next/static/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Hashed by next/font, same reasoning.
+/_next/static/media/*
+  Cache-Control: public, max-age=31536000, immutable
+
+# Not content-hashed, so keep a revalidation window rather than pinning them
+# forever — a month is long enough to serve repeat visits from disk.
+/videos/*
+  Cache-Control: public, max-age=2592000
+
+/*.svg
+  Cache-Control: public, max-age=2592000

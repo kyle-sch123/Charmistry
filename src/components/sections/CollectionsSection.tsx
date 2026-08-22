@@ -64,14 +64,14 @@ const PIECES: Piece[] = [
     name: "Sole Ring",
     role: "Stacking ring",
     slug: "sole-rings-gold",
-    image: `${BUCKET}/everyday-sole-mila.webp`,
+    image: `${BUCKET}/Sole-everyday-edit.webp`,
     alt: "The Sole gold ring worn with the Mila bangle",
   },
   {
     name: "Mila Bracelet",
     role: "Bangle bracelet",
     slug: "mila-bracelets-gold",
-    image: `${BUCKET}/everyday-sole-mila.webp`,
+    image: `${BUCKET}/Sole-everyday-edit.webp`,
     alt: "The Mila gold bangle bracelet on the wrist",
   },
 ];

@@ -2,16 +2,49 @@
 
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import ScrollReveal from "@/components/ui/ScrollReveal";
 
-const FEATURES = [
-  { label: "Shower proof:", value: "Absolutely." },
-  { label: "Tarnish resistant:", value: "100% (No green skin, ever)." },
-  { label: "High maintenance:", value: "Never." },
-];
+// Each promise reads as a ticked box rather than a question/answer pair — the
+// claim carries itself, so the check is the whole answer.
+const FEATURES = ["Shower-safe", "Sweat-safe", "Sea-safe"];
 
 export default function AboutSection() {
+  // `preload="none"` is a hint autoplay overrides: Chrome fetched the 600KB
+  // WebM during the initial page load even though this section sits well below
+  // the fold, so it competed with the hero image for bandwidth. Withholding the
+  // <source> elements until the section approaches the viewport is the only
+  // reliable way to hold the fetch back.
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [sourcesMounted, setSourcesMounted] = useState(false);
+
+  useEffect(() => {
+    const el = videoRef.current;
+    if (!el) return;
+    if (typeof IntersectionObserver === "undefined") {
+      const timer = setTimeout(() => setSourcesMounted(true), 0);
+      return () => clearTimeout(timer);
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          setSourcesMounted(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "300px" },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Sources added after mount are invisible to the element until it re-reads
+  // them; load() also kicks off autoplay.
+  useEffect(() => {
+    if (sourcesMounted) videoRef.current?.load();
+  }, [sourcesMounted]);
+
   return (
     <section id="about" className="bg-paper overflow-hidden scroll-mt-24">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16 py-0">
@@ -29,6 +62,7 @@ export default function AboutSection() {
                   the (lazily fetched) video streams in; WebM is preferred where
                   supported, with an H.264 MP4 fallback. */}
               <video
+                ref={videoRef}
                 className="absolute inset-0 h-full w-full object-cover object-center"
                 poster="/videos/about-slow-mornings-poster.webp"
                 autoPlay
@@ -38,8 +72,18 @@ export default function AboutSection() {
                 preload="none"
                 aria-label="Charmistry stainless steel jewellery worn through a slow morning routine"
               >
-                <source src="/videos/about-slow-mornings.webm" type="video/webm" />
-                <source src="/videos/about-slow-mornings.mp4" type="video/mp4" />
+                {sourcesMounted && (
+                  <>
+                    <source
+                      src="/videos/about-slow-mornings.webm"
+                      type="video/webm"
+                    />
+                    <source
+                      src="/videos/about-slow-mornings.mp4"
+                      type="video/mp4"
+                    />
+                  </>
+                )}
               </video>
             </motion.div>
           </div>
@@ -77,18 +121,29 @@ export default function AboutSection() {
                 </p>
 
                 <ul className="flex flex-col gap-3 border-y border-ink/10 py-6">
-                  {FEATURES.map((f) => (
+                  {FEATURES.map((label) => (
                     <li
-                      key={f.label}
-                      className="uppercase"
+                      key={label}
+                      className="flex items-center justify-center lg:justify-start gap-2.5 uppercase"
                       style={{
                         fontFamily: "var(--font-body)",
                         fontSize: "13px",
                         letterSpacing: "0.14em",
                       }}
                     >
-                      <span className="text-ink font-semibold">{f.label}</span>{" "}
-                      <span className="text-ink-tertiary">{f.value}</span>
+                      <svg
+                        className="h-3.5 w-3.5 shrink-0 text-gold-dark"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth={2.4}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        aria-hidden
+                      >
+                        <path d="M4.5 12.75l6 6 9-13.5" />
+                      </svg>
+                      <span className="text-ink font-semibold">{label}</span>
                     </li>
                   ))}
                 </ul>

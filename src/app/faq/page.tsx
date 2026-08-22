@@ -176,13 +176,13 @@ const faqGroups: FaqGroup[] = [
         ),
       },
       {
-        q: "What does the 6-month Charmistry Guarantee cover?",
+        q: "What does the 12-month Charmistry Guarantee cover?",
         a: (
           <>
             <p>
               Every piece is guaranteed for{" "}
               <span className="font-medium text-ink">
-                6 months from delivery
+                12 months from delivery
               </span>
               . If it tarnishes, discolours or develops a manufacturing fault
               under normal wear — a failed clasp, lifting plating, a lost

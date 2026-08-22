@@ -13,7 +13,7 @@
 const PHRASES = [
   "Free Shipping Over R700",
   "Live in it: Waterproof + Tarnish-Resistant",
-  "Backed by the Charmistry Guarantee",
+  "Backed by the 12-Month Charmistry Guarantee",
   "Nationwide Shipping From R49",
 ];
 

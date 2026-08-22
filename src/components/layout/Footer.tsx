@@ -54,7 +54,7 @@ export default function Footer() {
               Charmistry
             </h2>
             <p
-              className="text-paper/40 uppercase"
+              className="text-paper/55 uppercase"
               style={{
                 fontFamily: "var(--font-body)",
                 fontSize: "10px",
@@ -70,7 +70,7 @@ export default function Footer() {
             {NAV_COLS.map((col) => (
               <div key={col.heading}>
                 <p
-                  className="text-paper/35 uppercase mb-5"
+                  className="text-paper/55 uppercase mb-5"
                   style={{
                     fontFamily: "var(--font-body)",
                     fontSize: "9px",

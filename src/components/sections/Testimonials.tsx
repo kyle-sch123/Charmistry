@@ -126,7 +126,7 @@ function TestimonialCard({ testimonial }: { testimonial: Testimonial }) {
       "
     >
       {/* Stars */}
-      <div className="flex gap-1" aria-label="5 stars">
+      <div className="flex gap-1" role="img" aria-label="5 stars">
         {Array.from({ length: 5 }).map((_, i) => (
           <StarIcon key={i} />
         ))}

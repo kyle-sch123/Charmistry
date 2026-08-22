@@ -1,4 +1,14 @@
-/** Home hero — full-bleed image with parallax scale, scroll-fade copy. */
+/**
+ * Home hero — full-bleed image with parallax scale, scroll-fade copy.
+ *
+ * Perf note: every *entrance* animation here is CSS (see the `hero-*`
+ * keyframes in globals.css), not framer-motion `initial`/`animate`. A JS
+ * entrance ships the element to the browser at `opacity: 0` and only reveals
+ * it once the client bundle has hydrated — and the headline below is this
+ * page's LCP element, so that cost 3.7s of pure render delay on throttled
+ * mobile. CSS animations start on first paint. framer-motion is kept only for
+ * the scroll-linked parallax, which has nothing to reveal.
+ */
 
 "use client";
 
@@ -35,6 +45,7 @@ export default function HeroSection() {
           fill
           className="object-cover object-center"
           priority
+          sizes="100vw"
         />
         {/* Slight overlay to keep text legible */}
         <div className="absolute inset-0 bg-black/20" />
@@ -50,18 +61,14 @@ export default function HeroSection() {
         }}
       />
 
-      {/* Center content */}
+      {/* Center content — the wrapper carries only the scroll-linked fade, so
+          the CSS entrance animations below never fight an inline style. */}
       <motion.div
         className="absolute inset-0 z-20 flex flex-col items-center justify-center"
         style={{ opacity: contentOpacity, y: contentY }}
       >
         {/* Top accent */}
-        <motion.div
-          className="flex items-center gap-5 mb-10"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.2 }}
-        >
+        <div className="flex items-center gap-5 mb-10 animate-hero-fade [animation-delay:0.2s]">
           <div className="h-px w-12 sm:w-20 bg-white/60" />
           <span
             className="text-white/80 text-[10px] tracking-[0.35em] sm:tracking-[0.55em] uppercase"
@@ -70,11 +77,11 @@ export default function HeroSection() {
             Est. 2025
           </span>
           <div className="h-px w-12 sm:w-20 bg-white/60" />
-        </motion.div>
+        </div>
 
         {/* Brand name — single blur-dissolve reveal */}
-        <motion.h1
-          className="text-white"
+        <h1
+          className="text-white animate-hero-dissolve [animation-delay:0.025s]"
           style={{
             fontFamily: "var(--font-heading)",
             fontSize: "clamp(2.2rem, 13vw, 11.5rem)",
@@ -83,24 +90,12 @@ export default function HeroSection() {
             fontWeight: 400,
             textTransform: "uppercase",
           }}
-          initial={{ opacity: 0, filter: "blur(18px)", y: 14 }}
-          animate={{ opacity: 1, filter: "blur(0px)", y: 0 }}
-          transition={{
-            duration: 0.5,
-            ease: [0.25, 0.46, 0.45, 0.94],
-            delay: 0.025,
-          }}
         >
           Charmistry
-        </motion.h1>
+        </h1>
 
         {/* Bottom accent */}
-        <motion.div
-          className="flex items-center gap-5 mt-10"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut", delay: 0.35 }}
-        >
+        <div className="flex items-center gap-5 mt-10 animate-hero-fade [animation-delay:0.35s]">
           <div className="h-px w-8 sm:w-12 bg-white/55" />
           <span
             className="text-white/75 text-[10px] tracking-[0.3em] sm:tracking-[0.55em] uppercase"
@@ -109,59 +104,44 @@ export default function HeroSection() {
             THE JEWELLERY YOU LIVE IN
           </span>
           <div className="h-px w-8 sm:w-12 bg-white/55" />
-        </motion.div>
+        </div>
       </motion.div>
 
       {/* Scroll indicator */}
       <motion.div
-        className="absolute bottom-9 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2.5"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ delay: 2.2, duration: 1.2, ease: "easeOut" }}
+        className="absolute bottom-9 left-1/2 -translate-x-1/2 z-20"
         style={{ opacity: contentOpacity }}
       >
-        <motion.div
-          className="w-px h-11 origin-top bg-gradient-to-b from-white/50 to-transparent"
-          animate={{ scaleY: [0, 1, 0] }}
-          transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-        />
-        <span
-          className="text-white/60 text-[10px] tracking-[0.4em] uppercase"
-          style={{ fontFamily: "var(--font-body)" }}
-        >
-          EXPLORE BESTSELLERS
-        </span>
+        <div className="flex flex-col items-center gap-2.5 animate-hero-fade [animation-delay:2.2s] [animation-duration:1.2s]">
+          <div className="w-px h-11 origin-top bg-gradient-to-b from-white/50 to-transparent animate-hero-scan" />
+          <span
+            className="text-white/60 text-[10px] tracking-[0.4em] uppercase"
+            style={{ fontFamily: "var(--font-body)" }}
+          >
+            EXPLORE BESTSELLERS
+          </span>
+        </div>
       </motion.div>
 
       {/* Corner label — top left */}
-      <motion.div
-        className="absolute top-28 left-7 z-20 hidden lg:block"
-        initial={{ opacity: 0, x: -10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1.2, delay: 2.0, ease: "easeOut" }}
-      >
+      <div className="absolute top-28 left-7 z-20 hidden lg:block animate-hero-slide-left [animation-delay:2s]">
         <span
           className="text-white/55 text-[9px] tracking-[0.35em] uppercase [writing-mode:vertical-rl] rotate-180"
           style={{ fontFamily: "var(--font-body)" }}
         >
           South Africa
         </span>
-      </motion.div>
+      </div>
 
       {/* Corner label — top right */}
-      <motion.div
-        className="absolute top-28 right-7 z-20 hidden lg:block"
-        initial={{ opacity: 0, x: 10 }}
-        animate={{ opacity: 1, x: 0 }}
-        transition={{ duration: 1.2, delay: 2.0, ease: "easeOut" }}
-      >
+      <div className="absolute top-28 right-7 z-20 hidden lg:block animate-hero-slide-right [animation-delay:2s]">
         <span
           className="text-white/55 text-[9px] tracking-[0.35em] uppercase [writing-mode:vertical-rl]"
           style={{ fontFamily: "var(--font-body)" }}
         >
           High Quality
         </span>
-      </motion.div>
+      </div>
     </section>
   );
 }
