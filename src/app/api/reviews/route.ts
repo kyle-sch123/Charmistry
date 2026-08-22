@@ -21,6 +21,11 @@
  *   2. One review per user per piece: the piece spans multiple product rows, so
  *      the upsert has to look across variant ids, not a single (user, product).
  *
+ * DELETE removes the caller's own review for a piece. It is scoped to
+ * `user_id = session user` on the server, so the productId in the query can
+ * only ever reach the caller's own row — there is no way to spell a request
+ * that deletes someone else's review.
+ *
  * author_name is snapshotted from the profile as a "First L." string so the
  * public read path never touches profiles.
  *
@@ -270,6 +275,72 @@ export async function POST(request: Request) {
   }
 
   return Response.json({ review: saved }, { status: existing ? 200 : 201 });
+}
+
+/**
+ * DELETE /api/reviews?productId=<uuid> — remove the caller's own review of the
+ * piece. Idempotent-ish: 404 when they have nothing to delete, so a double-tap
+ * can't be mistaken for a permissions problem.
+ *
+ * The Klaviyo "Submitted Review" event is deliberately NOT retracted — the
+ * reward coupon has already been issued and dropping the review shouldn't try
+ * to claw it back.
+ */
+export async function DELETE(request: Request) {
+  const user = await getVerifiedUser();
+  if (!user) {
+    return Response.json({ error: "unauthorised" }, { status: 401 });
+  }
+
+  const productId = new URL(request.url).searchParams.get("productId") ?? "";
+  if (!UUID_RE.test(productId)) {
+    return Response.json({ error: "invalid_request" }, { status: 400 });
+  }
+
+  const supabase = createServerSupabase();
+  const { data: product, error: productError } = await supabase
+    .from("products")
+    .select("id, name, category_id")
+    .eq("id", productId)
+    .maybeSingle<Pick<Product, "id" | "name" | "category_id">>();
+  if (productError) {
+    console.error("reviews: product lookup failed", productError);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (!product) {
+    return Response.json({ error: "product_not_found" }, { status: 404 });
+  }
+
+  let pieceIds: string[];
+  try {
+    pieceIds = await getPieceProductIds(supabase, product);
+  } catch (err) {
+    console.error("reviews: piece lookup failed", err);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (pieceIds.length === 0) pieceIds = [product.id];
+
+  // Scoped to this user AND this piece. The service role bypasses RLS, so the
+  // user_id filter is the only thing standing between a request and someone
+  // else's review — it is not optional.
+  const { data: deleted, error: deleteError } = await supabase
+    .from("reviews")
+    .delete()
+    .eq("user_id", user.id)
+    .in("product_id", pieceIds)
+    .select("id")
+    .returns<Pick<Review, "id">[]>();
+  if (deleteError) {
+    console.error("reviews: delete failed", deleteError);
+    return Response.json({ error: "service_error" }, { status: 500 });
+  }
+  if (!deleted || deleted.length === 0) {
+    return Response.json({ error: "review_not_found" }, { status: 404 });
+  }
+
+  await refreshPieceAggregate(supabase, pieceIds);
+
+  return Response.json({ deleted: deleted.map((r) => r.id) }, { status: 200 });
 }
 
 /**

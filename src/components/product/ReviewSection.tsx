@@ -10,6 +10,11 @@
  * "Write a review" CTA checks auth on mount: signed-out visitors get a sign-in
  * prompt, and every signed-in shopper gets the form — owning the piece is not
  * a condition.
+ *
+ * A shopper's own review carries Edit and Delete on the card itself, rather
+ * than only behind the sidebar CTA: the card is where someone looks for them.
+ * Delete is a two-step inline confirm (it can't be undone) and goes to
+ * DELETE /api/reviews, which scopes the removal to the session user.
  */
 
 "use client";
@@ -45,6 +50,12 @@ export default function ReviewSection({
   const [authChecked, setAuthChecked] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [signInPrompt, setSignInPrompt] = useState(false);
+  // Deleting is irreversible, so the button asks once before it does it. An
+  // inline confirm rather than a dialog: the whole interaction stays on the
+  // card being deleted, which is the thing the shopper is looking at.
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const summary = useMemo(() => computeRatingSummary(reviews), [reviews]);
   const ownReview = useMemo(
@@ -96,6 +107,35 @@ export default function ReviewSection({
     });
     setShowForm(false);
     void refresh();
+  }
+
+  async function handleDelete() {
+    if (!ownReview) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await fetch(`/api/reviews?productId=${productId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) {
+        setDeleteError(
+          res.status === 401
+            ? "Your session expired — please sign in again."
+            : "Couldn't remove your review. Please try again.",
+        );
+        return;
+      }
+      // Drop it locally so the summary and bars settle immediately, then
+      // reconcile with the server.
+      setReviews((prev) => prev.filter((r) => r.id !== ownReview.id));
+      setConfirmingDelete(false);
+      setShowForm(false);
+      void refresh();
+    } catch {
+      setDeleteError("Couldn't remove your review. Please try again.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   return (
@@ -199,19 +239,84 @@ export default function ReviewSection({
             </div>
           ) : (
             <ul className="divide-y divide-ink/10">
-              {reviews.map((review) => (
+              {reviews.map((review) => {
+                const isOwn = review.id === ownReview?.id;
+                return (
                 <li key={review.id} className="py-7 first:pt-0">
                   <div className="flex items-center gap-3">
                     <span className="flex items-center justify-center w-10 h-10 rounded-full bg-ink/[0.06] text-ink/70 font-heading text-sm">
                       {initialsFor(review.author_name)}
                     </span>
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <p className="font-body text-sm font-semibold text-ink">
                         {review.author_name}
+                        {isOwn && (
+                          <span className="ml-2 font-normal text-[10px] tracking-[0.18em] uppercase text-ink/40">
+                            Your review
+                          </span>
+                        )}
                       </p>
                       <Stars value={review.rating} className="mt-0.5" starClassName="w-3.5 h-3.5" />
                     </div>
+
+                    {/* Own-review controls. They live on the card rather than
+                        only behind "Edit your review" in the sidebar, because
+                        the card is where a shopper looks for them. */}
+                    {isOwn && !confirmingDelete && (
+                      <div className="flex shrink-0 items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setShowForm(true);
+                          }}
+                          className="font-body text-[11px] tracking-[0.14em] uppercase text-ink/50 hover:text-ink transition-colors cursor-pointer"
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDeleteError(null);
+                            setConfirmingDelete(true);
+                          }}
+                          className="font-body text-[11px] tracking-[0.14em] uppercase text-ink/50 hover:text-red-700 transition-colors cursor-pointer"
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
+
+                    {isOwn && confirmingDelete && (
+                      <div className="flex shrink-0 items-center gap-3">
+                        <span className="font-body text-[11px] text-ink/60">
+                          Delete this review?
+                        </span>
+                        <button
+                          type="button"
+                          onClick={handleDelete}
+                          disabled={deleting}
+                          className="font-body text-[11px] tracking-[0.14em] uppercase text-red-700 hover:text-red-800 transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          {deleting ? "Removing…" : "Yes, delete"}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setConfirmingDelete(false)}
+                          disabled={deleting}
+                          className="font-body text-[11px] tracking-[0.14em] uppercase text-ink/50 hover:text-ink transition-colors cursor-pointer disabled:opacity-50"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
                   </div>
+
+                  {isOwn && deleteError && (
+                    <p className="mt-3 font-body text-sm text-red-700">
+                      {deleteError}
+                    </p>
+                  )}
                   {review.title && (
                     <p className="mt-4 font-body text-sm font-semibold text-ink">
                       {review.title}
@@ -221,7 +326,8 @@ export default function ReviewSection({
                     {review.body}
                   </p>
                 </li>
-              ))}
+                );
+              })}
             </ul>
           )}
         </div>

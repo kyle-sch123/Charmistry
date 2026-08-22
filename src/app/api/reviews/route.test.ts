@@ -59,7 +59,8 @@ const H = vi.hoisted(() => {
   const stamp = "2026-07-21T00:00:00.000Z";
 
   class Query {
-    private op: "select" | "insert" | "update" | "upsert" = "select";
+    private op: "select" | "insert" | "update" | "upsert" | "delete" =
+      "select";
     private cols = "*";
     private filters: Filter[] = [];
     private isSingle = false;
@@ -109,6 +110,10 @@ const H = vi.hoisted(() => {
     insert(rows: Row | Row[]) {
       this.op = "insert";
       this.rows = Array.isArray(rows) ? rows : [rows];
+      return this;
+    }
+    delete() {
+      this.op = "delete";
       return this;
     }
     upsert(rows: Row | Row[], opts: Query["upsertOpts"]) {
@@ -168,6 +173,18 @@ const H = vi.hoisted(() => {
           }
         }
         return null;
+      }
+
+      if (this.op === "delete") {
+        const rows = this.base();
+        const doomed = rows.filter((row) =>
+          this.filters.every((f) => matches(row, f)),
+        );
+        db[this.table] = rows.filter((row) => !doomed.includes(row));
+        const out = doomed.map((r) => ({ ...r }));
+        if (this.isSingle) return out[0];
+        if (this.isMaybe) return out[0] ?? null;
+        return out;
       }
 
       if (this.op === "update") {
@@ -308,11 +325,113 @@ async function postReview(body: unknown) {
 
 const VALID = { rating: 5, title: "Beautiful", body: "Wear it every day." };
 
+async function deleteReview(productId: string) {
+  const { DELETE } = await import("@/app/api/reviews/route");
+  const res = await DELETE(
+    new Request(`http://localhost/api/reviews?productId=${productId}`, {
+      method: "DELETE",
+    }),
+  );
+  return { status: res.status, json: await res.json().catch(() => null) };
+}
+
 beforeEach(() => {
   H.reset();
   seedCatalogue();
   KLAVIYO.track.mockClear();
   KLAVIYO.configured = true;
+});
+
+describe("DELETE /api/reviews", () => {
+  it("removes the caller's own review and rewrites the piece aggregate", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: GOLD, ...VALID });
+    expect(H.db.reviews).toHaveLength(1);
+
+    // Deleting from the SILVER page must still find the review left on GOLD —
+    // one review spans the whole piece.
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(200);
+    expect((json?.deleted as string[]).length).toBe(1);
+    expect(H.db.reviews).toHaveLength(0);
+
+    // The cache has to fall back to "no reviews" across every variant, or the
+    // PDP header and shop cards keep advertising a rating nobody left.
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    const gold = H.db.products.find((p) => p.id === GOLD)!;
+    expect(silver.review_count).toBe(0);
+    expect(gold.review_count).toBe(0);
+    expect(silver.rating).toBeNull();
+  });
+
+  it("never touches someone else's review of the same piece", async () => {
+    // Two reviewers on one piece; user-1 deletes. user-2's must survive, and
+    // the aggregate must reflect the one that remains.
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: SILVER, rating: 2, body: "Not for me." });
+
+    seedProfile("user-2", "Sam", "K");
+    signIn({ id: "user-2", email: "sam@x.com" });
+    await postReview({ productId: SILVER, rating: 4, body: "Lovely." });
+    expect(H.db.reviews).toHaveLength(2);
+
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status } = await deleteReview(SILVER);
+
+    expect(status).toBe(200);
+    expect(H.db.reviews).toHaveLength(1);
+    expect(H.db.reviews[0].user_id).toBe("user-2");
+
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    expect(silver.review_count).toBe(1);
+    expect(silver.rating).toBe(4);
+  });
+
+  it("404s when the caller has no review to delete", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(404);
+    expect(json?.error).toBe("review_not_found");
+  });
+
+  it("404s rather than deleting when another shopper reviewed but the caller did not", async () => {
+    seedProfile("user-2", "Sam", "K");
+    signIn({ id: "user-2", email: "sam@x.com" });
+    await postReview({ productId: SILVER, ...VALID });
+
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(404);
+    expect(json?.error).toBe("review_not_found");
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("requires a signed-in session", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: SILVER, ...VALID });
+
+    H.ctx.user = null;
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(401);
+    expect(json?.error).toBe("unauthorised");
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("rejects a malformed productId", async () => {
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status } = await deleteReview("not-a-uuid");
+    expect(status).toBe(400);
+  });
 });
 
 describe("POST /api/reviews — no purchase gate", () => {
