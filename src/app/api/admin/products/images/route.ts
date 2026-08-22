@@ -66,9 +66,16 @@ export async function POST(request: Request) {
   const bytes = new Uint8Array(await file.arrayBuffer());
 
   const supabase = createServerSupabase();
-  const { error } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(path, bytes, { contentType: "image/webp", upsert: true });
+  // Every upload gets a fresh UUID path above, so an object at a given path is
+  // immutable in practice — a replacement image is a new URL, never a rewrite
+  // of this one. Supabase Storage defaults to `max-age=3600`, which had
+  // Lighthouse re-fetching the whole catalogue every hour; a year is the
+  // correct answer for content that can't change under its own URL.
+  const { error } = await supabase.storage.from(BUCKET_NAME).upload(path, bytes, {
+    contentType: "image/webp",
+    cacheControl: "31536000",
+    upsert: true,
+  });
   if (error) {
     console.error("Admin catalogue image upload failed", error);
     return Response.json({ error: "upload_failed" }, { status: 500 });

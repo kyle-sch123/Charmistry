@@ -14,8 +14,37 @@
 
 import { useRef } from "react";
 import { motion, useScroll, useTransform } from "framer-motion";
-import Image from "next/image";
 import heroImage from "@/assets/images/hero-section.webp";
+import hero1280 from "@/assets/images/hero-section-1280.webp";
+import hero1920 from "@/assets/images/hero-section-1920.webp";
+
+/**
+ * `images.unoptimized` is on (Cloudflare Workers doesn't run Next's
+ * optimizer), so next/image emits one `src` and no srcset — every phone was
+ * pulling the full 2880px, 221KB master. Hence a plain <img> with a srcset
+ * built from committed variants (see scripts/generate-hero-variants.mjs).
+ */
+/**
+ * The 2880 master is deliberately NOT offered here. `sizes` describes a CSS
+ * width that the browser multiplies by DPR, so it cannot cap the file a phone
+ * picks — a DPR-2.6 screen asks for ~2900px however the sizes are written, and
+ * takes the largest candidate. Capping the ladder itself is the only way to
+ * bound it: 1920 for 144KB instead of 221KB. That is ~1.5x rather than 2.6x
+ * the CSS pixels, which is imperceptible under a black/20 overlay and a grain
+ * texture, on an image that is pure background.
+ */
+const HERO_SRCSET = [
+  `${hero1280.src} 1280w`,
+  `${hero1920.src} 1920w`,
+].join(", ");
+
+/**
+ * The hero is object-cover on a full-viewport box, so it renders at
+ * max(100vw, 100vh × 4/3) — on a portrait phone that is WIDER than the
+ * viewport, which is why a plain "100vw" would under-select and hand small
+ * screens a needlessly soft image.
+ */
+const HERO_SIZES = "(orientation: portrait) 134vh, 100vw";
 
 export default function HeroSection() {
   const sectionRef = useRef<HTMLDivElement>(null);
@@ -34,18 +63,28 @@ export default function HeroSection() {
       ref={sectionRef}
       className="relative h-screen w-full overflow-hidden"
     >
-      {/* Full-bleed image with parallax */}
+      {/* Full-bleed image with parallax.
+
+          Deliberately NOT preloaded and NOT fetchPriority="high". This page's
+          LCP element is the headline below — text, which needs only the CSS
+          and the heading font. Promoting a 221KB decorative background to High
+          put it in front of them on the wire and pushed LCP render delay from
+          3.9s to 4.7s. At default priority it loads alongside, and Speed Index
+          is unaffected. */}
       <motion.div
         className="absolute inset-0"
         style={{ scale: imageScale, y: imageY }}
       >
-        <Image
-          src={heroImage}
-          alt="Luxury jewellry editorial"
-          fill
-          className="object-cover object-center"
-          priority
-          sizes="100vw"
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={hero1920.src}
+          srcSet={HERO_SRCSET}
+          sizes={HERO_SIZES}
+          width={heroImage.width}
+          height={heroImage.height}
+          alt="Luxury jewellery editorial"
+          decoding="async"
+          className="absolute inset-0 h-full w-full object-cover object-center"
         />
         {/* Slight overlay to keep text legible */}
         <div className="absolute inset-0 bg-black/20" />
