@@ -5,17 +5,19 @@
  * The sibling of RingsStackBanner: same compact gold band, but instead of
  * linking out to a collection it anchors down to the StackBuilder module on
  * the same page (id="stack-builder"), where the shopper can assemble the trio
- * in place. Copy is driven off MIX_MATCH_STACK (the same object /api/checkout
- * honours) so the promise shown here can never drift from the perk actually
- * applied.
+ * in place. The percentage is read from MIX_MATCH_STACK (the same object
+ * /api/checkout honours) so the promise shown here can never drift from the
+ * discount actually charged.
  */
+
+import { MIX_MATCH_STACK } from "@/lib/bundles";
 
 export default function MixStackBanner() {
   return (
     <a
       href="#stack-builder"
       className="group mt-8 flex items-center gap-3.5 border border-gold/40 bg-gold-muted px-4 py-3.5 transition-colors duration-300 hover:border-gold/70 hover:bg-gold/25 cursor-pointer"
-      aria-label={`Create your own stack: pair a necklace, earrings and a bracelet for free locker-to-locker shipping. Jump to the stack builder.`}
+      aria-label={`Create your own stack: pair a necklace, earrings and a bracelet for ${MIX_MATCH_STACK.percentOff}% off. Jump to the stack builder.`}
     >
       {/* Trio of linked pieces */}
       <svg
@@ -44,7 +46,7 @@ export default function MixStackBanner() {
           Create Your Own Stack
         </span>
         {" — "}Pair a necklace, earrings &amp; a bracelet for{" "}
-        <span className="font-medium">free locker-to-locker shipping</span>,
+        <span className="font-medium">{MIX_MATCH_STACK.percentOff}% off</span>,
         applied automatically at checkout.
       </p>
 

@@ -223,6 +223,19 @@
     background-color: rgba(10, 10, 10, 0.22);
   }
 
+  /* Below-the-fold marketing sections: let the browser skip their layout,
+     style and paint work until they are close to the viewport. The home page
+     was spending ~250ms per layout pass on ~860 nodes before anything had been
+     shown. `auto` on contain-intrinsic-size means the placeholder height is
+     only a first-pass guess — the real size is remembered once a section has
+     rendered, so scrolling back never jumps.
+     Never put this on anything above the fold: it would defer the very work
+     the first paint depends on. */
+  .defer-paint {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 900px;
+  }
+
   /* Scroll-snap carousels carry their own affordance (dots / a peeking card),
      so the native bar is only noise under them. */
   .scrollbar-none {

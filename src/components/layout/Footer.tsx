@@ -1,6 +1,10 @@
-/** Site footer — nav columns (Shop, Care, Connect) and the wordmark. */
-
-"use client";
+/**
+ * Site footer — nav columns (Shop, Care, Connect) and the wordmark.
+ *
+ * Server component: static markup plus <Link>s, rendered on every page.
+ * Marking it "use client" only bought it a hydration pass it has no state
+ * to spend.
+ */
 
 import Link from "next/link";
 

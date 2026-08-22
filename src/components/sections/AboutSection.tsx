@@ -46,7 +46,7 @@ export default function AboutSection() {
   }, [sourcesMounted]);
 
   return (
-    <section id="about" className="bg-paper overflow-hidden scroll-mt-24">
+    <section id="about" className="bg-paper overflow-hidden scroll-mt-24 defer-paint">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16 py-0">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center">
           {/* Left: lifestyle video */}

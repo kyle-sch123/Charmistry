@@ -88,7 +88,7 @@ export default function CollectionsSection({
   const total = String(PIECES.length).padStart(2, "0");
 
   return (
-    <section className="bg-paper">
+    <section className="bg-paper defer-paint">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         {/* ── Header ── */}
         <motion.div

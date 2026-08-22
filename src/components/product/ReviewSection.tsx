@@ -5,10 +5,11 @@
  *
  * Reviews are scoped to the piece (all metal variants), fetched server-side in
  * page.tsx and passed in as initialReviews. Writes go through ReviewForm →
- * /api/reviews (purchase-gated); after a save we re-pull the list via GET so
- * the summary + bars update without a full reload. The "Write a review" CTA
- * checks auth on mount: signed-out visitors get a sign-in prompt, signed-in
- * buyers get the form (a non-buyer is rejected by the API with a clear message).
+ * /api/reviews (sign-in required, no purchase gate); after a save we re-pull
+ * the list via GET so the summary + bars update without a full reload. The
+ * "Write a review" CTA checks auth on mount: signed-out visitors get a sign-in
+ * prompt, and every signed-in shopper gets the form — owning the piece is not
+ * a condition.
  */
 
 "use client";
@@ -148,8 +149,8 @@ export default function ReviewSection({
           <div className="mt-10">
             <h3 className="font-heading text-lg text-ink">Share your thoughts</h3>
             <p className="mt-2 font-body text-sm text-ink/60 leading-relaxed">
-              If you&rsquo;ve worn this piece, tell other customers what you
-              think. Reviews are open to verified buyers.
+              Tell other customers what you think of this piece. Sign in and
+              you can leave a review — no order required.
             </p>
 
             {!showForm && (

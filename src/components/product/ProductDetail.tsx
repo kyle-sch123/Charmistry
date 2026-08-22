@@ -214,9 +214,9 @@ export default function ProductDetail({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1.15fr_1fr] gap-10 lg:gap-16">
+    <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.15fr)_minmax(0,1fr)] gap-10 lg:gap-16">
       {/* Gallery */}
-      <div className="flex flex-col-reverse md:flex-row gap-4">
+      <div className="flex flex-col-reverse md:flex-row md:items-start gap-4">
         {gallery.length > 1 && (
           <div className="flex md:flex-col gap-3 md:w-20">
             {gallery.map((src, i) => (
@@ -243,7 +243,7 @@ export default function ProductDetail({
         )}
 
         <div
-          className="group/gallery relative flex-1 aspect-[4/5] overflow-hidden bg-stone cursor-zoom-in"
+          className="group/gallery relative w-full min-w-0 flex-1 aspect-[4/5] overflow-hidden bg-stone cursor-zoom-in"
           onClick={() => gallery[activeImage] && setLightboxAt(activeImage)}
         >
           <AnimatePresence mode="wait">

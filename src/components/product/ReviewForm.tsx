@@ -1,5 +1,5 @@
 /**
- * Review submission form. Posts to /api/reviews, which enforces the purchase
+ * Review submission form. Posts to /api/reviews, which requires a signed-in
  * gate server-side — this component just surfaces the outcome. Follows the
  * SettingsClient submit-state convention (idle | saving | saved) with an
  * inline error banner.
@@ -28,7 +28,6 @@ type SaveState = "idle" | "saving";
 
 const ERROR_COPY: Record<string, string> = {
   unauthorised: "Your session expired — please sign in again.",
-  not_purchased: "Only verified buyers can review this piece.",
   invalid_rating: "Please choose a rating from 1 to 5 stars.",
   empty_body: "Please write a few words about the piece.",
   body_too_long: "Your review is a little too long.",
