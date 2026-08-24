@@ -47,6 +47,9 @@ export interface AdminVariant {
   image_url: string | null;
   /** True on the one variant that represents the piece on the shop grid. */
   shop_featured: boolean;
+  /** True when this variant is kept off the shop's browse surfaces entirely
+   *  (its product page still works). Toggled per row in VariantRow. */
+  shop_hidden: boolean;
 }
 
 export interface AdminPiece {

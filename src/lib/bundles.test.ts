@@ -1,12 +1,30 @@
 import { describe, expect, it } from "vitest";
 import {
   EVERYDAY_EDIT_BUNDLE,
+  DAILY_AFFAIR_BUNDLE,
   RINGS_STACK,
   MIX_MATCH_STACK,
   resolveBundleDiscount,
   resolveShippingPerk,
   type BundleLine,
 } from "@/lib/bundles";
+import {
+  DAILY_AFFAIR_PIECES,
+  DAILY_AFFAIR_SAVINGS,
+} from "@/lib/daily-affair";
+// The seed script is plain .mjs (it runs under bare node, not Next), so its
+// rows arrive untyped. Shape them here — that shape is itself part of the
+// contract this file guards.
+import { SEED_ROWS as RAW_SEED_ROWS } from "../../scripts/seed-daily-affair.mjs";
+
+interface SeedRow {
+  slug: string;
+  name: string;
+  metal: "gold" | "silver";
+  price: number;
+  category: string;
+}
+const SEED_ROWS = RAW_SEED_ROWS as SeedRow[];
 
 const EDIT = EVERYDAY_EDIT_BUNDLE.itemSlugs;
 
@@ -252,5 +270,108 @@ describe("resolveShippingPerk — Everyday Edit", () => {
     expect(
       resolveShippingPerk([{ slug: "random-piece", quantity: 2 }]),
     ).toBeNull();
+  });
+});
+
+describe("DAILY_AFFAIR_BUNDLE config", () => {
+  // The Everyday Edit keeps its slugs in two hand-maintained lists guarded by
+  // the tripwire above. The Daily Affair derives them instead, so the drift
+  // this asserts is structurally impossible — the test documents that contract
+  // rather than policing a copy-paste.
+  it("derives its slugs from the collection's pieces", () => {
+    expect(DAILY_AFFAIR_BUNDLE.itemSlugs).toEqual(
+      DAILY_AFFAIR_PIECES.map((p) => p.slug),
+    );
+    expect(DAILY_AFFAIR_BUNDLE.itemSlugs).toHaveLength(5);
+  });
+
+  it("saves the same amount the collection page advertises", () => {
+    expect(DAILY_AFFAIR_BUNDLE.discountPerSet).toBe(DAILY_AFFAIR_SAVINGS);
+  });
+
+  it("cannot collide with the Everyday Edit", () => {
+    const overlap = DAILY_AFFAIR_BUNDLE.itemSlugs.filter((s) =>
+      EVERYDAY_EDIT_BUNDLE.itemSlugs.includes(s),
+    );
+    expect(overlap).toEqual([]);
+  });
+});
+
+describe("resolveBundleDiscount — The Daily Affair", () => {
+  const fullAffair = (): BundleLine[] =>
+    DAILY_AFFAIR_BUNDLE.itemSlugs.map((slug) => ({ slug, quantity: 1 }));
+
+  // The point of this one: the bundle ships before its catalogue rows exist.
+  // An empty/unrelated cart must never see it, or the page would promise a
+  // saving checkout wouldn't honour.
+  it("stays inert for carts that don't hold the edit", () => {
+    expect(resolveBundleDiscount([])).toBeNull();
+    expect(
+      resolveBundleDiscount([{ slug: "ivy-rings-gold", quantity: 3 }]),
+    ).toBeNull();
+  });
+
+  it("applies once every piece is in the bag", () => {
+    const result = resolveBundleDiscount(fullAffair());
+    expect(result?.code).toBe("DAILY-AFFAIR");
+    expect(result?.amount).toBe(DAILY_AFFAIR_SAVINGS);
+    expect(result?.sets).toBe(1);
+  });
+
+  it("does not apply when a single piece is missing", () => {
+    const short = fullAffair().slice(0, -1);
+    expect(resolveBundleDiscount(short)).toBeNull();
+  });
+
+  it("counts complete sets by the scarcest piece", () => {
+    const lines = DAILY_AFFAIR_BUNDLE.itemSlugs.map((slug, i) => ({
+      slug,
+      quantity: i === 0 ? 1 : 2,
+    }));
+    expect(resolveBundleDiscount(lines)?.sets).toBe(1);
+  });
+
+  it("earns free delivery on any method", () => {
+    const perk = resolveShippingPerk(fullAffair());
+    expect(perk?.code).toBe("DAILY-AFFAIR");
+    expect(perk?.perk).toBe("all_methods");
+  });
+});
+
+describe("seed-daily-affair.mjs stays in step with the collection", () => {
+  // The seed script writes the catalogue rows the bundle matches on. If a slug
+  // or a price is edited in one place and not the other, the page advertises a
+  // saving that resolveBundleDiscount will never grant — and nothing else in
+  // the system would notice. This is that alarm.
+  const edit = SEED_ROWS.filter((r) => r.metal === "gold");
+  const rowFor = (slug: string) => {
+    const row = SEED_ROWS.find((r) => r.slug === slug);
+    if (!row) throw new Error(`no seed row for ${slug}`);
+    return row;
+  };
+
+  it("seeds exactly the five gold pieces the edit is built from", () => {
+    expect(edit.map((r) => r.slug)).toEqual(
+      DAILY_AFFAIR_PIECES.map((p) => p.slug),
+    );
+  });
+
+  it("seeds each piece at the price the page displays", () => {
+    for (const piece of DAILY_AFFAIR_PIECES) {
+      expect(rowFor(piece.slug).price, `price drift on ${piece.slug}`).toBe(
+        piece.price,
+      );
+    }
+  });
+
+  it("files each piece under the category the page names", () => {
+    for (const piece of DAILY_AFFAIR_PIECES) {
+      expect(rowFor(piece.slug).category).toBe(piece.category);
+    }
+  });
+
+  it("gives every seeded row a unique slug", () => {
+    const slugs = SEED_ROWS.map((r) => r.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
   });
 });

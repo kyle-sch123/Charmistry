@@ -88,7 +88,10 @@ export async function getShopProducts(
     ? "*, categories!inner(name, slug)"
     : PRODUCT_SELECT;
 
-  let query = supabase.from("products").select(select);
+  // shop_hidden rows never reach a browse surface — see the note on the
+  // products.shop_hidden column (migration 011). The product PAGE stays
+  // reachable; only discovery is filtered.
+  let query = supabase.from("products").select(select).eq("shop_hidden", false);
 
   if (categorySlug) query = query.eq("categories.slug", categorySlug);
   if (inStockOnly) query = query.eq("in_stock", true);
@@ -258,6 +261,7 @@ export async function getStackCandidates(
     .from("products")
     .select("*, categories!inner(name, slug)")
     .in("categories.slug", categorySlugs)
+    .eq("shop_hidden", false)
     .eq("in_stock", true)
     .gt("quantity", 0)
     .order("review_count", { ascending: false })
@@ -285,6 +289,7 @@ export async function getRelatedProducts(
     .select(PRODUCT_SELECT)
     .eq("category_id", categoryId)
     .neq("id", excludeId)
+    .eq("shop_hidden", false)
     .eq("in_stock", true)
     .limit(limit);
 
@@ -304,6 +309,7 @@ export async function searchProducts(
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
+    .eq("shop_hidden", false)
     .or(`name.ilike.${pattern},description.ilike.${pattern}`)
     .limit(limit);
 

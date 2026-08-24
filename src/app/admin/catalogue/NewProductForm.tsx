@@ -18,6 +18,8 @@ const blankVariant = (): EditableVariant => ({
   price: "",
   quantity: "0",
   in_stock: false,
+  // New products are visible by default; untick per variant to stage one.
+  shop_hidden: false,
   size: "",
   images: [],
 });

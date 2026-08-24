@@ -24,7 +24,7 @@ import { getProductBySlug } from "@/lib/queries";
 import { EVERYDAY_EDIT_BUNDLE } from "@/lib/bundles";
 import { formatPrice } from "@/lib/utils";
 import type { ProductWithCategory } from "@/types";
-import AddEditButton from "./AddEditButton";
+import AddEditButton from "@/components/product/AddEditButton";
 
 export const metadata: Metadata = {
   title: "The Everyday Edit | Charmistry",

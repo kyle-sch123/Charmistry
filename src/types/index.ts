@@ -52,6 +52,13 @@ export interface Product {
    * because rows predate migration 010 — treat absent as false.
    */
   shop_featured?: boolean;
+  /**
+   * Keeps this row out of the shop's browse + discovery surfaces (the /shop
+   * grid, search, stack builder, related, best sellers) while leaving its
+   * product page reachable. Set from /admin/catalogue. Optional because rows
+   * predate migration 011 — treat absent as false (visible).
+   */
+  shop_hidden?: boolean;
   in_stock: boolean;
   rating: number | null;
   review_count: number;
