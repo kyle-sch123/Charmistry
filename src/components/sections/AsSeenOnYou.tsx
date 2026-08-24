@@ -5,9 +5,9 @@
  * placeholder tiles linking to the profile when no feed source is configured
  * — the layout stays reviewable and the page never breaks over a social API.
  *
- * Two placements (variant):
- *   - "home"    — full marketing section between the home page's dividers.
- *   - "product" — compact strip under the PDP StackBuilder.
+ * Home page only — a full marketing section between the home page's dividers.
+ * It used to have a compact "product" variant under the PDP StackBuilder; the
+ * PDP is long enough without it.
  */
 
 import Image from "next/image";
@@ -78,11 +78,7 @@ function Tile({ post, index }: { post: InstagramPost | null; index: number }) {
   );
 }
 
-export default async function AsSeenOnYou({
-  variant = "home",
-}: {
-  variant?: "home" | "product";
-}) {
+export default async function AsSeenOnYou() {
   const posts = await getInstagramPosts(4);
   // Always render four tiles — real posts first, placeholders for the rest.
   const tiles: (InstagramPost | null)[] = Array.from(
@@ -110,27 +106,8 @@ export default async function AsSeenOnYou({
     </a>
   );
 
-  if (variant === "product") {
-    return (
-      <section aria-label="As seen on you" className="mt-24">
-        <div className="mb-8 flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="mb-2 text-[11px] tracking-[0.25em] uppercase text-ink/55 font-body">
-              @{INSTAGRAM_HANDLE}
-            </p>
-            <h2 className="font-display text-3xl font-light md:text-4xl">
-              As seen on you
-            </h2>
-          </div>
-          {followLink}
-        </div>
-        {grid}
-      </section>
-    );
-  }
-
   return (
-    <section aria-label="As seen on you" className="bg-paper">
+    <section aria-label="As seen on you" className="bg-paper defer-paint">
       <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
         <div className="mb-10 flex flex-wrap items-end justify-between gap-6">
           <div>

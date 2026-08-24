@@ -190,7 +190,7 @@ const sections = [
         <p>
           Every piece is backed by the Charmistry Guarantee for{" "}
           <span className="font-medium text-ink">
-            6 months from delivery
+            12 months from delivery
           </span>
           . If your piece tarnishes, discolours or develops a manufacturing
           fault under normal wear — a failed clasp, lifting plating, a lost

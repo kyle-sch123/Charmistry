@@ -13,6 +13,19 @@ describe("formatPrice", () => {
     expect(formatted.startsWith("R")).toBe(true);
     expect(formatted.replace(/\D/g, "")).toBe("1234");
   });
+
+  it("shows both cents digits, never a lone one", () => {
+    // A 10% stack discount on a R527 trio lands on R474.30 — the default
+    // toLocaleString drops the trailing zero and renders "R474,3".
+    expect(formatPrice(474.3).replace(/\D/g, "")).toBe("47430");
+    expect(formatPrice(52.7).replace(/\D/g, "")).toBe("5270");
+    expect(formatPrice(12.34).replace(/\D/g, "")).toBe("1234");
+  });
+
+  it("leaves whole rands without a decimal part", () => {
+    expect(formatPrice(159)).toBe("R159");
+    expect(formatPrice(0)).toBe("R0");
+  });
 });
 
 describe("isAdjustableSize", () => {

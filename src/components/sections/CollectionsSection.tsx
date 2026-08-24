@@ -64,14 +64,14 @@ const PIECES: Piece[] = [
     name: "Sole Ring",
     role: "Stacking ring",
     slug: "sole-rings-gold",
-    image: `${BUCKET}/everyday-sole-mila.webp`,
+    image: `${BUCKET}/Sole-everyday-edit.webp`,
     alt: "The Sole gold ring worn with the Mila bangle",
   },
   {
     name: "Mila Bracelet",
     role: "Bangle bracelet",
     slug: "mila-bracelets-gold",
-    image: `${BUCKET}/everyday-sole-mila.webp`,
+    image: `${BUCKET}/Sole-everyday-edit.webp`,
     alt: "The Mila gold bangle bracelet on the wrist",
   },
 ];
@@ -88,7 +88,7 @@ export default function CollectionsSection({
   const total = String(PIECES.length).padStart(2, "0");
 
   return (
-    <section className="bg-paper">
+    <section className="bg-paper defer-paint">
       <div className="max-w-7xl mx-auto px-6 md:px-10 lg:px-16">
         {/* ── Header ── */}
         <motion.div

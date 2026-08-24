@@ -41,7 +41,7 @@ const IMG = {
   heroNovaLucy: `${BUCKET}/everyday-nova-lucy.webp`,
   earring: `${BUCKET}/everyday-earring.webp`,
   nova: `${BUCKET}/everyday-nova.webp`,
-  soleMila: `${BUCKET}/everyday-sole-mila.webp`,
+  soleMila: `${BUCKET}/Sole-everyday-edit.webp`,
 };
 
 /** The saving the cart actually applies — never re-type it as a literal. */

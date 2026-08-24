@@ -129,8 +129,9 @@ export default function CheckoutClient() {
     [lines],
   );
   const bundle = useMemo(() => resolveBundleDiscount(bundleLines), [bundleLines]);
-  // Cart-earned shipping perk (stacks → free locker; Everyday Edit → free on
-  // any method). Independent of the ZAR discount, mirrored in /api/checkout.
+  // Cart-earned shipping perk — the Everyday Edit's free delivery on any
+  // method. Independent of the ZAR discount, mirrored in /api/checkout. The
+  // stacks pay out as money off instead, so they arrive via `bundle`.
   const shippingPerk = useMemo(
     () => resolveShippingPerk(bundleLines),
     [bundleLines],
@@ -803,38 +804,6 @@ export default function CheckoutClient() {
               <p className="mt-2 text-[11px] text-red-600">{discountError}</p>
             )}
           </div>
-          )}
-
-          {/* Stack-earned shipping perk — shown separately from the bundle
-              card because a stack is not a discount line: it frees the locker
-              method (and doesn't block a typed code above). */}
-          {shippingPerk && shippingPerk.code !== bundle?.code && (
-            <div className="mt-4 flex items-center gap-3 border border-gold/40 bg-gold-muted px-4 py-3.5">
-              <svg
-                className="w-4 h-4 shrink-0 text-gold-dark"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth={2}
-                viewBox="0 0 24 24"
-                aria-hidden
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M4.5 12.75l6 6 9-13.5"
-                />
-              </svg>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-body text-ink truncate">
-                  {shippingPerk.label}
-                </span>
-                <span className="text-[11px] text-ink/55">
-                  {shippingPerk.perk === "all_methods"
-                    ? "Free delivery unlocked"
-                    : "Free locker-to-locker shipping unlocked"}
-                </span>
-              </div>
-            </div>
           )}
 
           <div className="mt-6 pt-6 border-t border-ink/10 space-y-2">

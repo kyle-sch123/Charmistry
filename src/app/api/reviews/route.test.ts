@@ -1,18 +1,24 @@
 /**
- * Route-level tests for POST /api/reviews, focused on the guest-order claiming
- * gap: a buyer who checked out as a guest and only created an account later
- * must still be able to review the piece they bought.
+ * Route-level tests for POST /api/reviews.
+ *
+ * There is no purchase gate: any signed-in account may review any piece, and
+ * the first block below pins that down from several angles, because it is a
+ * deliberate policy choice that is easy to "helpfully" reintroduce.
+ *
+ * The second block covers the profile/guest-order claim the route still runs.
+ * It no longer decides whether a review is accepted — it exists so the author
+ * name has a profile row to snapshot — but it does still attach matching guest
+ * orders, and these tests hold that behaviour steady.
  *
  * These are integration-style: a small in-memory fake Supabase stands in for
  * the service-role client and is SHARED between the route and the *real*
  * ensureProfileAndClaimOrders (both resolve createServerSupabase from the same
- * mocked module). That means the claim genuinely flips orders.user_id and the
- * purchase gate genuinely reads it back — so "the review succeeded" proves the
- * claim actually ran inside the request, not that a spy was called.
+ * mocked module), so the claim genuinely flips orders.user_id rather than a spy
+ * being called.
  *
  * The fake implements only the query shapes these two modules use (select /
  * insert / update / upsert with eq / is / in / ilike / limit / maybeSingle /
- * single, plus the order_items→orders!inner join the purchase gate relies on).
+ * single, plus an order_items→orders!inner join).
  */
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -53,7 +59,8 @@ const H = vi.hoisted(() => {
   const stamp = "2026-07-21T00:00:00.000Z";
 
   class Query {
-    private op: "select" | "insert" | "update" | "upsert" = "select";
+    private op: "select" | "insert" | "update" | "upsert" | "delete" =
+      "select";
     private cols = "*";
     private filters: Filter[] = [];
     private isSingle = false;
@@ -103,6 +110,10 @@ const H = vi.hoisted(() => {
     insert(rows: Row | Row[]) {
       this.op = "insert";
       this.rows = Array.isArray(rows) ? rows : [rows];
+      return this;
+    }
+    delete() {
+      this.op = "delete";
       return this;
     }
     upsert(rows: Row | Row[], opts: Query["upsertOpts"]) {
@@ -162,6 +173,18 @@ const H = vi.hoisted(() => {
           }
         }
         return null;
+      }
+
+      if (this.op === "delete") {
+        const rows = this.base();
+        const doomed = rows.filter((row) =>
+          this.filters.every((f) => matches(row, f)),
+        );
+        db[this.table] = rows.filter((row) => !doomed.includes(row));
+        const out = doomed.map((r) => ({ ...r }));
+        if (this.isSingle) return out[0];
+        if (this.isMaybe) return out[0] ?? null;
+        return out;
       }
 
       if (this.op === "update") {
@@ -302,6 +325,16 @@ async function postReview(body: unknown) {
 
 const VALID = { rating: 5, title: "Beautiful", body: "Wear it every day." };
 
+async function deleteReview(productId: string) {
+  const { DELETE } = await import("@/app/api/reviews/route");
+  const res = await DELETE(
+    new Request(`http://localhost/api/reviews?productId=${productId}`, {
+      method: "DELETE",
+    }),
+  );
+  return { status: res.status, json: await res.json().catch(() => null) };
+}
+
 beforeEach(() => {
   H.reset();
   seedCatalogue();
@@ -309,8 +342,161 @@ beforeEach(() => {
   KLAVIYO.configured = true;
 });
 
-describe("POST /api/reviews — guest-order claiming gap", () => {
-  it("claims an unattached guest order during the request, then accepts the review", async () => {
+describe("DELETE /api/reviews", () => {
+  it("removes the caller's own review and rewrites the piece aggregate", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: GOLD, ...VALID });
+    expect(H.db.reviews).toHaveLength(1);
+
+    // Deleting from the SILVER page must still find the review left on GOLD —
+    // one review spans the whole piece.
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(200);
+    expect((json?.deleted as string[]).length).toBe(1);
+    expect(H.db.reviews).toHaveLength(0);
+
+    // The cache has to fall back to "no reviews" across every variant, or the
+    // PDP header and shop cards keep advertising a rating nobody left.
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    const gold = H.db.products.find((p) => p.id === GOLD)!;
+    expect(silver.review_count).toBe(0);
+    expect(gold.review_count).toBe(0);
+    expect(silver.rating).toBeNull();
+  });
+
+  it("never touches someone else's review of the same piece", async () => {
+    // Two reviewers on one piece; user-1 deletes. user-2's must survive, and
+    // the aggregate must reflect the one that remains.
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: SILVER, rating: 2, body: "Not for me." });
+
+    seedProfile("user-2", "Sam", "K");
+    signIn({ id: "user-2", email: "sam@x.com" });
+    await postReview({ productId: SILVER, rating: 4, body: "Lovely." });
+    expect(H.db.reviews).toHaveLength(2);
+
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status } = await deleteReview(SILVER);
+
+    expect(status).toBe(200);
+    expect(H.db.reviews).toHaveLength(1);
+    expect(H.db.reviews[0].user_id).toBe("user-2");
+
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    expect(silver.review_count).toBe(1);
+    expect(silver.rating).toBe(4);
+  });
+
+  it("404s when the caller has no review to delete", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(404);
+    expect(json?.error).toBe("review_not_found");
+  });
+
+  it("404s rather than deleting when another shopper reviewed but the caller did not", async () => {
+    seedProfile("user-2", "Sam", "K");
+    signIn({ id: "user-2", email: "sam@x.com" });
+    await postReview({ productId: SILVER, ...VALID });
+
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(404);
+    expect(json?.error).toBe("review_not_found");
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("requires a signed-in session", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: SILVER, ...VALID });
+
+    H.ctx.user = null;
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(401);
+    expect(json?.error).toBe("unauthorised");
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("rejects a malformed productId", async () => {
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status } = await deleteReview("not-a-uuid");
+    expect(status).toBe(400);
+  });
+});
+
+describe("POST /api/reviews — no purchase gate", () => {
+  it("accepts a signed-in shopper who has never ordered anything", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" }); // no orders at all
+
+    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(201);
+    const review = json?.review as Record<string, unknown>;
+    expect(review.user_id).toBe("user-1");
+    expect(review.author_name).toBe("Jane D.");
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("accepts a shopper who only ever bought a different piece", async () => {
+    // A paid order exists but for a DIFFERENT piece (decoy), plus an unrelated
+    // person's order for this piece. Neither is a reason to refuse.
+    H.db.orders.push({ id: "o-other", email: "someone@else.com", status: "paid", user_id: "user-9" });
+    H.db.order_items.push({ id: "i-other", order_id: "o-other", product_id: SILVER });
+    seedGuestOrder({ email: "jane@x.com", userId: "user-1", productId: DECOY });
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(201);
+    expect(H.db.reviews).toHaveLength(1);
+  });
+
+  it("accepts a shopper whose only order for the piece is unpaid", async () => {
+    seedGuestOrder({ email: "jane@x.com", userId: "user-1", status: "pending" });
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    const { status } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(201);
+  });
+
+  it("still writes the piece-wide aggregate cache for a non-buyer's review", async () => {
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+
+    await postReview({ productId: GOLD, rating: 4, body: "Lovely in person." });
+
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    const gold = H.db.products.find((p) => p.id === GOLD)!;
+    expect(silver.review_count).toBe(1);
+    expect(gold.review_count).toBe(1);
+    expect(silver.rating).toBe(4);
+  });
+
+  it("still requires a signed-in session — open to accounts, not to anyone", async () => {
+    H.ctx.user = null;
+    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+    expect(status).toBe(401);
+    expect(json?.error).toBe("unauthorised");
+    expect(H.db.reviews).toHaveLength(0);
+  });
+});
+
+describe("POST /api/reviews — guest-order claiming", () => {
+  it("claims an unattached guest order during the request", async () => {
     // Bought SILVER as a guest; account created afterwards; reviewing on the
     // GOLD variant page. Nothing has claimed the order yet (the OTP-path gap).
     const orderId = seedGuestOrder({ email: "jane@x.com", productId: SILVER });
@@ -365,41 +551,37 @@ describe("POST /api/reviews — guest-order claiming gap", () => {
   });
 
   it("does NOT over-claim a plus-aliased / differently-spelled email", async () => {
-    // Deliberate design: claiming is an exact match, not canonicalised.
+    // Deliberate design: claiming is an exact match, not canonicalised. The
+    // review is still accepted — claiming has nothing to do with that any more.
     seedGuestOrder({ email: "jane@x.com" });
     seedProfile("user-1");
     signIn({ id: "user-1", email: "jane+shop@x.com" });
 
-    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+    const { status } = await postReview({ productId: SILVER, ...VALID });
 
-    expect(status).toBe(403);
-    expect(json?.error).toBe("not_purchased");
+    expect(status).toBe(201);
     expect(H.db.orders[0].user_id).toBeNull(); // never attached
-    expect(H.db.reviews).toHaveLength(0);
   });
 
-  it("claims the order but still rejects when it is not paid", async () => {
+  it("claims regardless of order status", async () => {
     const orderId = seedGuestOrder({ email: "jane@x.com", status: "pending" });
     seedProfile("user-1");
     signIn({ id: "user-1", email: "jane@x.com" });
 
-    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+    const { status } = await postReview({ productId: SILVER, ...VALID });
 
-    expect(status).toBe(403);
-    expect(json?.error).toBe("not_purchased");
-    // Claim is status-agnostic, so the row IS attached — the gate is what holds.
+    expect(status).toBe(201);
     expect(H.db.orders.find((o) => o.id === orderId)!.user_id).toBe("user-1");
   });
 
-  it("does not claim (and rejects) when the user's email is unverified", async () => {
+  it("does not claim when the user's email is unverified", async () => {
     seedGuestOrder({ email: "jane@x.com" });
     seedProfile("user-1");
     signIn({ id: "user-1", email: "jane@x.com", verified: false });
 
-    const { status, json } = await postReview({ productId: SILVER, ...VALID });
+    const { status } = await postReview({ productId: SILVER, ...VALID });
 
-    expect(status).toBe(403);
-    expect(json?.error).toBe("not_purchased");
+    expect(status).toBe(201);
     expect(H.db.orders[0].user_id).toBeNull();
   });
 });
@@ -414,22 +596,6 @@ describe("POST /api/reviews — existing behaviour still holds", () => {
 
     expect(status).toBe(201);
     expect((json?.review as Record<string, unknown>).user_id).toBe("user-1");
-  });
-
-  it("rejects an authenticated user who never bought the piece", async () => {
-    // A paid order exists but for a DIFFERENT piece (decoy), plus an unrelated
-    // person's order for this piece.
-    H.db.orders.push({ id: "o-other", email: "someone@else.com", status: "paid", user_id: "user-9" });
-    H.db.order_items.push({ id: "i-other", order_id: "o-other", product_id: SILVER });
-    seedGuestOrder({ email: "jane@x.com", userId: "user-1", productId: DECOY });
-    seedProfile("user-1");
-    signIn({ id: "user-1", email: "jane@x.com" });
-
-    const { status, json } = await postReview({ productId: SILVER, ...VALID });
-
-    expect(status).toBe(403);
-    expect(json?.error).toBe("not_purchased");
-    expect(H.db.reviews).toHaveLength(0);
   });
 
   it("updates the existing review instead of duplicating across variants", async () => {
@@ -453,13 +619,6 @@ describe("POST /api/reviews — existing behaviour still holds", () => {
 
     // The reward fires on the create only — the edit must not re-trigger it.
     expect(KLAVIYO.track).toHaveBeenCalledTimes(1);
-  });
-
-  it("returns 401 when unauthenticated", async () => {
-    H.ctx.user = null;
-    const { status, json } = await postReview({ productId: SILVER, ...VALID });
-    expect(status).toBe(401);
-    expect(json?.error).toBe("unauthorised");
   });
 
   it("returns 400 for a malformed productId", async () => {
@@ -489,13 +648,22 @@ describe("POST /api/reviews — existing behaviour still holds", () => {
 });
 
 describe("POST /api/reviews — Klaviyo 'Submitted Review' event", () => {
-  it("does not fire when the purchase gate rejects the reviewer", async () => {
+  it("fires for a first-time reviewer who never bought the piece", async () => {
     seedProfile("user-1");
     signIn({ id: "user-1", email: "jane@x.com" }); // no order at all
 
     const { status } = await postReview({ productId: SILVER, ...VALID });
 
-    expect(status).toBe(403);
+    expect(status).toBe(201);
+    expect(KLAVIYO.track).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not fire when the request never reaches a saved review", async () => {
+    H.ctx.user = null;
+
+    const { status } = await postReview({ productId: SILVER, ...VALID });
+
+    expect(status).toBe(401);
     expect(KLAVIYO.track).not.toHaveBeenCalled();
   });
 

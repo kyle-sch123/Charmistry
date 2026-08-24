@@ -380,7 +380,8 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `006_stock_decrement_rpc.sql`         | `decrement_product_stock()` — atomic, oversell-safe stock debit run on payment confirmation |
 | `007_shipping_method.sql`             | `orders.shipping_method` (PUDO locker vs standard economy) |
 | `008_accounts.sql`                    | Customer accounts: `profiles` (+ signup trigger), `orders.user_id`, `wishlist_items`, customer-facing RLS SELECT policies |
-| `009_reviews.sql`                     | `reviews` (purchase-gated product ratings + text); public read RLS, writes service-role only via `/api/reviews` |
+| `009_reviews.sql`                     | `reviews` (product ratings + text); public read RLS, writes service-role only via `/api/reviews` |
+| `011_open_reviews.sql`                | Drops the purchase gate from the `reviews` table comment — reviewing needs a sign-in, not an order |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
 enums, CREATE OR REPLACE for functions) so re-running them is safe.
@@ -796,7 +797,8 @@ uses that local copy.
    006_stock_decrement_rpc.sql         -- decrement_product_stock
    007_shipping_method.sql             -- orders.shipping_method
    008_accounts.sql                    -- profiles, orders.user_id, wishlist_items, RLS
-   009_reviews.sql                     -- reviews (purchase-gated), public read RLS
+   009_reviews.sql                     -- reviews, public read RLS
+   011_open_reviews.sql                -- reviews: sign-in required, no purchase gate
    ```
    (You can also push them with `supabase db push` if you use the CLI.)
 3. Seed the catalogue. Easiest path: open Studio → Table Editor, insert a

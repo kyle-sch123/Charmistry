@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -77,6 +77,44 @@ export default function CartDrawer() {
   // drawer within a session; it intentionally doesn't persist.
   const [suggestionsOpen, setSuggestionsOpen] = useState(true);
 
+  // Open, the strip is a snap scroller showing one suggestion at a time; the
+  // dots below it mirror scroll position, so the index is derived from
+  // scrollLeft rather than owned by React (the user can also swipe).
+  const suggestionsRef = useRef<HTMLUListElement>(null);
+  const [scrollIndex, setScrollIndex] = useState(0);
+  // Clamped rather than reset, so a list that shrinks under the scroller can
+  // never light up a dot that no longer exists.
+  const activeSuggestion = Math.min(
+    scrollIndex,
+    Math.max(0, suggestions.length - 1),
+  );
+
+  // A refetch can shorten the list (adding a suggested piece drops it), which
+  // would leave the scroller parked past the end — rewind to the first card.
+  // The resulting scroll event is what re-syncs the index.
+  useEffect(() => {
+    suggestionsRef.current?.scrollTo({ left: 0 });
+  }, [suggestions]);
+
+  const handleSuggestionScroll = () => {
+    const el = suggestionsRef.current;
+    if (!el || el.clientWidth === 0) return;
+    setScrollIndex(Math.round(el.scrollLeft / el.clientWidth));
+  };
+
+  const goToSuggestion = (index: number) => {
+    const el = suggestionsRef.current;
+    if (!el) return;
+    el.scrollTo({ left: index * el.clientWidth, behavior: "smooth" });
+  };
+
+  // Collapsing unmounts the scroller, so reopening always starts at the first
+  // card - the counter and dots have to agree with that.
+  const toggleSuggestions = () => {
+    setSuggestionsOpen((open) => !open);
+    setScrollIndex(0);
+  };
+
   const addSuggestion = (p: ProductWithCategory) => {
     addItem(p, 1);
     const item = {
@@ -113,13 +151,11 @@ export default function CartDrawer() {
   const bundleAmount = bundle ? Math.min(bundle.amount, subtotal) : 0;
   const bundleTotal = subtotal - bundleAmount;
 
-  // Cart-earned shipping perk — the stacks free the locker method, the
-  // Everyday Edit frees any method. Same resolver as checkout/api.
+  // Cart-earned shipping perk. Only the Everyday Edit grants one (free
+  // delivery on any method, on top of its ZAR discount) — the stacks pay out
+  // as money off, so they arrive through `bundle` above. Same resolver as
+  // checkout/api.
   const shippingPerk = resolveShippingPerk(bundleLines);
-  // A stack perk that isn't already covered by the bundle line above gets its
-  // own footer row (a stack is not a discount line — nothing to subtract).
-  const stackPerk =
-    shippingPerk && shippingPerk.code !== bundle?.code ? shippingPerk : null;
 
   // Free shipping is judged on the discounted total (what the customer actually
   // pays), not the pre-discount subtotal — so the "away from free delivery"
@@ -132,12 +168,7 @@ export default function CartDrawer() {
   const progress = isUnlocked
     ? 100
     : Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
-  // Over the threshold everything ships free anyway, so only advertise the
-  // narrower locker-only wording when the perk is doing the unlocking.
-  const unlockedLabel =
-    !thresholdUnlocked && shippingPerk?.perk === "locker_only"
-      ? "Free locker delivery unlocked"
-      : "Free delivery unlocked";
+  const unlockedLabel = "Free delivery unlocked";
 
   // Lock body scroll while the drawer is open
   useEffect(() => {
@@ -421,15 +452,17 @@ export default function CartDrawer() {
                   ))}
                 </ul>
 
-                {/* Frequently bought with — collapsible upsell strip pinned
-                    above the totals, mirroring the classic "make it a set"
-                    cart pattern. Suggestions exclude pieces already in the
-                    bag. */}
+                {/* Frequently bought with — a collapsible upsell strip pinned
+                    above the totals. Open, it is a one-card-at-a-time snap
+                    scroller rather than a stacked list: that holds it to a
+                    fixed ~90px however many pieces the API returns, instead of
+                    eating most of a phone screen. Suggestions exclude pieces
+                    already in the bag. */}
                 {suggestions.length > 0 && (
                   <div className="border-t border-ink/10 px-6 pt-4 pb-4">
                     <button
                       type="button"
-                      onClick={() => setSuggestionsOpen((o) => !o)}
+                      onClick={toggleSuggestions}
                       aria-expanded={suggestionsOpen}
                       aria-controls="cart-suggestions"
                       className="flex w-full items-center justify-between gap-3 text-left cursor-pointer group/fbw"
@@ -437,27 +470,34 @@ export default function CartDrawer() {
                       <span className="text-[10px] tracking-[0.22em] uppercase text-ink/50 group-hover/fbw:text-ink/80 font-body transition-colors">
                         Frequently bought with
                       </span>
-                      <svg
-                        className={`h-3.5 w-3.5 shrink-0 text-ink/40 group-hover/fbw:text-ink/70 transition-all duration-300 ${
-                          suggestionsOpen ? "rotate-180" : ""
-                        }`}
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth={1.6}
-                        aria-hidden
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          d="M19 9l-7 7-7-7"
-                        />
-                      </svg>
+                      <span className="flex items-center gap-2.5">
+                        {suggestionsOpen && suggestions.length > 1 && (
+                          <span className="font-body text-[10px] tabular-nums text-ink/40">
+                            {activeSuggestion + 1}/{suggestions.length}
+                          </span>
+                        )}
+                        <svg
+                          className={`h-3.5 w-3.5 shrink-0 text-ink/40 group-hover/fbw:text-ink/70 transition-all duration-300 ${
+                            suggestionsOpen ? "rotate-180" : ""
+                          }`}
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1.6}
+                          aria-hidden
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            d="M19 9l-7 7-7-7"
+                          />
+                        </svg>
+                      </span>
                     </button>
                     <AnimatePresence initial={false}>
                       {suggestionsOpen && (
                         <motion.div
-                          key="fbw-list"
+                          key="fbw-strip"
                           id="cart-suggestions"
                           className="overflow-hidden"
                           initial={{ height: 0, opacity: 0 }}
@@ -465,47 +505,79 @@ export default function CartDrawer() {
                           exit={{ height: 0, opacity: 0 }}
                           transition={{ duration: 0.3, ease: [0.25, 0.1, 0.25, 1] }}
                         >
-                          <ul className="space-y-2.5 pt-3">
-                      {suggestions.map((p) => (
-                        <li key={p.id} className="flex items-center gap-3">
-                          <Link
-                            href={`/products/${p.slug}`}
-                            onClick={closeCart}
-                            className="relative h-12 w-10 shrink-0 overflow-hidden bg-stone"
+                          {/* Each <li> is exactly one container width
+                              (border-box, so the trailing gutter doesn't widen
+                              it) — that keeps the scrollLeft/clientWidth index
+                              maths exact. */}
+                          <ul
+                            ref={suggestionsRef}
+                            onScroll={handleSuggestionScroll}
+                            className="mt-3 flex snap-x snap-mandatory overflow-x-auto overscroll-x-contain scrollbar-none"
                           >
-                            {p.image_url && (
-                              <Image
-                                src={p.image_url}
-                                alt={p.name}
-                                fill
-                                className="object-cover"
-                                sizes="40px"
-                              />
-                            )}
-                          </Link>
-                          <div className="min-w-0 flex-1">
-                            <Link
-                              href={`/products/${p.slug}`}
-                              onClick={closeCart}
-                              className="block truncate font-display text-[15px] leading-snug hover:text-ink/70 transition-colors"
-                            >
-                              {p.name}
-                            </Link>
-                            <span className="font-body text-xs text-ink/55">
-                              {formatPrice(Number(p.price))}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => addSuggestion(p)}
-                            aria-label={`Add ${p.name} to bag`}
-                            className="shrink-0 border border-ink/20 px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase font-body text-ink/70 hover:bg-ink hover:text-paper hover:border-ink transition-colors cursor-pointer"
-                          >
-                            + Add
-                          </button>
-                        </li>
-                      ))}
+                            {suggestions.map((p) => (
+                              <li
+                                key={p.id}
+                                className="w-full shrink-0 snap-start pr-2 last:pr-0"
+                              >
+                                <div className="flex items-center gap-3 border border-ink/10 bg-paper-warm/60 px-3 py-2.5">
+                                  <Link
+                                    href={`/products/${p.slug}`}
+                                    onClick={closeCart}
+                                    className="relative h-12 w-10 shrink-0 overflow-hidden bg-stone"
+                                  >
+                                    {p.image_url && (
+                                      <Image
+                                        src={p.image_url}
+                                        alt={p.name}
+                                        fill
+                                        className="object-cover"
+                                        sizes="40px"
+                                      />
+                                    )}
+                                  </Link>
+                                  <div className="min-w-0 flex-1">
+                                    <Link
+                                      href={`/products/${p.slug}`}
+                                      onClick={closeCart}
+                                      className="block truncate font-display text-[15px] leading-snug hover:text-ink/70 transition-colors"
+                                    >
+                                      {p.name}
+                                    </Link>
+                                    <span className="font-body text-xs text-ink/55">
+                                      {formatPrice(Number(p.price))}
+                                    </span>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => addSuggestion(p)}
+                                    aria-label={`Add ${p.name} to bag`}
+                                    className="shrink-0 border border-ink/20 px-3 py-1.5 text-[10px] tracking-[0.18em] uppercase font-body text-ink/70 hover:bg-ink hover:text-paper hover:border-ink transition-colors cursor-pointer"
+                                  >
+                                    + Add
+                                  </button>
+                                </div>
+                              </li>
+                            ))}
                           </ul>
+
+                          {suggestions.length > 1 && (
+                            <div className="mt-2.5 flex items-center justify-center gap-1.5">
+                              {suggestions.map((p, i) => (
+                                <button
+                                  key={p.id}
+                                  type="button"
+                                  onClick={() => goToSuggestion(i)}
+                                  aria-label={`Show suggestion ${i + 1} of ${suggestions.length}`}
+                                  aria-current={i === activeSuggestion || undefined}
+                                  className={`h-1.5 rounded-full transition-all duration-300 cursor-pointer ${
+                                    i === activeSuggestion
+                                      ? "w-4 bg-ink/45"
+                                      : "w-1.5 bg-ink/15 hover:bg-ink/30"
+                                  }`}
+                                />
+                              ))}
+                            </div>
+                          )}
                         </motion.div>
                       )}
                     </AnimatePresence>
@@ -553,31 +625,6 @@ export default function CartDrawer() {
                     </div>
                   ) : (
                     <div className="space-y-2">
-                      {stackPerk && (
-                        <div
-                          className="flex items-center justify-between text-sm"
-                          style={{ color: "var(--color-gold-dark)" }}
-                        >
-                          <span className="flex items-center gap-1.5">
-                            <svg
-                              className="w-3.5 h-3.5 shrink-0"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth={2}
-                              viewBox="0 0 24 24"
-                              aria-hidden
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M4.5 12.75l6 6 9-13.5"
-                              />
-                            </svg>
-                            {stackPerk.label}
-                          </span>
-                          <span>Free locker shipping</span>
-                        </div>
-                      )}
                       <div className="flex items-center justify-between">
                         <span className="text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body">
                           Subtotal

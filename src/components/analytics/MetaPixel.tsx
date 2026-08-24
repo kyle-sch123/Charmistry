@@ -10,6 +10,13 @@
  * which parses the raw HTML, not the hydrated page — report that no pixel was
  * installed. The snippet is idempotent (`if(f.fbq)return`), so running twice
  * is harmless.
+ *
+ * What IS deferred is the fetch of fbevents.js: it was the single largest
+ * third-party cost on the page (~460ms of main-thread work) and it was landing
+ * during load. The snippet still defines `fbq` and queues `init` + `PageView`
+ * synchronously — fbq's own queue is drained the moment the library arrives —
+ * so no event is lost, and `lib/fpixel.ts` (which drops calls when
+ * `window.fbq` is undefined) still sees a live fbq from the first byte.
  */
 
 "use client";
@@ -23,9 +30,13 @@ const BASE_SNIPPET = `
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
 if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
+n.queue=[];
+var l=function(){if(f._fbqLoading)return;f._fbqLoading=1;
+t=b.createElement(e);t.async=!0;
 t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
+s.parentNode.insertBefore(t,s)};
+var i=function(){f.requestIdleCallback?f.requestIdleCallback(l,{timeout:2000}):setTimeout(l,1200)};
+'complete'===b.readyState?i():f.addEventListener('load',i)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '${FB_PIXEL_ID}');
 fbq('track', 'PageView');
