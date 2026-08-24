@@ -26,6 +26,10 @@
  */
 
 import type { ShippingPerk } from "./shipping";
+import {
+  DAILY_AFFAIR_PIECES,
+  DAILY_AFFAIR_SAVINGS,
+} from "./daily-affair";
 
 export interface BundleDefinition {
   /** Stored on the order's discount_code column for records/reporting. */
@@ -57,7 +61,31 @@ export const EVERYDAY_EDIT_BUNDLE: BundleDefinition = {
   shippingPerk: "all_methods",
 };
 
-export const BUNDLES: BundleDefinition[] = [EVERYDAY_EDIT_BUNDLE];
+/**
+ * The Daily Affair — the evening edit's five gold pieces.
+ *
+ * itemSlugs is DERIVED from DAILY_AFFAIR_PIECES rather than re-typed, so the
+ * bundle and the collection page can't drift apart the way the Everyday Edit's
+ * two hand-maintained lists can.
+ *
+ * INERT UNTIL SEEDED: none of these slugs exist in the catalogue yet (run
+ * scripts/seed-daily-affair.mjs to create them). completeSets() therefore
+ * returns 0 for every real cart and this bundle can never fire — it's safe to
+ * ship ahead of the products, and it starts working the moment they exist.
+ * bundles.test.ts pins that behaviour in both directions.
+ */
+export const DAILY_AFFAIR_BUNDLE: BundleDefinition = {
+  code: "DAILY-AFFAIR",
+  label: "The Daily Affair bundle",
+  itemSlugs: DAILY_AFFAIR_PIECES.map((p) => p.slug),
+  discountPerSet: DAILY_AFFAIR_SAVINGS,
+  shippingPerk: "all_methods",
+};
+
+export const BUNDLES: BundleDefinition[] = [
+  EVERYDAY_EDIT_BUNDLE,
+  DAILY_AFFAIR_BUNDLE,
+];
 
 /**
  * A category "stack & save" — a shipping perk earned once the cart holds at

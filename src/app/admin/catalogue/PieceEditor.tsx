@@ -26,6 +26,7 @@ function toEditable(v: AdminPiece["variants"][number]): EditableVariant {
     price: String(v.price),
     quantity: String(v.quantity),
     in_stock: v.in_stock,
+    shop_hidden: v.shop_hidden ?? false,
     size: v.size === null || v.size === undefined ? "" : String(v.size),
     images: v.images ?? [],
   };
@@ -49,6 +50,7 @@ function payloadVariant(v: EditableVariant) {
     price: Number(v.price),
     quantity: Number(v.quantity),
     in_stock: v.in_stock,
+    shop_hidden: v.shop_hidden,
     size: v.size,
   };
 }
@@ -131,7 +133,16 @@ export default function PieceEditor({
   function addVariant() {
     setVariants((cur) => [
       ...cur,
-      { metal: "", badge: "", price: "0", quantity: "0", in_stock: false, size: "", images: [] },
+      {
+        metal: "",
+        badge: "",
+        price: "0",
+        quantity: "0",
+        in_stock: false,
+        shop_hidden: false,
+        size: "",
+        images: [],
+      },
     ]);
     setSaved(false);
   }

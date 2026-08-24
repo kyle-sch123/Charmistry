@@ -5,6 +5,14 @@ import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
 import { getEditPricing, type EditPricing } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
+import {
+  DAILY_AFFAIR_LINKED,
+  DAILY_AFFAIR_LIVE,
+  DAILY_AFFAIR_PIECES,
+  DAILY_AFFAIR_SAVINGS,
+  IMG,
+  affairFallbackSrc,
+} from "@/lib/daily-affair";
 
 export const metadata: Metadata = {
   title: "Collections | Charmistry",
@@ -35,14 +43,23 @@ const collections = (pricing: EditPricing | null) => [
   {
     slug: "daily-affair",
     name: "The Daily Affair",
-    season: "New · 4 pieces",
-    description:
-      "The evening counterpart to the Everyday Edit — pieces for the romance hiding inside an ordinary day. Full reveal coming soon.",
-    // Not yet clickable — the page is built but gated until launch (see
-    // collections/daily-affair/page.tsx). Set the href to launch the card.
-    href: null as string | null,
-    image: null as string | null,
-    tag: "Coming soon",
+    season: `New · ${DAILY_AFFAIR_PIECES.length} pieces`,
+    description: DAILY_AFFAIR_LIVE
+      ? "The evening counterpart to the Everyday Edit — five pieces that go from your desk to the last drink without a single change."
+      : "The evening counterpart to the Everyday Edit — five pieces for the hours after six. Open early to a few people with the password.",
+    // Card, route and nav entry all read DAILY_AFFAIR_STATUS in
+    // lib/daily-affair.ts. In "preview" the card links to the password door
+    // rather than being dead — otherwise the only way in is a URL you already
+    // have, which defeats the point of a shareable early preview.
+    href: (DAILY_AFFAIR_LINKED ? "/collections/daily-affair" : null) as
+      | string
+      | null,
+    image: (DAILY_AFFAIR_LINKED ? affairFallbackSrc(IMG.campaignWide) : null) as
+      | string
+      | null,
+    tag: DAILY_AFFAIR_LIVE
+      ? `Bundle · Save ${formatPrice(DAILY_AFFAIR_SAVINGS)}`
+      : "Early access · Password",
   },
 ];
 

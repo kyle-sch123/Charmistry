@@ -159,6 +159,8 @@ export async function GET(request: Request) {
       // shop grid too when this variant is the piece's chosen one.
       image_url: v.image_url,
       shop_featured: v.shop_featured ?? false,
+      // Absent on rows predating migration 011 — absent means visible.
+      shop_hidden: v.shop_hidden ?? false,
     }));
     // Collapsed-row preview: the owner's chosen shop photo when there is one,
     // else the first photo available — mirrors what the storefront resolves.
@@ -314,6 +316,7 @@ interface PatchVariant {
   price?: unknown;
   quantity?: unknown;
   in_stock?: unknown;
+  shop_hidden?: unknown;
   metal?: unknown;
   badge?: unknown;
   size?: unknown;
@@ -482,6 +485,7 @@ export async function PATCH(request: Request) {
         price,
         quantity,
         in_stock: Boolean(raw.in_stock),
+        shop_hidden: Boolean(raw.shop_hidden),
         metal: cleanMetal(raw.metal),
         badge: cleanBadge(raw.badge),
         size: cleanText(raw.size),

@@ -25,6 +25,12 @@ export interface EditableVariant {
   price: string;
   quantity: string;
   in_stock: boolean;
+  /**
+   * Hidden from the shop's browse surfaces (/shop grid + its category views,
+   * search, stack builder, related, best sellers). The product PAGE stays
+   * reachable either way — this controls discovery, not existence.
+   */
+  shop_hidden: boolean;
   size: string;
   /** This variant's own gallery. Managed live by ImageManager (self-persists). */
   images: string[];
@@ -104,20 +110,41 @@ export default function VariantRow({
         </div>
 
         <div className="flex items-end justify-between gap-3">
-          <label className="flex cursor-pointer items-center gap-2 text-sm font-body text-ink">
-            <input
-              type="checkbox"
-              checked={variant.in_stock}
-              onChange={(e) => onChange({ in_stock: e.target.checked })}
-              className="h-4 w-4 accent-ink"
-            />
-            In stock
-          </label>
+          <div className="space-y-2">
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-body text-ink">
+              <input
+                type="checkbox"
+                checked={variant.in_stock}
+                onChange={(e) => onChange({ in_stock: e.target.checked })}
+                className="h-4 w-4 accent-ink"
+              />
+              In stock
+            </label>
+
+            {/* Visibility is separate from stock on purpose: an out-of-stock
+                piece still belongs on the grid (it shows as sold out), while a
+                piece that isn't announced yet shouldn't be there at all. */}
+            <label className="flex cursor-pointer items-center gap-2 text-sm font-body text-ink">
+              <input
+                type="checkbox"
+                checked={!variant.shop_hidden}
+                onChange={(e) => onChange({ shop_hidden: !e.target.checked })}
+                className="h-4 w-4 accent-ink"
+              />
+              Show in All Pieces
+            </label>
+            <p className="max-w-[34ch] text-[11px] leading-snug text-ink/45 font-body">
+              {variant.shop_hidden
+                ? "Hidden from the shop grid, search and recommendations. Its product page still works, so collection pages and direct links are unaffected."
+                : "Listed on /shop and in search. Untick to hide it while keeping its product page reachable."}
+            </p>
+          </div>
+
           {removable && onRemove && (
             <button
               type="button"
               onClick={onRemove}
-              className="text-[11px] uppercase tracking-[0.15em] text-red-600 hover:text-red-700 cursor-pointer"
+              className="shrink-0 text-[11px] uppercase tracking-[0.15em] text-red-600 hover:text-red-700 cursor-pointer"
             >
               Remove variant
             </button>

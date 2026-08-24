@@ -1,15 +1,26 @@
 /**
- * The Daily Affair — collection page, currently in "reveal" dress.
+ * The Daily Affair — the evening counterpart to the Everyday Edit.
  *
- * PLACEHOLDERS: Kyle's campaign photography hasn't landed yet, so every image
- * slot renders a <PlaceholderFrame> (stone field, hairline crosshatch, quiet
- * caption). Swapping in the real photos = replacing each PlaceholderFrame
- * with an <Image> — the layout, copy and rhythm are final. The pieces grid is
- * likewise a numbered teaser until the collection's line-up is confirmed.
+ * Art direction: the site's own paper/ink/gold system, in a slightly quieter
+ * register than the Everyday Edit. The evening lives in the *photography* and
+ * in the 18:00 → 23:00 hour rail, not in the page's chrome — an earlier pass
+ * put the whole page on a warm black and it read as a different website.
  *
- * Art direction: the evening counterpart to the Everyday Edit — ink-dark
- * hero, gilded hairlines, big italic serif. Same tokens (paper/ink/gold),
- * moodier register.
+ * Layout follows the site's standard: solid <Navbar /> (which carries the
+ * marquee itself, above the nav row, exactly as on every other page), then
+ * paper sections with hairline rules.
+ *
+ * DATA: the edit's pieces are read from the catalogue by slug so prices and
+ * stock stay live and the cart gets real rows. Until the rows exist (see
+ * scripts/seed-daily-affair.mjs) getProductBySlug returns null and the page
+ * degrades honestly — full copy and photography, band prices for display, and
+ * every buy action reading "Coming soon" rather than silently vanishing the
+ * piece the way the Everyday Edit's filter would.
+ *
+ * LAUNCH: set DAILY_AFFAIR_STATUS in lib/daily-affair.ts. That one constant
+ * drives this route, the /collections card and the Collections nav entry:
+ * "hidden" 404s, "preview" links to a password door, "live" is public.
+ * See lib/auth/daily-affair-gate.ts for the password half.
  */
 
 import Link from "next/link";
@@ -17,326 +28,597 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import AddEditButton from "@/components/product/AddEditButton";
 import ScrollReveal from "@/components/ui/ScrollReveal";
-
-// Launch gate — the page is fully built but Kyle doesn't want it reachable
-// before the campaign photos land. Flip to true (and restore the /collections
-// card link + collections nav entry, see navigation.ts) to launch.
-const COLLECTION_LIVE = false;
+import { getProductBySlug } from "@/lib/queries";
+import { formatPrice } from "@/lib/utils";
+import {
+  DAILY_AFFAIR_LIVE,
+  DAILY_AFFAIR_STATUS,
+  DAILY_AFFAIR_PIECES,
+  DAILY_AFFAIR_SAVINGS,
+  DAILY_AFFAIR_SILVER,
+  IMG,
+  affairFallbackSrc,
+  affairSrcSet,
+} from "@/lib/daily-affair";
+import {
+  dailyAffairPassword,
+  isUnlocked,
+} from "@/lib/auth/daily-affair-gate";
+import type { ProductWithCategory } from "@/types";
+import AffairImage from "./AffairImage";
+import HourRail, { type RailPiece } from "./HourRail";
+import PasswordGate from "./PasswordGate";
 
 export const metadata: Metadata = {
   title: "The Daily Affair | Charmistry",
   description:
-    "The Daily Affair — a new Charmistry collection for the hours between morning coffee and last light. Full reveal coming soon.",
+    "Five pieces that go from your desk to the last drink without a single change. The Daily Affair — an evening edit of waterproof, tarnish-resistant Charmistry jewellery.",
+  openGraph: {
+    title: "The Daily Affair | Charmistry",
+    description:
+      "Five pieces that go from your desk to the last drink without a single change.",
+    images: [affairFallbackSrc(IMG.campaignWide)],
+  },
+  // A password-protected preview must never be indexed — otherwise the
+  // collection leaks into search results before it launches.
+  robots: DAILY_AFFAIR_LIVE ? undefined : { index: false, follow: false },
 };
 
-/** Image slot awaiting campaign photography. */
-function PlaceholderFrame({
-  label = "Photography coming soon",
-  className = "",
-}: {
-  label?: string;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`relative overflow-hidden bg-stone ${className}`}
-      role="img"
-      aria-label={label}
-    >
-      {/* Hairline crosshatch so the empty frame reads as intentional */}
-      <div
-        className="absolute inset-0 opacity-[0.35]"
-        style={{
-          backgroundImage:
-            "repeating-linear-gradient(45deg, transparent 0 14px, rgba(10,10,10,0.05) 14px 15px)",
-        }}
-        aria-hidden
-      />
-      <div className="absolute inset-3 border border-ink/10" aria-hidden />
-      <div className="absolute inset-0 flex items-center justify-center">
-        <span
-          className="uppercase text-ink/30 text-center px-6"
-          style={{
-            fontFamily: "var(--font-body)",
-            fontSize: "9px",
-            letterSpacing: "0.32em",
-            lineHeight: 2,
-          }}
-        >
-          {label}
-        </span>
-      </div>
-    </div>
-  );
-}
+export const dynamic = "force-dynamic";
 
-const TEASER_PIECES = [
-  { num: "01", role: "The pendant" },
-  { num: "02", role: "The chain" },
-  { num: "03", role: "The hoops" },
-  { num: "04", role: "The bangle" },
+const PROMISE = [
+  {
+    h: "Wear it in",
+    b: "Shower, sea, the last drink. It stays gold — and if it doesn't within six months, the Charmistry Guarantee replaces it.",
+  },
+  {
+    h: "Stainless steel",
+    b: "The same steel as everything else we make: waterproof, tarnish-resistant, and kind to skin that usually reacts.",
+  },
+  {
+    h: "Changed your mind?",
+    b: "Seven days from delivery to exchange it or take store credit. Exchanges are free.",
+  },
+  {
+    h: "2–5 business days",
+    b: "Tracked, nationwide. Free on this edit — it clears the R700 threshold on its own.",
+  },
 ];
 
-export default function DailyAffairPage() {
-  if (!COLLECTION_LIVE) notFound();
+export default async function DailyAffairPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ locked?: string }>;
+}) {
+  // Three states, in order of least to most access — see DAILY_AFFAIR_STATUS.
+  if (DAILY_AFFAIR_STATUS === "hidden") notFound();
+
+  if (DAILY_AFFAIR_STATUS === "preview") {
+    // Fail closed: a preview with no password configured is a 404, never an
+    // accidentally public collection.
+    if (!dailyAffairPassword()) notFound();
+    if (!(await isUnlocked())) {
+      const { locked } = await searchParams;
+      return <PasswordGate wrong={locked === "1"} />;
+    }
+  }
+
+  // A catalogue miss must never take the page down — an unseeded slug simply
+  // resolves to null and that piece renders from its static copy.
+  const fetched = await Promise.all(
+    DAILY_AFFAIR_PIECES.map((p) => getProductBySlug(p.slug).catch(() => null)),
+  );
+
+  const pieces: RailPiece[] = DAILY_AFFAIR_PIECES.map((p, i) => ({
+    ...p,
+    product: fetched[i],
+  }));
+
+  const products = fetched.filter((p): p is ProductWithCategory => p != null);
+  const editComplete = products.length === DAILY_AFFAIR_PIECES.length;
+
+  // Live prices win; band prices stand in per-piece until a row exists.
+  const listPrice = pieces.reduce(
+    (sum, p) => sum + (p.product ? Number(p.product.price) : p.price),
+    0,
+  );
+  const bundlePrice = listPrice - DAILY_AFFAIR_SAVINGS;
+
   return (
     <>
       <Navbar />
+
       <main className="flex-1 bg-paper text-ink">
-        {/* ── Hero — ink band ── */}
-        <section className="relative bg-ink text-paper overflow-hidden">
-          {/* Faint gold radial glow, upper right */}
-          <div
-            className="pointer-events-none absolute -top-40 -right-40 h-[34rem] w-[34rem] rounded-full opacity-[0.14]"
-            style={{
-              background:
-                "radial-gradient(circle, var(--color-gold) 0%, transparent 65%)",
-            }}
-            aria-hidden
-          />
-          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16 pt-36 pb-20 md:pt-44 md:pb-28">
-            <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-12 lg:gap-20 items-center">
-              <div>
-                <ScrollReveal>
-                  <div className="mb-7 flex items-center gap-4">
-                    <div className="h-px w-10 bg-gold/60" />
-                    <p
-                      className="uppercase text-paper/50"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "10px",
-                        letterSpacing: "0.35em",
-                      }}
-                    >
-                      A New Charmistry Collection
-                    </p>
-                  </div>
-                  <h1
-                    className="uppercase leading-[0.95] text-paper"
-                    style={{
-                      fontFamily: "var(--font-heading)",
-                      fontSize: "clamp(3rem, 8vw, 6.5rem)",
-                      letterSpacing: "0.01em",
-                    }}
-                  >
-                    The Daily{" "}
-                    <em className="text-gold-light" style={{ fontStyle: "italic" }}>
-                      Affair
-                    </em>
-                  </h1>
-                  <p
-                    className="mt-8 max-w-md text-paper/60"
-                    style={{
-                      fontFamily: "var(--font-body)",
-                      fontSize: "14px",
-                      letterSpacing: "0.03em",
-                      lineHeight: 1.85,
-                    }}
-                  >
-                    Some pieces you wear. These, you keep returning to — from
-                    the first coffee to the last light. A collection for the
-                    romance hiding inside an ordinary day.
-                  </p>
-                  <div className="mt-10 flex flex-wrap items-center gap-5">
-                    <a
-                      href="#pieces"
-                      className="inline-flex items-center gap-2.5 border border-paper/40 px-8 py-3.5 text-[10px] tracking-[0.25em] uppercase font-body text-paper hover:bg-paper hover:text-ink transition-colors"
-                    >
-                      Preview the pieces
-                    </a>
-                    <span
-                      className="uppercase text-gold-light/80"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "10px",
-                        letterSpacing: "0.25em",
-                      }}
-                    >
-                      Full reveal coming soon
-                    </span>
-                  </div>
-                </ScrollReveal>
-              </div>
-
-              {/* Hero image slot */}
-              <ScrollReveal delay={0.1}>
-                <PlaceholderFrame
-                  label="Campaign photograph coming soon"
-                  className="aspect-[4/5] bg-paper/10"
-                />
-              </ScrollReveal>
-            </div>
+        {/* ── Hero ─────────────────────────────────────────────────────── */}
+        {/*
+          Fills the viewport exactly, so the next section never peeks in under
+          it. Not a plain 100svh: Navbar renders an in-flow spacer the height of
+          the marquee (h-9 / md:h-10) above this section, so a full 100svh would
+          overshoot by that much and push the fold below the screen. The nav row
+          itself is `fixed` and takes no flow space — the pt-32 below is what
+          keeps the type clear of it.
+        */}
+        <section className="relative isolate flex min-h-[calc(100svh-2.25rem)] items-end overflow-hidden md:min-h-[calc(100svh-2.5rem)]">
+          {/* The evening lives in the photograph, not in the page. */}
+          <div className="absolute inset-0 -z-10 bg-stone">
+            <picture>
+              <source
+                media="(min-width: 768px)"
+                srcSet={affairSrcSet(IMG.campaignWide)}
+                sizes="100vw"
+              />
+              <img
+                src={affairFallbackSrc(IMG.campaignTall)}
+                srcSet={affairSrcSet(IMG.campaignTall)}
+                sizes="100vw"
+                alt={IMG.campaignTall.alt}
+                width={IMG.campaignTall.w}
+                height={IMG.campaignTall.h}
+                loading="eager"
+                fetchPriority="high"
+                decoding="sync"
+                // A 3:4 source in a wide band shows only ~a third of its height,
+                // so the focal point matters: 42% lands on the collarbone (the
+                // jewellery) rather than on her face.
+                className="h-full w-full object-cover object-[center_42%] brightness-[.62] saturate-[.85]"
+              />
+            </picture>
+            {/* Scrim only where the type sits, so the photo stays a photo. */}
+            <div
+              aria-hidden
+              className="absolute inset-0"
+              style={{
+                background:
+                  "linear-gradient(to top, rgba(10,10,10,.82) 0%, rgba(10,10,10,.45) 38%, rgba(10,10,10,.08) 70%, transparent 100%)",
+              }}
+            />
           </div>
-        </section>
 
-        {/* ── Story ── */}
-        <section className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16 py-20 md:py-28">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-10 items-start">
-            <ScrollReveal className="md:col-span-5">
-              <PlaceholderFrame className="aspect-[3/4]" />
-            </ScrollReveal>
-            <div className="md:col-span-4 md:pt-16">
-              <ScrollReveal delay={0.05}>
-                <p
-                  className="mb-4 uppercase text-gold-dark"
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "10px",
-                    letterSpacing: "0.3em",
-                  }}
-                >
-                  The idea
-                </p>
-                <h2
-                  className="font-display text-3xl md:text-4xl font-light leading-tight"
-                >
-                  Worn daily.
-                  <br />
-                  Never routine.
-                </h2>
-                <p
-                  className="mt-6 text-ink/60"
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "13.5px",
-                    letterSpacing: "0.03em",
-                    lineHeight: 1.85,
-                  }}
-                >
-                  Waterproof, tarnish-resistant pieces made for repetition —
-                  the kind you fasten once and forget, then catch in the
-                  mirror at golden hour. The Daily Affair is built to layer
-                  with everything already on your skin.
-                </p>
-              </ScrollReveal>
+          <div className="mx-auto w-full max-w-7xl px-6 pb-12 pt-32 md:px-10 md:pb-16 lg:px-16">
+            <div className="mb-5 flex items-center gap-4">
+              <span className="h-px w-10 bg-gold" aria-hidden />
+              <p
+                className="uppercase text-paper/70"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  letterSpacing: "0.35em",
+                }}
+              >
+                After six · A Charmistry edit
+              </p>
             </div>
-            <ScrollReveal delay={0.1} className="md:col-span-3 md:pt-32">
-              <PlaceholderFrame className="aspect-square" />
-            </ScrollReveal>
-          </div>
-        </section>
 
-        {/* ── Pieces teaser ── */}
-        <section
-          id="pieces"
-          className="border-t border-ink/10 scroll-mt-24"
-        >
-          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16 py-20 md:py-24">
-            <ScrollReveal>
-              <div className="flex flex-wrap items-end justify-between gap-6 mb-12">
-                <div>
-                  <p
-                    className="mb-3 uppercase text-ink/40"
-                    style={{
-                      fontFamily: "var(--font-body)",
-                      fontSize: "10px",
-                      letterSpacing: "0.3em",
-                    }}
-                  >
-                    The line-up
-                  </p>
-                  <h2
-                    className="uppercase leading-[1.05]"
-                    style={{
-                      fontFamily: "var(--font-heading)",
-                      fontSize: "clamp(2rem, 4vw, 3.4rem)",
-                      letterSpacing: "0.02em",
-                    }}
-                  >
-                    Four pieces, <em style={{ fontStyle: "italic" }}>one</em>{" "}
-                    affair
-                  </h2>
-                </div>
-                <p
-                  className="max-w-xs text-ink/50 md:text-right"
-                  style={{
-                    fontFamily: "var(--font-body)",
-                    fontSize: "12px",
-                    letterSpacing: "0.06em",
-                    lineHeight: 1.7,
-                  }}
-                >
-                  Each piece is revealed with the collection launch — sign up
-                  below to see them first.
-                </p>
-              </div>
-            </ScrollReveal>
+            {/*
+              No opacity ramp on the headline, ever. Chrome scores an element
+              for LCP only on its first paint — painted at opacity 0 it is
+              skipped and never re-qualifies. See the home hero.
+            */}
+            <h1
+              className="text-paper"
+              style={{
+                fontFamily: "var(--font-heading)",
+                fontSize: "clamp(2.9rem, 9vw, 6.5rem)",
+                lineHeight: 0.9,
+                letterSpacing: "0.01em",
+              }}
+            >
+              The Daily{" "}
+              <em className="text-gold-light" style={{ fontStyle: "italic" }}>
+                Affair
+              </em>
+            </h1>
 
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-              {TEASER_PIECES.map((piece, i) => (
-                <ScrollReveal key={piece.num} delay={i * 0.06}>
-                  <div className="group">
-                    <PlaceholderFrame
-                      label="Reveal coming soon"
-                      className="aspect-[4/5]"
-                    />
-                    <div className="mt-3 flex items-baseline gap-3">
-                      <span
-                        className="text-gold-dark"
-                        style={{
-                          fontFamily: "var(--font-heading)",
-                          fontSize: "13px",
-                          letterSpacing: "0.1em",
-                        }}
-                      >
-                        {piece.num}
-                      </span>
-                      <span
-                        className="uppercase text-ink/55"
-                        style={{
-                          fontFamily: "var(--font-body)",
-                          fontSize: "10px",
-                          letterSpacing: "0.22em",
-                        }}
-                      >
-                        {piece.role}
-                      </span>
-                    </div>
-                  </div>
-                </ScrollReveal>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ── CTA ── */}
-        <section className="border-t border-ink/10">
-          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16 py-16 md:py-20 flex flex-col items-center text-center gap-6">
             <p
-              className="max-w-md text-ink/55"
+              className="mt-6 max-w-[38ch] text-paper/75"
               style={{
                 fontFamily: "var(--font-body)",
-                fontSize: "13px",
-                letterSpacing: "0.04em",
+                fontSize: "14px",
+                letterSpacing: "0.02em",
                 lineHeight: 1.8,
               }}
             >
-              While you wait — the pieces you&apos;ll layer it with are already
-              here.
+              Five pieces that go from your desk to the last drink without a
+              single change.{" "}
+              <span className="text-paper">
+                Still waterproof. Still tarnish-resistant.
+              </span>{" "}
+              Just dressed for somewhere better.
             </p>
-            <Link
-              href="/shop"
-              className="group inline-flex items-center gap-2.5 border border-ink px-8 py-3.5 text-[10px] tracking-[0.25em] uppercase font-body text-ink hover:bg-ink hover:text-paper transition-colors"
-            >
-              Browse All Pieces
-              <svg
-                className="h-3.5 w-3.5 transition-transform duration-300 group-hover:translate-x-0.5"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
+          </div>
+        </section>
+
+        {/* ── The hour rail ────────────────────────────────────────────── */}
+        <section className="py-16 md:py-24 lg:py-28">
+          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
+            <div className="mb-10 flex flex-wrap items-baseline justify-between gap-x-6 gap-y-3 border-b border-ink/10 pb-6 md:mb-16">
+              <h2
+                style={{
+                  fontFamily: "var(--font-heading)",
+                  fontSize: "clamp(1.6rem, 3.4vw, 2.6rem)",
+                  lineHeight: 1.15,
+                }}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M17 8l4 4m0 0l-4 4m4-4H3"
+                One night, five pieces
+              </h2>
+              <p
+                className="uppercase text-ink/45"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "11px",
+                  letterSpacing: "0.28em",
+                }}
+              >
+                18:00 — 23:00
+              </p>
+            </div>
+
+            <HourRail pieces={pieces} />
+          </div>
+        </section>
+
+        {/* ── Editorial break ──────────────────────────────────────────── */}
+        <section className="border-t border-ink/10 bg-paper-warm">
+          <div className="mx-auto grid max-w-7xl items-center gap-10 px-6 py-16 md:grid-cols-2 md:gap-16 md:px-10 md:py-24 lg:px-16">
+            <ScrollReveal>
+              <div className="relative aspect-[3/4] overflow-hidden bg-stone">
+                <AffairImage
+                  asset={IMG.tableWorn}
+                  sizes="(max-width: 767px) 100vw, 45vw"
                 />
-              </svg>
+              </div>
+            </ScrollReveal>
+
+            <ScrollReveal delay={0.1}>
+              <p
+                className="uppercase text-ink/45"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  letterSpacing: "0.35em",
+                }}
+              >
+                Why an evening edit
+              </p>
+              <blockquote
+                className="mt-5"
+                style={{
+                  fontFamily: "var(--font-display)",
+                  fontSize: "clamp(1.6rem, 4vw, 2.5rem)",
+                  fontStyle: "italic",
+                  lineHeight: 1.25,
+                }}
+              >
+                “Nobody goes home to change any more. The jewellery has to do it
+                for you.”
+              </blockquote>
+              <p
+                className="mt-6 max-w-[44ch] text-ink/65"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "14px",
+                  lineHeight: 1.85,
+                }}
+              >
+                So the brief was narrow: stones, but small ones. Chain that
+                catches light without announcing itself. Nothing that needs
+                taking off before a shower, a swim, or the walk home in the
+                rain. Dressier, in other words — never more careful.
+              </p>
+            </ScrollReveal>
+          </div>
+        </section>
+
+        {/* ── The Full Affair ──────────────────────────────────────────── */}
+        <section className="border-t border-ink/10 py-16 md:py-24 lg:py-28">
+          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
+            <div className="mb-9 flex flex-wrap items-end justify-between gap-x-10 gap-y-7">
+              <div>
+                <p
+                  className="uppercase text-gold-dark"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "10px",
+                    letterSpacing: "0.35em",
+                  }}
+                >
+                  All five · Save {formatPrice(DAILY_AFFAIR_SAVINGS)}
+                </p>
+                <h2
+                  className="my-4"
+                  style={{
+                    fontFamily: "var(--font-heading)",
+                    fontSize: "clamp(2rem, 5vw, 4rem)",
+                    lineHeight: 1,
+                  }}
+                >
+                  The Full Affair
+                </h2>
+                <p
+                  className="max-w-[46ch] text-ink/65"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "14px",
+                    lineHeight: 1.85,
+                  }}
+                >
+                  Buy the edit and all five arrive together, layered in the
+                  order they&rsquo;re meant to be worn. It clears the free
+                  delivery threshold on its own, and every piece is covered for
+                  six months.
+                </p>
+              </div>
+
+              <div className="sm:text-right">
+                <p className="font-body text-sm text-ink/35 line-through">
+                  {formatPrice(listPrice)}
+                </p>
+                <p
+                  className="my-1.5"
+                  style={{
+                    fontFamily: "var(--font-heading)",
+                    fontSize: "clamp(2rem, 5vw, 3.4rem)",
+                    lineHeight: 1,
+                  }}
+                >
+                  {formatPrice(bundlePrice)}
+                </p>
+                <p
+                  className="uppercase text-gold-dark"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "10px",
+                    letterSpacing: "0.22em",
+                  }}
+                >
+                  You save {formatPrice(DAILY_AFFAIR_SAVINGS)}
+                </p>
+              </div>
+            </div>
+
+            {/* The five, as clean cut-outs. Scroll-snap strip on phones so each
+                piece stays big enough to read; a 5-up grid from sm. */}
+            <ul className="mb-8 flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+              {pieces.map((p) => {
+                const inner = (
+                  <>
+                    <AffairImage
+                      asset={p.cutout}
+                      sizes="(max-width: 639px) 42vw, 18vw"
+                      className="transition-transform duration-700 ease-out group-hover:scale-105"
+                    />
+                  </>
+                );
+
+                return (
+                  <li
+                    key={p.slug}
+                    className="min-w-[42vw] shrink-0 snap-start sm:min-w-0"
+                  >
+                    {p.product ? (
+                      <Link
+                        href={`/products/${p.slug}`}
+                        className="group relative block aspect-[3/4] overflow-hidden bg-paper-warm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+                      >
+                        {inner}
+                      </Link>
+                    ) : (
+                      <div className="group relative block aspect-[3/4] overflow-hidden bg-paper-warm">
+                        {inner}
+                      </div>
+                    )}
+                    <p
+                      className="mt-2.5 uppercase text-ink/55"
+                      style={{
+                        fontFamily: "var(--font-body)",
+                        fontSize: "10px",
+                        letterSpacing: "0.2em",
+                      }}
+                    >
+                      {p.short}
+                    </p>
+                  </li>
+                );
+              })}
+            </ul>
+
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-4">
+              <AddEditButton
+                products={editComplete ? products : []}
+                label={`Add all five — ${formatPrice(bundlePrice)}`}
+                disabledLabel={editComplete ? undefined : "Coming soon"}
+                tone="dark"
+                variant="solid"
+                fullWidth={false}
+              />
+              <Link
+                href="/shop"
+                className="inline-flex min-h-11 items-center border-b border-ink/15 uppercase text-ink/50 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ink"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  letterSpacing: "0.22em",
+                }}
+              >
+                Or build your own stack
+              </Link>
+            </div>
+
+            {editComplete && (
+              <p
+                className="mt-4 uppercase text-ink/45"
+                style={{
+                  fontFamily: "var(--font-body)",
+                  fontSize: "10px",
+                  letterSpacing: "0.18em",
+                }}
+              >
+                Bundle price applied automatically at checkout
+              </p>
+            )}
+          </div>
+        </section>
+
+        {/* ── The same night, in silver ────────────────────────────────── */}
+        <section className="border-t border-ink/10 bg-paper-warm py-16 md:py-24">
+          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
+            <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16">
+              <ScrollReveal>
+                <div className="relative aspect-[3/4] overflow-hidden bg-stone">
+                  <AffairImage
+                    asset={IMG.luneWorn}
+                    sizes="(max-width: 1023px) 100vw, 38vw"
+                  />
+                </div>
+              </ScrollReveal>
+
+              <div>
+                <p
+                  className="uppercase text-ink/45"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "10px",
+                    letterSpacing: "0.35em",
+                  }}
+                >
+                  The other half of the collection
+                </p>
+                <h2
+                  className="my-4"
+                  style={{
+                    fontFamily: "var(--font-heading)",
+                    fontSize: "clamp(1.7rem, 4vw, 3rem)",
+                    lineHeight: 1.1,
+                  }}
+                >
+                  The same night, in silver
+                </h2>
+                <p
+                  className="max-w-[46ch] text-ink/65"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "14px",
+                    lineHeight: 1.85,
+                  }}
+                >
+                  Every piece in the edit is made in silver too — and the Lune,
+                  a twisted band set with a line of small stones, is silver
+                  only. Wear it where the Astra would go.
+                </p>
+
+                <ul className="mt-8 flex snap-x snap-mandatory gap-2.5 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:grid sm:grid-cols-5 sm:overflow-visible [&::-webkit-scrollbar]:hidden">
+                  {DAILY_AFFAIR_SILVER.map((s) => (
+                    <li
+                      key={s.image.stem}
+                      className="min-w-[38vw] shrink-0 snap-start sm:min-w-0"
+                    >
+                      <div className="relative aspect-square overflow-hidden bg-paper">
+                        <AffairImage
+                          asset={s.image}
+                          sizes="(max-width: 639px) 38vw, 15vw"
+                        />
+                      </div>
+                      <p
+                        className="mt-2.5 uppercase text-ink/70"
+                        style={{
+                          fontFamily: "var(--font-body)",
+                          fontSize: "10px",
+                          letterSpacing: "0.16em",
+                        }}
+                      >
+                        {s.name}
+                      </p>
+                      <p
+                        className="text-ink/45"
+                        style={{
+                          fontFamily: "var(--font-body)",
+                          fontSize: "10px",
+                          letterSpacing: "0.06em",
+                        }}
+                      >
+                        {s.note}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* ── The fine print ───────────────────────────────────────────── */}
+        <section className="border-t border-ink/10 py-14 pb-20 md:py-20 md:pb-28">
+          <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
+            <p
+              className="uppercase text-ink/45"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "10px",
+                letterSpacing: "0.35em",
+              }}
+            >
+              The fine print, which is short
+            </p>
+            <p
+              className="mt-4 max-w-[48ch] text-ink/65"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "14px",
+                lineHeight: 1.85,
+              }}
+            >
+              Dressier doesn&rsquo;t mean more careful. Everything in this edit
+              is the same steel as the rest of Charmistry — it just looks better
+              at night.
+            </p>
+
+            <div className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-x-10">
+              {PROMISE.map((p) => (
+                <div key={p.h}>
+                  <h3
+                    className="mb-2"
+                    style={{
+                      fontFamily: "var(--font-display)",
+                      fontSize: "19px",
+                    }}
+                  >
+                    {p.h}
+                  </h3>
+                  <p
+                    className="text-ink/65"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "13.5px",
+                      lineHeight: 1.75,
+                    }}
+                  >
+                    {p.b}
+                  </p>
+                </div>
+              ))}
+            </div>
+
+            <Link
+              href="/collections"
+              className="group mt-12 inline-flex min-h-11 items-center gap-2 uppercase text-ink/50 transition-colors hover:text-ink focus-visible:outline-2 focus-visible:outline-offset-[3px] focus-visible:outline-ink"
+              style={{
+                fontFamily: "var(--font-body)",
+                fontSize: "10px",
+                letterSpacing: "0.28em",
+              }}
+            >
+              <span
+                className="h-px w-6 bg-current transition-all duration-300 group-hover:w-9"
+                aria-hidden
+              />
+              All Collections
             </Link>
           </div>
         </section>
       </main>
+
       <Footer />
     </>
   );

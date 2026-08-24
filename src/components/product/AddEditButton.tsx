@@ -1,14 +1,16 @@
 /**
- * "Add the Edit to Bag" — the bundle action for the Everyday Edit collection.
+ * "Add to Bag" for a set of products — the bundle action shared by the
+ * Everyday Edit and The Daily Affair, and also used for the single pieces on
+ * the Daily Affair rail (a one-product set).
  *
- * Adds all pieces of the edit to the cart in one click. The bundle price is not
- * a code the shopper types: it is detected from the cart contents by
- * resolveBundleDiscount and applied automatically in CheckoutClient and, as the
- * authority, in /api/checkout. So there is nothing to stash or carry over here —
- * getting the five pieces into the bag is all that's needed for the R175 saving.
+ * Adds every product passed in one click. The bundle price is not a code the
+ * shopper types: it is detected from the cart contents by resolveBundleDiscount
+ * and applied automatically in CheckoutClient and, as the authority, in
+ * /api/checkout. So there is nothing to stash or carry over here — getting the
+ * pieces into the bag is all that's needed for the saving.
  *
  * Analytics mirror ProductCard.handleAdd so a bundle add is tracked the same as
- * five individual adds: GA + Meta add_to_cart per piece, one Klaviyo Added to
+ * N individual adds: GA + Meta add_to_cart per piece, one Klaviyo Added to
  * Cart reflecting the whole bag.
  */
 
@@ -31,19 +33,35 @@ interface AddEditButtonProps {
   showNote?: boolean;
   /** "dark" = ink button for light backgrounds; "light" = gold button for dark. */
   tone?: "dark" | "light";
+  /** "solid" is the primary edit CTA; "outline" is the quieter per-piece add. */
+  variant?: "solid" | "outline";
+  /** Edit CTAs span their column; a single piece sits inline next to a price. */
+  fullWidth?: boolean;
+  /**
+   * Force the sold-out state even when a product row says otherwise — used by
+   * The Daily Affair before its catalogue rows exist, where `products` is empty
+   * but the button should read "Coming soon" rather than "Unavailable".
+   */
+  disabledLabel?: string;
   className?: string;
 }
 
 const TONES = {
   dark: {
-    button: "bg-ink text-paper hover:bg-ink-secondary",
+    solid: "bg-ink text-paper hover:bg-ink-secondary",
+    outline:
+      "border border-ink/30 text-ink hover:bg-ink hover:text-paper hover:border-ink",
     sheen: "via-gold/25",
     note: "text-ink/45",
+    focus: "focus-visible:outline-ink",
   },
   light: {
-    button: "bg-gold text-obsidian hover:bg-gold-light",
+    solid: "bg-gold text-obsidian hover:bg-gold-light",
+    outline:
+      "border border-gold/60 text-gold hover:bg-gold hover:text-obsidian hover:border-gold",
     sheen: "via-white/40",
     note: "text-ivory/45",
+    focus: "focus-visible:outline-ivory",
   },
 } as const;
 
@@ -52,6 +70,9 @@ export default function AddEditButton({
   label,
   showNote = false,
   tone = "dark",
+  variant = "solid",
+  fullWidth = true,
+  disabledLabel,
   className = "",
 }: AddEditButtonProps) {
   const addItem = useCart((s) => s.addItem);
@@ -113,7 +134,9 @@ export default function AddEditButton({
         type="button"
         onClick={handleAdd}
         disabled={soldOut}
-        className={`group relative w-full overflow-hidden py-4 text-[11px] tracking-[0.25em] uppercase font-body transition-colors cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed ${t.button}`}
+        className={`group relative min-h-11 overflow-hidden text-[11px] tracking-[0.25em] uppercase font-body transition-colors duration-300 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed focus-visible:outline-2 focus-visible:outline-offset-[3px] ${t.focus} ${
+          fullWidth ? "w-full py-4" : "px-7 py-3.5"
+        } ${t[variant]}`}
       >
         {/* Sheen sweep on hover */}
         <span
@@ -121,7 +144,11 @@ export default function AddEditButton({
           className={`pointer-events-none absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent to-transparent transition-transform duration-700 group-hover:translate-x-full ${t.sheen}`}
         />
         <span className="relative">
-          {soldOut ? "Currently Unavailable" : added ? "Added to Bag ✓" : label}
+          {soldOut
+            ? (disabledLabel ?? "Currently Unavailable")
+            : added
+              ? "Added to Bag ✓"
+              : label}
         </span>
       </button>
 

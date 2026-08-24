@@ -17,6 +17,8 @@ export async function GET() {
   const { data, error } = await supabase
     .from("products")
     .select(PRODUCT_SELECT)
+    // Hidden pieces stay out of every browse surface (migration 011).
+    .eq("shop_hidden", false)
     .eq("in_stock", true)
     .order("review_count", { ascending: false })
     .order("rating", { ascending: false, nullsFirst: false })
