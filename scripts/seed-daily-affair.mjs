@@ -44,12 +44,12 @@ const MATERIAL = "Stainless steel";
 const BADGE = "NEW";
 
 /**
- * Early access: the collection is password-gated and its pieces are kept off
- * /shop, search and every other browse surface (products.shop_hidden,
- * migration 011). Their product PAGES still resolve, which is what lets the
- * gated collection page link to them and sell them.
+ * During early access these pieces were kept off /shop, search and every other
+ * browse surface (products.shop_hidden, migration 011) while the collection
+ * page itself sat behind a password. Both are gone now — the edit is public,
+ * so its pieces browse like everything else.
  */
-const SHOP_HIDDEN = true;
+const SHOP_HIDDEN = false;
 
 /** Sentinel the PDP renders as "Adjustable" (see lib/utils.isAdjustableSize). */
 const ADJUSTABLE = 0;
@@ -337,8 +337,8 @@ async function main() {
   if (error) throw error;
 
   console.log(`\nDone — ${rows.length} rows upserted.`);
-  console.log("Next: set stock in /admin/catalogue, then flip DAILY_AFFAIR_LIVE");
-  console.log("in src/lib/daily-affair.ts to launch the collection.\n");
+  console.log("Next: set stock in /admin/catalogue. The collection itself is");
+  console.log("live via DAILY_AFFAIR_LIVE in src/lib/daily-affair.ts.\n");
 }
 
 // Only run when invoked directly — bundles.test.ts imports SEED_ROWS.

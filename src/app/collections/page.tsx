@@ -6,7 +6,6 @@ import Footer from "@/components/layout/Footer";
 import { getEditPricing, type EditPricing } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 import {
-  DAILY_AFFAIR_LINKED,
   DAILY_AFFAIR_LIVE,
   DAILY_AFFAIR_PIECES,
   DAILY_AFFAIR_SAVINGS,
@@ -46,20 +45,19 @@ const collections = (pricing: EditPricing | null) => [
     season: `New · ${DAILY_AFFAIR_PIECES.length} pieces`,
     description: DAILY_AFFAIR_LIVE
       ? "The evening counterpart to the Everyday Edit — five pieces that go from your desk to the last drink without a single change."
-      : "The evening counterpart to the Everyday Edit — five pieces for the hours after six. Open early to a few people with the password.",
-    // Card, route and nav entry all read DAILY_AFFAIR_STATUS in
-    // lib/daily-affair.ts. In "preview" the card links to the password door
-    // rather than being dead — otherwise the only way in is a URL you already
-    // have, which defeats the point of a shareable early preview.
-    href: (DAILY_AFFAIR_LINKED ? "/collections/daily-affair" : null) as
+      : "The evening counterpart to the Everyday Edit — five pieces for the hours after six.",
+    // Card, route and nav entry all read DAILY_AFFAIR_LIVE in
+    // lib/daily-affair.ts. With the flag off the route 404s, so the card goes
+    // dead — no href, no photo — rather than pointing at a missing page.
+    href: (DAILY_AFFAIR_LIVE ? "/collections/daily-affair" : null) as
       | string
       | null,
-    image: (DAILY_AFFAIR_LINKED ? affairFallbackSrc(IMG.campaignWide) : null) as
+    image: (DAILY_AFFAIR_LIVE ? affairFallbackSrc(IMG.campaignWide) : null) as
       | string
       | null,
     tag: DAILY_AFFAIR_LIVE
       ? `Bundle · Save ${formatPrice(DAILY_AFFAIR_SAVINGS)}`
-      : "Early access · Password",
+      : "Coming soon",
   },
 ];
 

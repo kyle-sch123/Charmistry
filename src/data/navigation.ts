@@ -1,7 +1,7 @@
 /** Static nav-link sets used by Navbar, MobileMenu, and Footer. */
 
 import { NavLink } from "@/types";
-import { DAILY_AFFAIR_LINKED } from "@/lib/daily-affair";
+import { DAILY_AFFAIR_LIVE } from "@/lib/daily-affair";
 
 export const navLinks: NavLink[] = [
   { label: "Shop", href: "/shop" },
@@ -10,14 +10,12 @@ export const navLinks: NavLink[] = [
   { label: "FAQ", href: "/faq" },
 ];
 
-// The Daily Affair entry appears as soon as the collection is REACHABLE, not
-// only once it is public: during "preview" the link leads to the password
-// door. The route, the /collections card and this link all read the same
-// DAILY_AFFAIR_STATUS in lib/daily-affair.ts.
+// The route, the /collections card and this link all read the same
+// DAILY_AFFAIR_LIVE flag in lib/daily-affair.ts.
 export const collectionLinks: NavLink[] = [
   { label: "All Collections", href: "/collections" },
   { label: "Everyday Edit", href: "/collections/everyday" },
-  ...(DAILY_AFFAIR_LINKED
+  ...(DAILY_AFFAIR_LIVE
     ? [{ label: "Daily Affair", href: "/collections/daily-affair" }]
     : []),
 ];
