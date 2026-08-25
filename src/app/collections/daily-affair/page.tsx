@@ -440,7 +440,18 @@ export default async function DailyAffairPage() {
         {/* ── The same night, in silver ────────────────────────────────── */}
         <section className="border-t border-ink/10 bg-paper-warm py-16 md:py-24">
           <div className="mx-auto max-w-7xl px-6 md:px-10 lg:px-16">
-            <div className="grid gap-10 lg:grid-cols-[0.85fr_1.15fr] lg:items-center lg:gap-16">
+            {/*
+              `grid-cols-1` is load-bearing, not decoration. Without an
+              explicit base track the single implicit column is auto-sized,
+              and an auto track takes the max-content width of its widest
+              item — here the silver strip below, whose five `min-w-[38vw]`
+              cards measure ~780px. That blew the column out to 780px on a
+              390px phone: the strip stopped scrolling, and the portrait
+              beside it inherited the same width and stood 1041px tall,
+              taller than the viewport, clipped by the body's overflow guard.
+              minmax(0,…) on the lg tracks fences off the same failure there.
+            */}
+            <div className="grid grid-cols-1 gap-10 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-center lg:gap-16">
               <ScrollReveal>
                 <div className="relative aspect-[3/4] overflow-hidden bg-stone">
                   <AffairImage

@@ -121,7 +121,7 @@ export default function HourRail({ pieces }: { pieces: RailPiece[] }) {
       </div>
 
       {/* ── the hours ── */}
-      <div ref={railRef} className="relative pl-10 sm:pl-14 lg:pl-16">
+      <div ref={railRef} className="relative pl-6 sm:pl-14 lg:pl-16">
         {/* gutter, then the gold fill that tracks how far into the night you are */}
         <span
           aria-hidden
@@ -146,17 +146,33 @@ export default function HourRail({ pieces }: { pieces: RailPiece[] }) {
                 on ? "opacity-100" : "opacity-100 lg:opacity-45"
               } transition-opacity duration-700`}
             >
-              {/* tick: dot + hour, hung in the gutter */}
-              <div className="absolute -left-10 flex items-center gap-2.5 sm:-left-14 lg:-left-16">
+              {/*
+                Tick + eyebrow.
+
+                The dot always hangs on the rail. The hour label does not fit
+                beside it on a phone: "18:00" at 11px/0.22em is ~40px wide and
+                sits 14px past the rail, so it needs ~54px of gutter — more
+                than a 375px screen can spare. At the old `pl-10` it simply ran
+                over the eyebrow next to it.
+
+                So on phones the hour reads as the first item of the eyebrow
+                line, and the gutter carries only the dot. From sm, where the
+                gutter is wide enough, it lifts back out beside the dot: the
+                offsets below are the gutter width less the dot's advance and
+                the gap (56 − 14 = 42px at sm, 64 − 14 = 50px at lg), which
+                puts it exactly where the old flex tick did.
+              */}
+              <div className="relative mb-3 flex flex-wrap items-baseline gap-x-3 gap-y-1">
                 <span
-                  className={`-ml-[3px] h-[7px] w-[7px] rounded-full transition-all duration-500 ${
+                  aria-hidden
+                  className={`absolute -left-6 top-1/2 -ml-[3px] h-[7px] w-[7px] -translate-y-1/2 rounded-full transition-all duration-500 sm:-left-14 lg:-left-16 ${
                     on
                       ? "bg-gold shadow-[0_0_0_4px_rgba(201,168,76,.2)]"
                       : "bg-ink/25"
                   }`}
                 />
                 <span
-                  className={`transition-colors duration-500 ${
+                  className={`transition-colors duration-500 sm:absolute sm:top-1/2 sm:-left-[2.625rem] sm:-translate-y-1/2 lg:-left-[3.125rem] ${
                     on ? "text-gold-dark" : "text-ink/40"
                   }`}
                   style={{
@@ -167,18 +183,18 @@ export default function HourRail({ pieces }: { pieces: RailPiece[] }) {
                 >
                   {piece.hour}
                 </span>
-              </div>
 
-              <p
-                className="mb-3 uppercase text-ink/45"
-                style={{
-                  fontFamily: "var(--font-body)",
-                  fontSize: "10px",
-                  letterSpacing: "0.32em",
-                }}
-              >
-                {piece.moment}
-              </p>
+                <p
+                  className="uppercase text-ink/45"
+                  style={{
+                    fontFamily: "var(--font-body)",
+                    fontSize: "10px",
+                    letterSpacing: "0.32em",
+                  }}
+                >
+                  {piece.moment}
+                </p>
+              </div>
 
               <h3
                 className="mb-4"
