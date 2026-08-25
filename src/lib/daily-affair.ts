@@ -24,43 +24,24 @@
  */
 
 /**
- * Launch state. One constant drives the route, the /collections card and the
+ * Launch switch. One constant drives the route, the /collections card and the
  * Collections nav entry.
  *
- *   "hidden"  — route 404s, nothing links to it. The pre-launch default.
- *   "preview" — linked and discoverable, but the page itself asks for
- *               DAILY_AFFAIR_PASSWORD. Someone who follows the card or an
- *               emailed link meets the door, not a 404.
- *   "live"    — public, no password, indexable.
+ *   true  — public and indexable: the route renders, the card links to it
+ *           and the Collections nav carries the entry.
+ *   false — off the site entirely: the route 404s and nothing links to it.
  *
- * Two switches were wrong here: a single boolean conflated "public" with
- * "linked", so a password-gated preview was unreachable from anywhere in the
- * site and only worked if you already had the URL.
+ * There used to be a third state between those two: an early-access "preview"
+ * that linked to a password door and kept the page noindex. That window has
+ * closed, so the door and its secret are gone and the collection is simply
+ * open.
  *
- * "preview" still needs DAILY_AFFAIR_PASSWORD set (in .env locally, in the
- * Cloudflare env in production). Without it the route falls back to 404 —
- * fail-closed, so a missing secret can never expose the collection.
+ * Annotated `: boolean` rather than left to inference: TypeScript narrows a
+ * `const` to its literal initializer, which would make every
+ * `!DAILY_AFFAIR_LIVE` check read as provably dead code and reject the flag
+ * ever being turned back off.
  */
-export type DailyAffairStatus = "hidden" | "preview" | "live";
-
-export const DAILY_AFFAIR_STATUS: DailyAffairStatus = "preview";
-
-/**
- * Compared through a function on purpose: TypeScript narrows a `const` to its
- * literal initializer, so deriving the flags with a direct
- * `DAILY_AFFAIR_STATUS === "live"` makes the compiler reject the comparison as
- * impossible the moment the status isn't "live". Taking the value as a
- * parameter keeps both sides the full union.
- */
-function statusIs(status: DailyAffairStatus): boolean {
-  return DAILY_AFFAIR_STATUS === status;
-}
-
-/** Public — no password, and safe to index. */
-export const DAILY_AFFAIR_LIVE = statusIs("live");
-
-/** Reachable at all, so the card and the nav entry should point at it. */
-export const DAILY_AFFAIR_LINKED = !statusIs("hidden");
+export const DAILY_AFFAIR_LIVE: boolean = true;
 
 const ASSETS =
   "https://qkgakhluqruqoifknprg.supabase.co/storage/v1/object/public/Charmistry%20Assets/daily-affair";

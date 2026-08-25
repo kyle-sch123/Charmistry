@@ -17,10 +17,9 @@
  * every buy action reading "Coming soon" rather than silently vanishing the
  * piece the way the Everyday Edit's filter would.
  *
- * LAUNCH: set DAILY_AFFAIR_STATUS in lib/daily-affair.ts. That one constant
- * drives this route, the /collections card and the Collections nav entry:
- * "hidden" 404s, "preview" links to a password door, "live" is public.
- * See lib/auth/daily-affair-gate.ts for the password half.
+ * LAUNCH: set DAILY_AFFAIR_LIVE in lib/daily-affair.ts. That one flag drives
+ * this route, the /collections card and the Collections nav entry — false
+ * takes the collection off the site, true is public.
  */
 
 import Link from "next/link";
@@ -34,7 +33,6 @@ import { getProductBySlug } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 import {
   DAILY_AFFAIR_LIVE,
-  DAILY_AFFAIR_STATUS,
   DAILY_AFFAIR_PIECES,
   DAILY_AFFAIR_SAVINGS,
   DAILY_AFFAIR_SILVER,
@@ -42,14 +40,9 @@ import {
   affairFallbackSrc,
   affairSrcSet,
 } from "@/lib/daily-affair";
-import {
-  dailyAffairPassword,
-  isUnlocked,
-} from "@/lib/auth/daily-affair-gate";
 import type { ProductWithCategory } from "@/types";
 import AffairImage from "./AffairImage";
 import HourRail, { type RailPiece } from "./HourRail";
-import PasswordGate from "./PasswordGate";
 
 export const metadata: Metadata = {
   title: "The Daily Affair | Charmistry",
@@ -61,9 +54,6 @@ export const metadata: Metadata = {
       "Five pieces that go from your desk to the last drink without a single change.",
     images: [affairFallbackSrc(IMG.campaignWide)],
   },
-  // A password-protected preview must never be indexed — otherwise the
-  // collection leaks into search results before it launches.
-  robots: DAILY_AFFAIR_LIVE ? undefined : { index: false, follow: false },
 };
 
 export const dynamic = "force-dynamic";
@@ -87,23 +77,9 @@ const PROMISE = [
   },
 ];
 
-export default async function DailyAffairPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ locked?: string }>;
-}) {
-  // Three states, in order of least to most access — see DAILY_AFFAIR_STATUS.
-  if (DAILY_AFFAIR_STATUS === "hidden") notFound();
-
-  if (DAILY_AFFAIR_STATUS === "preview") {
-    // Fail closed: a preview with no password configured is a 404, never an
-    // accidentally public collection.
-    if (!dailyAffairPassword()) notFound();
-    if (!(await isUnlocked())) {
-      const { locked } = await searchParams;
-      return <PasswordGate wrong={locked === "1"} />;
-    }
-  }
+export default async function DailyAffairPage() {
+  // The single switch that can take the collection back off the site.
+  if (!DAILY_AFFAIR_LIVE) notFound();
 
   // A catalogue miss must never take the page down — an unseeded slug simply
   // resolves to null and that piece renders from its static copy.
