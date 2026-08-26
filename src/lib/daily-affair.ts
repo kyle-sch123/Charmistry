@@ -62,6 +62,22 @@ export interface AffairAsset {
   w: number;
   h: number;
   alt: string;
+  /**
+   * Widest rung that is actually in the bucket, for an asset whose full-size
+   * original never made it there. Omitted — the normal case — the ladder tops
+   * out at `<stem>.webp`.
+   *
+   * WHY this exists: a srcset candidate that 404s is not a soft failure. The
+   * browser picks a rung by device pixels, so a missing top rung renders a
+   * broken image on exactly the devices that ask for it and stays invisible on
+   * the ones that don't — a DPR-1 desktop at 48vw asks for ~690px and loads
+   * 960 happily, while a DPR-3 phone at 100vw asks for ~1170px, reaches for the
+   * original and gets nothing. Capping the ladder here keeps every candidate a
+   * file that exists; the worst case becomes a slightly soft image, not a
+   * missing one. `w`/`h` still describe the original, since they only set the
+   * aspect ratio the layout reserves.
+   */
+  topRung?: (typeof LADDER)[number];
 }
 
 /** Campaign + product photography, keyed by the name used in the page. */
@@ -89,6 +105,9 @@ export const IMG = {
     stem: "daily-affair-campaign-03",
     w: 1206,
     h: 1921,
+    // No `daily-affair-campaign-03.webp` in the bucket — only the 640 and 960
+    // variants were uploaded. This is the Isa Bracelet's stage shot.
+    topRung: 960,
     alt: "A hand around a martini stem wearing the Astra ring, with gold bracelets stacked at the wrist",
   },
   necklacesWorn: {
@@ -189,21 +208,34 @@ export const IMG = {
   },
 } as const satisfies Record<string, AffairAsset>;
 
-/** Full-size file — the top rung, and the only one guaranteed to exist. */
+/** Full-size file — the top rung, unless the asset declares a `topRung`. */
 export function affairSrc(asset: AffairAsset): string {
   return `${ASSETS}/${asset.stem}.webp`;
 }
 
 /**
- * srcset across every pre-rendered rung that isn't an upscale, plus the
- * full-size file. Variants are only generated up to the source width, so
- * filtering by `asset.w` here mirrors exactly what's in the bucket.
+ * The pre-rendered `<stem>-<w>.webp` files that exist for an asset: every rung
+ * narrower than the source (variants are never upscales), stopping at
+ * `topRung` where one is declared.
+ */
+function affairVariants(asset: AffairAsset): number[] {
+  const cap = asset.topRung ?? Infinity;
+  return LADDER.filter((w) => w < asset.w && w <= cap);
+}
+
+/**
+ * srcset across every rung that's actually in the bucket. Normally that's the
+ * pre-rendered variants plus the full-size file on top; for an asset with a
+ * `topRung` the widest variant *is* the top and no original is offered, so the
+ * browser can never reach for a URL that 404s.
  */
 export function affairSrcSet(asset: AffairAsset): string {
-  const rungs = LADDER.filter((w) => w < asset.w).map(
+  const rungs = affairVariants(asset).map(
     (w) => `${ASSETS}/${asset.stem}-${w}.webp ${w}w`,
   );
-  rungs.push(`${affairSrc(asset)} ${asset.w}w`);
+  if (asset.topRung === undefined) {
+    rungs.push(`${affairSrc(asset)} ${asset.w}w`);
+  }
   return rungs.join(", ");
 }
 
@@ -213,7 +245,7 @@ export function affairSrcSet(asset: AffairAsset): string {
  * to the largest rung the asset actually has.
  */
 export function affairFallbackSrc(asset: AffairAsset): string {
-  const available = LADDER.filter((w) => w < asset.w);
+  const available = affairVariants(asset);
   const rung = available.includes(1280) ? 1280 : available.at(-1);
   return rung ? `${ASSETS}/${asset.stem}-${rung}.webp` : affairSrc(asset);
 }
