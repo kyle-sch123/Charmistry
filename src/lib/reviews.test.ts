@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  ANONYMOUS_AUTHOR,
   computeRatingSummary,
   formatAuthorName,
+  normaliseAuthorName,
+  resolveAuthorName,
   REVIEW_BODY_MAX,
+  REVIEW_NAME_MAX,
   REVIEW_TITLE_MAX,
   validateReviewInput,
 } from "@/lib/reviews";
@@ -89,7 +93,12 @@ describe("validateReviewInput", () => {
     });
     expect(r).toEqual({
       ok: true,
-      value: { rating: 4, title: "Great", body: "Really happy with it" },
+      value: {
+        rating: 4,
+        title: "Great",
+        body: "Really happy with it",
+        name: null,
+      },
     });
   });
 
@@ -139,5 +148,90 @@ describe("validateReviewInput", () => {
         body: "ok",
       }),
     ).toEqual({ ok: false, error: "title_too_long" });
+  });
+});
+
+describe("normaliseAuthorName", () => {
+  it("trims and collapses runs of whitespace", () => {
+    expect(normaliseAuthorName("  Thandi   M.  ")).toBe("Thandi M.");
+  });
+  it("strips control characters, newlines included", () => {
+    expect(normaliseAuthorName("Bea\nvan\tNiekerk")).toBe("Bea van Niekerk");
+    expect(normaliseAuthorName("Sam\u0000\u007f")).toBe("Sam");
+  });
+  it("returns an empty string for blank or non-string input", () => {
+    expect(normaliseAuthorName("   ")).toBe("");
+    expect(normaliseAuthorName(undefined)).toBe("");
+    expect(normaliseAuthorName(null)).toBe("");
+    expect(normaliseAuthorName(42)).toBe("");
+  });
+});
+
+describe("resolveAuthorName", () => {
+  it("prefers the typed name over the profile snapshot", () => {
+    expect(
+      resolveAuthorName("  Nomsa  ", { first_name: "Emily", last_name: "Selman" }),
+    ).toBe("Nomsa");
+  });
+
+  it("falls back to the profile snapshot when the name box is blank", () => {
+    // The pre-name-box behaviour for an account, held steady: leaving the box
+    // empty must not rename an existing reviewer to Anonymous.
+    expect(
+      resolveAuthorName("", { first_name: "Emily", last_name: "Selman" }),
+    ).toBe("Emily S.");
+    expect(
+      resolveAuthorName(null, { first_name: "Emily", last_name: "Selman" }),
+    ).toBe("Emily S.");
+  });
+
+  it("falls back to Anonymous for a guest with no name", () => {
+    expect(resolveAuthorName("", null)).toBe(ANONYMOUS_AUTHOR);
+    expect(resolveAuthorName(undefined)).toBe(ANONYMOUS_AUTHOR);
+    expect(resolveAuthorName("   ", null)).toBe(ANONYMOUS_AUTHOR);
+  });
+
+  it("falls back to Anonymous when a signed-in profile has no name on file", () => {
+    expect(resolveAuthorName("", { first_name: null, last_name: null })).toBe(
+      ANONYMOUS_AUTHOR,
+    );
+  });
+
+  it("lets a guest name themselves", () => {
+    expect(resolveAuthorName("Jo", null)).toBe("Jo");
+  });
+});
+
+describe("validateReviewInput — name", () => {
+  it("normalises a submitted name", () => {
+    const r = validateReviewInput({
+      rating: 5,
+      body: "Lovely",
+      name: "  Thandi   M. ",
+    });
+    expect(r.ok && r.value.name).toBe("Thandi M.");
+  });
+
+  it("normalises a blank or missing name to null", () => {
+    const blank = validateReviewInput({ rating: 5, body: "Lovely", name: "  " });
+    expect(blank.ok && blank.value.name).toBeNull();
+    const missing = validateReviewInput({ rating: 5, body: "Lovely" });
+    expect(missing.ok && missing.value.name).toBeNull();
+  });
+
+  it("rejects an over-long name", () => {
+    expect(
+      validateReviewInput({
+        rating: 5,
+        body: "Lovely",
+        name: "a".repeat(REVIEW_NAME_MAX + 1),
+      }),
+    ).toEqual({ ok: false, error: "name_too_long" });
+  });
+
+  it("measures the name AFTER normalising, so padding can't trip the limit", () => {
+    const padded = `   ${"a".repeat(REVIEW_NAME_MAX)}   `;
+    const r = validateReviewInput({ rating: 5, body: "Lovely", name: padded });
+    expect(r.ok).toBe(true);
   });
 });

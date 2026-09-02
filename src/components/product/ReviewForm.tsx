@@ -1,19 +1,25 @@
 /**
- * Review submission form. Posts to /api/reviews, which requires a signed-in
- * gate server-side — this component just surfaces the outcome. Follows the
+ * Review submission form. Posts to /api/reviews, which accepts a review with or
+ * without a session — this component just surfaces the outcome. Follows the
  * SettingsClient submit-state convention (idle | saving | saved) with an
  * inline error banner.
  *
- * Auth is checked before the form is shown (see ReviewSection); a 401/403 from
- * the API is still handled here as defence in depth.
+ * The name box is optional for everybody. Left blank it posts as "Anonymous"
+ * for a guest, or keeps a signed-in reviewer's profile "First L." snapshot —
+ * the server owns that rule (resolveAuthorName), so the placeholder here only
+ * has to be honest about the guest case, which is the one being chosen.
  */
 
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { StarRatingInput } from "./Stars";
-import { REVIEW_BODY_MAX, REVIEW_TITLE_MAX } from "@/lib/reviews";
+import {
+  ANONYMOUS_AUTHOR,
+  REVIEW_BODY_MAX,
+  REVIEW_NAME_MAX,
+  REVIEW_TITLE_MAX,
+} from "@/lib/reviews";
 import type { Review } from "@/types";
 
 interface Props {
@@ -27,11 +33,11 @@ interface Props {
 type SaveState = "idle" | "saving";
 
 const ERROR_COPY: Record<string, string> = {
-  unauthorised: "Your session expired — please sign in again.",
   invalid_rating: "Please choose a rating from 1 to 5 stars.",
   empty_body: "Please write a few words about the piece.",
   body_too_long: "Your review is a little too long.",
   title_too_long: "Your title is a little too long.",
+  name_too_long: "That name is a little too long.",
 };
 
 export default function ReviewForm({
@@ -41,11 +47,13 @@ export default function ReviewForm({
   onCancel,
 }: Props) {
   const [rating, setRating] = useState(existing?.rating ?? 0);
+  // Editing keeps whatever name the review already carries, so re-saving an
+  // existing review never silently renames its author.
+  const [name, setName] = useState(existing?.author_name ?? "");
   const [title, setTitle] = useState(existing?.title ?? "");
   const [body, setBody] = useState(existing?.body ?? "");
   const [saveState, setSaveState] = useState<SaveState>("idle");
   const [error, setError] = useState<string | null>(null);
-  const [needsSignIn, setNeedsSignIn] = useState(false);
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -62,7 +70,6 @@ export default function ReviewForm({
 
     setSaveState("saving");
     setError(null);
-    setNeedsSignIn(false);
     try {
       const res = await fetch("/api/reviews", {
         method: "POST",
@@ -70,6 +77,7 @@ export default function ReviewForm({
         body: JSON.stringify({
           productId,
           rating,
+          name: name.trim() || null,
           title: title.trim() || null,
           body: body.trim(),
         }),
@@ -79,7 +87,6 @@ export default function ReviewForm({
         | null;
 
       if (!res.ok) {
-        if (res.status === 401) setNeedsSignIn(true);
         setError(ERROR_COPY[data?.error ?? ""] ?? "Could not submit your review. Please try again.");
         setSaveState("idle");
         return;
@@ -101,6 +108,32 @@ export default function ReviewForm({
           Your rating
         </label>
         <StarRatingInput value={rating} onChange={setRating} disabled={saveState === "saving"} />
+      </div>
+
+      <div className="mb-5">
+        <label
+          htmlFor="review-name"
+          className="block text-[11px] tracking-[0.2em] uppercase text-ink/55 font-body mb-2"
+        >
+          Your name{" "}
+          <span className="text-ink/35 normal-case tracking-normal">
+            (optional)
+          </span>
+        </label>
+        <input
+          id="review-name"
+          type="text"
+          value={name}
+          maxLength={REVIEW_NAME_MAX}
+          onChange={(e) => setName(e.target.value)}
+          disabled={saveState === "saving"}
+          autoComplete="name"
+          className="w-full border border-ink/15 bg-paper px-4 py-2.5 font-body text-sm text-ink outline-none focus:border-ink/40 transition-colors"
+          placeholder={ANONYMOUS_AUTHOR}
+        />
+        <p className="mt-2 font-body text-xs text-ink/45">
+          Leave this blank to post as {ANONYMOUS_AUTHOR}.
+        </p>
       </div>
 
       <div className="mb-5">
@@ -142,17 +175,7 @@ export default function ReviewForm({
       </div>
 
       {error && (
-        <p className="mb-4 text-sm text-red-700 font-body">
-          {error}
-          {needsSignIn && (
-            <>
-              {" "}
-              <Link href="/login?next=" className="underline hover:text-red-800">
-                Sign in
-              </Link>
-            </>
-          )}
-        </p>
+        <p className="mb-4 text-sm text-red-700 font-body">{error}</p>
       )}
 
       <div className="flex items-center gap-3">

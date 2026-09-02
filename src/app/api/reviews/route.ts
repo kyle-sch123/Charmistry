@@ -1,16 +1,28 @@
 /**
- * Reviews endpoint — signed-in writes + public list.
+ * Reviews endpoint — open writes + public list.
  *
- * Any signed-in account may review any piece; there is deliberately NO
- * purchase gate. It used to require a PAID order containing the piece, which
- * left genuine customers unable to review (guest checkouts, gifts, orders
- * placed on another account) and kept the review count near zero.
+ * Anyone may review any piece. There is no purchase gate (it left genuine
+ * customers unable to review — guest checkouts, gifts, orders placed on another
+ * account) and, since migration 012, no sign-in gate either: requiring an
+ * account before a shopper could say anything is what kept the review count
+ * near zero.
  *
- * Sign-in is still required, and it is what keeps the endpoint honest: the
- * identity comes from the verified session cookie (getVerifiedUser), never
- * from the request body, and the one-review-per-piece rule below is keyed to
- * it. Dropping that too would make this an unauthenticated write endpoint with
- * no rate limiting.
+ * Signing in is therefore optional, and it is the ONLY thing that changes:
+ *
+ *   signed in — identity comes from the verified session cookie
+ *               (getVerifiedUser), never from the request body. The reviewer
+ *               gets one review per piece (a second submit edits the first),
+ *               plus edit and delete afterwards, plus the Klaviyo reward.
+ *   guest     — user_id is null. Every submit inserts a new row, because
+ *               there is no identity to key an update to, and for the same
+ *               reason there is nothing to scope an edit or a delete to.
+ *
+ * A guest supplies only a display name, and it is treated as decoration, never
+ * as identity — nothing is authorised off the back of it. The one thing a
+ * guest genuinely cannot do is come back and change their mind.
+ *
+ * This is an unauthenticated write path and it is deliberately unthrottled;
+ * see the note in migration 012_guest_reviews.sql.
  *
  * Why a route (and not a direct browser RLS write like the wishlist): two
  * things must happen server-side with the service role, and neither can be
@@ -24,10 +36,11 @@
  * DELETE removes the caller's own review for a piece. It is scoped to
  * `user_id = session user` on the server, so the productId in the query can
  * only ever reach the caller's own row — there is no way to spell a request
- * that deletes someone else's review.
+ * that deletes someone else's review, and no way for it to reach a guest row.
  *
- * author_name is snapshotted from the profile as a "First L." string so the
- * public read path never touches profiles.
+ * author_name is the name the reviewer typed; blank falls back to their
+ * profile "First L." snapshot when signed in, and finally to "Anonymous", so
+ * the public read path never touches profiles.
  *
  * Reviews are scoped to the logical piece: rows sharing (name, category_id).
  */
@@ -42,7 +55,7 @@ import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
 import { KLAVIYO_BRAND, klaviyoProductUrl } from "@/lib/klaviyo-orders";
 import {
   computeRatingSummary,
-  formatAuthorName,
+  resolveAuthorName,
   validateReviewInput,
 } from "@/lib/reviews";
 import type { Product, Profile, Review } from "@/types";
@@ -149,10 +162,10 @@ async function refreshPieceAggregate(
 }
 
 export async function POST(request: Request) {
+  // Optional. A null user is a guest review, not a rejected one — the only
+  // thing a session buys a reviewer here is ownership (edit/delete) and the
+  // Klaviyo reward.
   const user = await getVerifiedUser();
-  if (!user) {
-    return Response.json({ error: "unauthorised" }, { status: 401 });
-  }
 
   // --- Parse + validate -----------------------------------------------------
   let productId: string;
@@ -194,37 +207,51 @@ export async function POST(request: Request) {
   }
   if (pieceIds.length === 0) pieceIds = [product.id];
 
-  // --- Make sure a profile exists -------------------------------------------
-  // The author name below is snapshotted from the profile row, and a reviewer
-  // arriving straight from the client-side email-OTP sign-in
-  // (next=/products/…) has never passed through the auth routes or the
-  // /account layout that normally create it. This is the same idempotent,
-  // never-throwing helper those paths use; it also opportunistically attaches
-  // any guest orders matching the verified email, which is harmless here and
-  // useful for the shopper's order history.
-  await ensureProfileAndClaimOrders(user);
+  // --- Make sure a signed-in reviewer has a profile --------------------------
+  // Only for an account: the fallback author name is snapshotted from the
+  // profile row, and a reviewer arriving straight from the client-side
+  // email-OTP sign-in (next=/products/…) has never passed through the auth
+  // routes or the /account layout that normally create it. This is the same
+  // idempotent, never-throwing helper those paths use; it also
+  // opportunistically attaches any guest orders matching the verified email,
+  // which is harmless here and useful for the shopper's order history.
+  //
+  // A guest has no profile to create and no verified email to claim orders
+  // with, so this whole step is skipped for them.
+  let profile: Pick<Profile, "first_name" | "last_name"> | null = null;
+  if (user) {
+    await ensureProfileAndClaimOrders(user);
+    const { data } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("id", user.id)
+      .maybeSingle<Pick<Profile, "first_name" | "last_name">>();
+    profile = data ?? null;
+  }
 
-  // --- Author name snapshot -------------------------------------------------
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("first_name, last_name")
-    .eq("id", user.id)
-    .maybeSingle<Pick<Profile, "first_name" | "last_name">>();
-  const authorName = formatAuthorName(
-    profile?.first_name,
-    profile?.last_name,
-  );
+  // --- Author name ----------------------------------------------------------
+  // Typed name wins; blank falls back to the profile snapshot for an account
+  // (so an account leaving the box empty keeps the "First L." it always had)
+  // and to "Anonymous" for a guest.
+  const authorName = resolveAuthorName(input.value.name, profile);
 
-  // --- Upsert one review per user per piece ---------------------------------
-  const { data: existing, error: existingError } = await supabase
-    .from("reviews")
-    .select("id")
-    .eq("user_id", user.id)
-    .in("product_id", pieceIds)
-    .maybeSingle<Pick<Review, "id">>();
-  if (existingError) {
-    console.error("reviews: existing lookup failed", existingError);
-    return Response.json({ error: "service_error" }, { status: 500 });
+  // --- One review per ACCOUNT per piece -------------------------------------
+  // Guests skip this entirely: with user_id null there is nothing to match on,
+  // and `.eq("user_id", null)` would match some other guest's row — so every
+  // guest submission inserts.
+  let existing: Pick<Review, "id"> | null = null;
+  if (user) {
+    const { data, error: existingError } = await supabase
+      .from("reviews")
+      .select("id")
+      .eq("user_id", user.id)
+      .in("product_id", pieceIds)
+      .maybeSingle<Pick<Review, "id">>();
+    if (existingError) {
+      console.error("reviews: existing lookup failed", existingError);
+      return Response.json({ error: "service_error" }, { status: 500 });
+    }
+    existing = data ?? null;
   }
 
   const values = {
@@ -250,7 +277,7 @@ export async function POST(request: Request) {
   } else {
     const { data, error } = await supabase
       .from("reviews")
-      .insert({ product_id: product.id, user_id: user.id, ...values })
+      .insert({ product_id: product.id, user_id: user?.id ?? null, ...values })
       .select("*")
       .single<Review>();
     if (error) {
@@ -262,11 +289,14 @@ export async function POST(request: Request) {
 
   await refreshPieceAggregate(supabase, pieceIds);
 
-  // Reward the review via Klaviyo — but only for a NEW review (edits and
-  // reviews of a second variant of an already-reviewed piece take the update
-  // path and must not re-trigger the coupon). Best-effort: a Klaviyo failure
-  // never fails the already-saved review.
-  if (!existing && saved && user.email && isKlaviyoConfigured()) {
+  // Reward the review via Klaviyo — but only for a NEW review by a SIGNED-IN
+  // reviewer. Edits and reviews of a second variant of an already-reviewed
+  // piece take the update path and must not re-trigger the coupon; guests are
+  // excluded outright, because the reward is a discount code emailed to an
+  // address, and a guest's only identity here is an unverified display name.
+  // Issuing coupons off an unverified request body would be a free-money bug.
+  // Best-effort: a Klaviyo failure never fails the already-saved review.
+  if (!existing && saved && user?.email && isKlaviyoConfigured()) {
     try {
       await trackReviewSubmitted(user.email, profile ?? null, product, saved);
     } catch (err) {
@@ -281,6 +311,10 @@ export async function POST(request: Request) {
  * DELETE /api/reviews?productId=<uuid> — remove the caller's own review of the
  * piece. Idempotent-ish: 404 when they have nothing to delete, so a double-tap
  * can't be mistaken for a permissions problem.
+ *
+ * Still sign-in only, and deliberately so: the delete is scoped by user_id, and
+ * a guest review has none. There is no request a signed-out visitor can make
+ * that removes anybody's review — including the one they just left.
  *
  * The Klaviyo "Submitted Review" event is deliberately NOT retracted — the
  * reward coupon has already been issued and dropping the review shouldn't try

@@ -5,16 +5,22 @@
  *
  * Reviews are scoped to the piece (all metal variants), fetched server-side in
  * page.tsx and passed in as initialReviews. Writes go through ReviewForm →
- * /api/reviews (sign-in required, no purchase gate); after a save we re-pull
- * the list via GET so the summary + bars update without a full reload. The
- * "Write a review" CTA checks auth on mount: signed-out visitors get a sign-in
- * prompt, and every signed-in shopper gets the form — owning the piece is not
- * a condition.
+ * /api/reviews, which needs neither an account nor a purchase; after a save we
+ * re-pull the list via GET so the summary + bars update without a full reload.
+ * Everyone gets the form — the "Write a review" CTA opens it for guests and
+ * signed-in shoppers alike.
  *
- * A shopper's own review carries Edit and Delete on the card itself, rather
- * than only behind the sidebar CTA: the card is where someone looks for them.
- * Delete is a two-step inline confirm (it can't be undone) and goes to
- * DELETE /api/reviews, which scopes the removal to the session user.
+ * Auth is still checked on mount, for two reasons that survive opening the
+ * gate: a signed-in shopper's existing review has to load INTO the form rather
+ * than becoming a second one (hence the CTA waiting on authChecked), and their
+ * own review carries Edit and Delete on the card itself, where someone looks
+ * for them. Delete is a two-step inline confirm (it can't be undone) and goes
+ * to DELETE /api/reviews, which scopes the removal to the session user.
+ *
+ * Guest reviews have user_id null, and every comparison against the current
+ * user has to rule that out first — signed out, currentUserId is null too, and
+ * a bare equality check would hand a visitor Edit/Delete on the first stranger
+ * who posted anonymously.
  */
 
 "use client";
@@ -49,7 +55,6 @@ export default function ReviewSection({
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authChecked, setAuthChecked] = useState(false);
   const [showForm, setShowForm] = useState(false);
-  const [signInPrompt, setSignInPrompt] = useState(false);
   // Deleting is irreversible, so the button asks once before it does it. An
   // inline confirm rather than a dialog: the whole interaction stays on the
   // card being deleted, which is the thing the shopper is looking at.
@@ -58,8 +63,13 @@ export default function ReviewSection({
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const summary = useMemo(() => computeRatingSummary(reviews), [reviews]);
+  // Null-guarded on BOTH sides: a signed-out visitor (currentUserId null) must
+  // never match a guest review (user_id null) and inherit its controls.
   const ownReview = useMemo(
-    () => reviews.find((r) => r.user_id === currentUserId) ?? null,
+    () =>
+      currentUserId
+        ? (reviews.find((r) => r.user_id === currentUserId) ?? null)
+        : null,
     [reviews, currentUserId],
   );
 
@@ -90,19 +100,17 @@ export default function ReviewSection({
     }
   }
 
-  function handleWriteClick() {
-    setSignInPrompt(false);
-    if (!currentUserId) {
-      setSignInPrompt(true);
-      return;
-    }
-    setShowForm(true);
-  }
-
   function handleSaved(saved: Review) {
-    // Optimistically replace/insert, then reconcile with the server.
+    // Optimistically replace/insert, then reconcile with the server. The
+    // same-author sweep only applies to a signed-in reviewer, who is held to
+    // one review per piece; matching on a null user_id would drop every OTHER
+    // guest's review from the list.
     setReviews((prev) => {
-      const rest = prev.filter((r) => r.id !== saved.id && r.user_id !== saved.user_id);
+      const rest = prev.filter(
+        (r) =>
+          r.id !== saved.id &&
+          !(saved.user_id !== null && r.user_id === saved.user_id),
+      );
       return [saved, ...rest];
     });
     setShowForm(false);
@@ -189,30 +197,34 @@ export default function ReviewSection({
           <div className="mt-10">
             <h3 className="font-heading text-lg text-ink">Share your thoughts</h3>
             <p className="mt-2 font-body text-sm text-ink/60 leading-relaxed">
-              Tell other customers what you think of this piece. Sign in and
-              you can leave a review — no order required.
+              Tell other customers what you think of this piece. No account and
+              no order needed — add your name, or post anonymously.
             </p>
 
             {!showForm && (
               <>
                 <button
                   type="button"
-                  onClick={handleWriteClick}
+                  onClick={() => setShowForm(true)}
                   disabled={!authChecked}
                   className="mt-5 w-full border border-ink/20 py-3 text-[11px] tracking-[0.2em] uppercase font-body text-ink hover:bg-ink hover:text-paper transition-colors disabled:opacity-50"
                 >
                   {ownReview ? "Edit your review" : "Write a review"}
                 </button>
-                {signInPrompt && (
-                  <p className="mt-3 font-body text-sm text-ink/70">
-                    Please{" "}
+                {/* A guest review can't be edited or removed afterwards — there
+                    is no identity to scope that to. Better said before they
+                    write it than discovered after. */}
+                {authChecked && !currentUserId && (
+                  <p className="mt-3 font-body text-xs text-ink/45 leading-relaxed">
+                    Posting as a guest, you won&apos;t be able to change or
+                    remove your review later.{" "}
                     <Link
                       href={`/login?next=/products/${productSlug}`}
                       className="underline hover:text-ink"
                     >
-                      sign in
+                      Sign in
                     </Link>{" "}
-                    to leave a review.
+                    first if you&apos;d like to.
                   </p>
                 )}
               </>

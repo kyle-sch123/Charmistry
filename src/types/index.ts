@@ -247,21 +247,30 @@ export interface WishlistItem {
 
 // --- Reviews -----------------------------------------------------------
 //
-// One row per (user, product) written only by the service role via
-// /api/reviews after a purchase check (migration 009). Reviews are scoped to
-// the logical piece: a review on any metal variant is aggregated across every
-// sibling row sharing (name, category_id). author_name is a "First L."
-// snapshot taken from the reviewer profile at submit time.
+// Written only by the service role via /api/reviews, which needs neither a
+// purchase nor an account (migrations 009 -> 011 -> 012). Reviews are scoped
+// to the logical piece: a review on any metal variant is aggregated across
+// every sibling row sharing (name, category_id).
 
 export type StarRating = 1 | 2 | 3 | 4 | 5;
 
 export interface Review {
   id: string;
   product_id: string;
-  user_id: string;
+  /**
+   * The reviewing account, or null for a guest review left without signing in.
+   * Only a non-null value identifies an owner, so anything comparing this to
+   * "the current user" must rule null out first — two signed-out visitors both
+   * read as null and neither owns the other's review.
+   */
+  user_id: string | null;
   rating: number;
   title: string | null;
   body: string;
+  /**
+   * Public display name: what the reviewer typed, else their profile "First L."
+   * snapshot when signed in, else "Anonymous". Never empty.
+   */
   author_name: string;
   created_at: string;
   updated_at: string;
