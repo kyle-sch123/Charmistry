@@ -157,6 +157,9 @@ src/
       discount/validate/       POST — code preview (does not consume).
       orders/[id]/status/      GET — no-PII order status (success-page polling).
       payfast/notify/          POST — PayFast ITN handler (payment finalisation).
+      reviews/                 GET/POST/DELETE — product reviews. POST is open
+                               to everyone (no account, no purchase); DELETE is
+                               sign-in only, since it is scoped by user_id.
       subscribe/               POST — newsletter signup + welcome code.
     account/                   Signed-in area: overview, orders (+ detail with
                                tracking timeline + buy-again), wishlist, settings.
@@ -382,6 +385,7 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `008_accounts.sql`                    | Customer accounts: `profiles` (+ signup trigger), `orders.user_id`, `wishlist_items`, customer-facing RLS SELECT policies |
 | `009_reviews.sql`                     | `reviews` (product ratings + text); public read RLS, writes service-role only via `/api/reviews` |
 | `011_open_reviews.sql`                | Drops the purchase gate from the `reviews` table comment — reviewing needs a sign-in, not an order |
+| `012_guest_reviews.sql`               | Drops the sign-in gate too: `reviews.user_id` becomes nullable so anyone can review. Writes stay service-role only |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
 enums, CREATE OR REPLACE for functions) so re-running them is safe.
@@ -799,6 +803,7 @@ uses that local copy.
    008_accounts.sql                    -- profiles, orders.user_id, wishlist_items, RLS
    009_reviews.sql                     -- reviews, public read RLS
    011_open_reviews.sql                -- reviews: sign-in required, no purchase gate
+   012_guest_reviews.sql               -- reviews: open to guests (user_id nullable)
    ```
    (You can also push them with `supabase db push` if you use the CLI.)
 3. Seed the catalogue. Easiest path: open Studio → Table Editor, insert a

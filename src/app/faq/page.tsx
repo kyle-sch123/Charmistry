@@ -51,11 +51,13 @@ const faqGroups: FaqGroup[] = [
               </li>
             </ul>
             <p>
-              Shipping is{" "}
+              Locker-to-Locker is{" "}
               <span className="font-medium text-ink">
-                free on orders over R700
+                free on orders over R500
               </span>
-              , whichever option you pick.
+              . Over{" "}
+              <span className="font-medium text-ink">R700</span> both options
+              are free, door-to-door included.
             </p>
           </>
         ),
@@ -260,7 +262,7 @@ const flatFaqs = faqGroups.flatMap((group) =>
 
 const pills = [
   "Shipping from R49",
-  "Free over R700",
+  "Free locker over R500",
   "Tracked delivery",
   "Secure payments",
 ];

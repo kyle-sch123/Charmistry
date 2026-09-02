@@ -73,7 +73,7 @@ const PROMISE = [
   },
   {
     h: "2–5 business days",
-    b: "Tracked, nationwide. Free on this edit — it clears the R700 threshold on its own.",
+    b: "Tracked, nationwide. Free on this edit — it clears the R700 door-delivery threshold on its own.",
   },
 ];
 

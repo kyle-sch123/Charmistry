@@ -1,9 +1,11 @@
 /**
  * Route-level tests for POST /api/reviews.
  *
- * There is no purchase gate: any signed-in account may review any piece, and
- * the first block below pins that down from several angles, because it is a
- * deliberate policy choice that is easy to "helpfully" reintroduce.
+ * There is no purchase gate and no sign-in gate: ANYONE may review any piece.
+ * Both are deliberate policy choices that are easy to "helpfully" reintroduce,
+ * so the blocks below pin them down from several angles — including the ways a
+ * guest review must NOT behave like an account's (no update-in-place, no
+ * Klaviyo reward, no reachability from someone else's DELETE).
  *
  * The second block covers the profile/guest-order claim the route still runs.
  * It no longer decides whether a review is accepted — it exists so the author
@@ -427,6 +429,31 @@ describe("DELETE /api/reviews", () => {
     expect(H.db.reviews).toHaveLength(1);
   });
 
+  it("never removes a guest review, not even the caller's own", async () => {
+    // A guest review has no user_id, so the user_id-scoped delete cannot reach
+    // it. That is the trade for not needing an account: nobody can delete an
+    // anonymous review through this endpoint — including whoever wrote it.
+    H.ctx.user = null;
+    await postReview({ productId: SILVER, rating: 5, body: "Lovely.", name: "Jo" });
+
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    await postReview({ productId: SILVER, rating: 2, body: "Not for me." });
+    expect(H.db.reviews).toHaveLength(2);
+
+    const { status, json } = await deleteReview(SILVER);
+
+    expect(status).toBe(200);
+    expect((json?.deleted as string[]).length).toBe(1);
+    expect(H.db.reviews).toHaveLength(1);
+    expect(H.db.reviews[0].author_name).toBe("Jo");
+
+    // ...and the aggregate settles on the guest review that remains.
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    expect(silver.review_count).toBe(1);
+    expect(silver.rating).toBe(5);
+  });
+
   it("rejects a malformed productId", async () => {
     signIn({ id: "user-1", email: "jane@x.com" });
     const { status } = await deleteReview("not-a-uuid");
@@ -486,12 +513,191 @@ describe("POST /api/reviews — no purchase gate", () => {
     expect(silver.rating).toBe(4);
   });
 
-  it("still requires a signed-in session — open to accounts, not to anyone", async () => {
+  it("accepts a signed-out visitor — open to anyone, not just accounts", async () => {
     H.ctx.user = null;
+
     const { status, json } = await postReview({ productId: SILVER, ...VALID });
-    expect(status).toBe(401);
-    expect(json?.error).toBe("unauthorised");
+
+    expect(status).toBe(201);
+    expect((json?.review as Record<string, unknown>).user_id).toBeNull();
+    expect(H.db.reviews).toHaveLength(1);
+  });
+});
+
+describe("POST /api/reviews — guest reviews", () => {
+  it("stores the typed name and a null user_id", async () => {
+    H.ctx.user = null;
+
+    const { status, json } = await postReview({
+      productId: SILVER,
+      rating: 4,
+      body: "Prettier in person than in the photos.",
+      name: "Thandi M.",
+    });
+
+    expect(status).toBe(201);
+    const review = json?.review as Record<string, unknown>;
+    expect(review.user_id).toBeNull();
+    expect(review.author_name).toBe("Thandi M.");
+    expect(review.rating).toBe(4);
+  });
+
+  it("posts as Anonymous when the name box is left blank", async () => {
+    H.ctx.user = null;
+
+    for (const name of [undefined, null, "", "   "]) {
+      H.db.reviews = [];
+      const { status, json } = await postReview({
+        productId: SILVER,
+        rating: 5,
+        body: "Wear it daily.",
+        name,
+      });
+      expect(status).toBe(201);
+      expect((json?.review as Record<string, unknown>).author_name).toBe(
+        "Anonymous",
+      );
+    }
+  });
+
+  it("normalises a messy name rather than storing it raw", async () => {
+    H.ctx.user = null;
+
+    const { json } = await postReview({
+      productId: SILVER,
+      rating: 5,
+      body: "Lovely.",
+      name: "  Bea   van  Niekerk  ",
+    });
+
+    expect((json?.review as Record<string, unknown>).author_name).toBe(
+      "Bea van Niekerk",
+    );
+  });
+
+  it("rejects an over-long name", async () => {
+    H.ctx.user = null;
+
+    const { status, json } = await postReview({
+      productId: SILVER,
+      rating: 5,
+      body: "Lovely.",
+      name: "a".repeat(200),
+    });
+
+    expect(status).toBe(400);
+    expect(json?.error).toBe("name_too_long");
     expect(H.db.reviews).toHaveLength(0);
+  });
+
+  it("keeps every guest review — a second one never updates the first", async () => {
+    // The one-per-piece rule is keyed to user_id. With no identity there is
+    // nothing to key it to, so guests must INSERT every time; collapsing them
+    // would mean one visitor silently overwriting another's review.
+    H.ctx.user = null;
+
+    const first = await postReview({
+      productId: SILVER,
+      rating: 5,
+      body: "Gorgeous.",
+      name: "Lerato",
+    });
+    const second = await postReview({
+      productId: GOLD,
+      rating: 3,
+      body: "Nice but the clasp is fiddly.",
+    });
+
+    expect(first.status).toBe(201);
+    expect(second.status).toBe(201);
+    expect(H.db.reviews).toHaveLength(2);
+    expect(H.db.reviews.map((r) => r.author_name).sort()).toEqual([
+      "Anonymous",
+      "Lerato",
+    ]);
+  });
+
+  it("counts guest reviews in the piece-wide aggregate cache", async () => {
+    H.ctx.user = null;
+    await postReview({ productId: SILVER, rating: 5, body: "Perfect." });
+    await postReview({ productId: GOLD, rating: 3, body: "Just okay." });
+
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    const gold = H.db.products.find((p) => p.id === GOLD)!;
+    expect(silver.review_count).toBe(2);
+    expect(gold.review_count).toBe(2);
+    expect(silver.rating).toBe(4); // (5 + 3) / 2
+  });
+
+  it("never fires the Klaviyo reward for a guest", async () => {
+    // The reward is a discount code emailed to an address. A guest's only
+    // identity is an unverified display name, so issuing one would be free
+    // money for anyone who can spell a POST.
+    H.ctx.user = null;
+
+    const { status } = await postReview({
+      productId: SILVER,
+      rating: 5,
+      body: "Beautiful.",
+      name: "Jo",
+    });
+
+    expect(status).toBe(201);
+    expect(KLAVIYO.track).not.toHaveBeenCalled();
+  });
+
+  it("leaves guest reviews alone when an account reviews the same piece", async () => {
+    H.ctx.user = null;
+    await postReview({ productId: SILVER, rating: 4, body: "Lovely.", name: "Jo" });
+
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
+    const { status } = await postReview({ productId: SILVER, rating: 2, body: "Not for me." });
+
+    expect(status).toBe(201);
+    expect(H.db.reviews).toHaveLength(2);
+    const silver = H.db.products.find((p) => p.id === SILVER)!;
+    expect(silver.review_count).toBe(2);
+    expect(silver.rating).toBe(3); // (4 + 2) / 2
+  });
+});
+
+describe("POST /api/reviews — the name box for accounts", () => {
+  it("keeps the profile snapshot when an account leaves the name blank", async () => {
+    // Pre-name-box behaviour, held steady: an account that ignores the new
+    // field must not be renamed to Anonymous.
+    seedProfile("user-1", "Emily", "Selman");
+    signIn({ id: "user-1", email: "emily@x.com" });
+
+    const { json } = await postReview({ productId: SILVER, ...VALID });
+
+    expect((json?.review as Record<string, unknown>).author_name).toBe("Emily S.");
+  });
+
+  it("lets an account override the profile snapshot with a typed name", async () => {
+    seedProfile("user-1", "Emily", "Selman");
+    signIn({ id: "user-1", email: "emily@x.com" });
+
+    const { json } = await postReview({
+      productId: SILVER,
+      ...VALID,
+      name: "Em",
+    });
+
+    expect((json?.review as Record<string, unknown>).author_name).toBe("Em");
+  });
+
+  it("lets an account post anonymously by naming themselves so", async () => {
+    seedProfile("user-1", "Emily", "Selman");
+    signIn({ id: "user-1", email: "emily@x.com" });
+
+    const { json } = await postReview({
+      productId: SILVER,
+      ...VALID,
+      name: "Anonymous",
+    });
+
+    expect((json?.review as Record<string, unknown>).author_name).toBe("Anonymous");
   });
 });
 
@@ -659,11 +865,16 @@ describe("POST /api/reviews — Klaviyo 'Submitted Review' event", () => {
   });
 
   it("does not fire when the request never reaches a saved review", async () => {
-    H.ctx.user = null;
+    // A rejected submission must not reward anyone. (Signing out is no longer
+    // a rejection — that path is covered in the guest block, where the review
+    // saves but the reward still must not fire.)
+    seedProfile("user-1");
+    signIn({ id: "user-1", email: "jane@x.com" });
 
-    const { status } = await postReview({ productId: SILVER, ...VALID });
+    const { status } = await postReview({ productId: SILVER, rating: 9, body: "x" });
 
-    expect(status).toBe(401);
+    expect(status).toBe(400);
+    expect(H.db.reviews).toHaveLength(0);
     expect(KLAVIYO.track).not.toHaveBeenCalled();
   });
 

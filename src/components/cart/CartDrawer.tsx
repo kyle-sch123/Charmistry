@@ -17,7 +17,11 @@ import type { ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { formatPrice } from "@/lib/utils";
 import { resolveBundleDiscount, resolveShippingPerk } from "@/lib/bundles";
-import { FREE_SHIPPING_THRESHOLD } from "@/lib/shipping";
+import {
+  FREE_DOOR_THRESHOLD,
+  LOCKER_MILESTONE_PERCENT,
+  resolveFreeShippingProgress,
+} from "@/lib/shipping";
 import {
   trackRemoveFromCart,
   trackBeginCheckout,
@@ -33,6 +37,23 @@ import {
 } from "@/lib/klaviyo-client";
 import { metalLabels, metalSwatch } from "@/lib/metals";
 import PaymentIcons from "@/components/icons/PaymentIcons";
+
+/** Small gold tick used by the free-shipping bar's unlocked states. */
+function UnlockTick() {
+  return (
+    <svg
+      className="w-3 h-3 shrink-0"
+      viewBox="0 0 12 12"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      style={{ color: "var(--color-gold)" }}
+      aria-hidden
+    >
+      <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
+    </svg>
+  );
+}
 
 export default function CartDrawer() {
   const isOpen = useCart((s) => s.isOpen);
@@ -162,13 +183,11 @@ export default function CartDrawer() {
   // figure reconciles with the bundle total shown below, and matches the charge
   // (/api/checkout applies the threshold to the same discounted amount).
   // A cart-earned perk unlocks the bar outright, below the threshold.
-  const remaining = Math.max(0, FREE_SHIPPING_THRESHOLD - bundleTotal);
-  const thresholdUnlocked = bundleTotal >= FREE_SHIPPING_THRESHOLD;
-  const isUnlocked = thresholdUnlocked || shippingPerk != null;
-  const progress = isUnlocked
-    ? 100
-    : Math.min(100, (bundleTotal / FREE_SHIPPING_THRESHOLD) * 100);
-  const unlockedLabel = "Free delivery unlocked";
+  // Two tiers now: R500 frees the locker, R700 frees door delivery too. The
+  // whole state comes from lib/shipping so the bar and the charge are derived
+  // from one rule — the bar can never promise a tier checkout won't honour.
+  const { lockerFree, doorFree, remaining, progress } =
+    resolveFreeShippingProgress(bundleTotal, shippingPerk?.perk);
 
   // Lock body scroll while the drawer is open
   useEffect(() => {
@@ -254,86 +273,138 @@ export default function CartDrawer() {
               <>
                 {/* Free shipping progress bar */}
                 <div className="px-6 pt-4 pb-3.5 border-b border-ink/10">
-                  <div className="flex items-center justify-between mb-2.5">
+                  <div className="flex items-center justify-between gap-3 mb-2.5">
+                    {/* Three states, one line: nothing unlocked -> locker
+                        unlocked (door still to earn) -> everything unlocked. */}
                     <AnimatePresence mode="wait">
-                      {isUnlocked ? (
+                      {doorFree ? (
                         <motion.div
-                          key="unlocked"
+                          key="door"
                           className="flex items-center gap-1.5"
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.3 }}
                         >
-                          <svg
-                            className="w-3 h-3 shrink-0"
-                            viewBox="0 0 12 12"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                            style={{ color: "var(--color-gold)" }}
-                          >
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2 6l3 3 5-5" />
-                          </svg>
+                          <UnlockTick />
                           <p
                             className="text-[10px] tracking-[0.22em] uppercase font-body"
                             style={{ color: "var(--color-gold)" }}
                           >
-                            {unlockedLabel}
+                            Free door delivery unlocked
                           </p>
                         </motion.div>
-                      ) : (
-                        <motion.p
-                          key="remaining"
-                          className="text-[10px] tracking-[0.15em] uppercase font-body text-ink/55"
+                      ) : lockerFree ? (
+                        <motion.div
+                          key="locker"
+                          className="flex items-center gap-1.5"
                           initial={{ opacity: 0, y: 4 }}
                           animate={{ opacity: 1, y: 0 }}
                           exit={{ opacity: 0, y: -4 }}
                           transition={{ duration: 0.3 }}
                         >
-                          <span className="text-ink">{formatPrice(remaining)}</span> away from free delivery
+                          <UnlockTick />
+                          <p className="text-[10px] tracking-[0.15em] uppercase font-body text-ink/55 leading-tight">
+                            <span style={{ color: "var(--color-gold)" }}>
+                              Locker free
+                            </span>{" "}
+                            · <span className="text-ink">{formatPrice(remaining)}</span>{" "}
+                            to free door delivery
+                          </p>
+                        </motion.div>
+                      ) : (
+                        <motion.p
+                          key="remaining"
+                          className="text-[10px] tracking-[0.15em] uppercase font-body text-ink/55 leading-tight"
+                          initial={{ opacity: 0, y: 4 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: -4 }}
+                          transition={{ duration: 0.3 }}
+                        >
+                          <span className="text-ink">{formatPrice(remaining)}</span> away from free locker delivery
                         </motion.p>
                       )}
                     </AnimatePresence>
-                    {!isUnlocked && (
-                      <span className="text-[10px] font-body text-ink/30 tabular-nums">{formatPrice(FREE_SHIPPING_THRESHOLD)}</span>
+                    {/* The track ends at the door tier, so that is the number
+                        that labels its right-hand end. */}
+                    {!lockerFree && (
+                      <span className="text-[10px] font-body text-ink/30 tabular-nums shrink-0">{formatPrice(FREE_DOOR_THRESHOLD)}</span>
                     )}
                   </div>
 
-                  {/* Progress track + the free-delivery milestone circle. The
-                      line runs under the circle so the fill visually "reaches"
-                      the milestone when delivery unlocks. */}
+                  {/* Progress track + TWO milestones: a locker at R500 part
+                      way along, and the delivery van at R700 on the end. The
+                      line runs under both circles so the fill visually
+                      "reaches" each one as its tier unlocks. Track and locker
+                      milestone share one box, so the milestone's percentage is
+                      measured against exactly the width the fill is. */}
                   <div className="relative flex h-8 items-center pr-3.5">
-                    <div className="relative h-[2px] w-full bg-stone rounded-full overflow-hidden">
-                      <motion.div
-                        className="absolute inset-y-0 left-0 rounded-full"
-                        style={{
-                          background:
-                            "linear-gradient(90deg, var(--color-gold-dark), var(--color-gold), var(--color-gold-light))",
-                        }}
-                        initial={{ width: "0%" }}
-                        animate={{ width: `${progress}%` }}
-                        transition={{ type: "spring", damping: 28, stiffness: 160, mass: 0.8 }}
-                      />
-                      {isUnlocked && (
-                        <div
-                          className="absolute inset-0 animate-shimmer"
+                    <div className="relative w-full">
+                      <div className="relative h-[2px] w-full bg-stone rounded-full overflow-hidden">
+                        <motion.div
+                          className="absolute inset-y-0 left-0 rounded-full"
                           style={{
                             background:
-                              "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
-                            backgroundSize: "200% 100%",
+                              "linear-gradient(90deg, var(--color-gold-dark), var(--color-gold), var(--color-gold-light))",
                           }}
+                          initial={{ width: "0%" }}
+                          animate={{ width: `${progress}%` }}
+                          transition={{ type: "spring", damping: 28, stiffness: 160, mass: 0.8 }}
                         />
-                      )}
+                        {doorFree && (
+                          <div
+                            className="absolute inset-0 animate-shimmer"
+                            style={{
+                              background:
+                                "linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.45) 50%, transparent 100%)",
+                              backgroundSize: "200% 100%",
+                            }}
+                          />
+                        )}
+                      </div>
+
+                      {/* Locker milestone (R500). Smaller than the van so the
+                          two read as a ladder rather than as equals. */}
+                      <div
+                        className={`absolute top-1/2 -translate-x-1/2 -translate-y-1/2 flex h-5 w-5 items-center justify-center rounded-full border transition-all duration-500 ${
+                          lockerFree
+                            ? "border-transparent text-paper shadow-[0_1px_6px_rgba(201,168,76,0.4)]"
+                            : "border-ink/20 bg-paper text-ink/35"
+                        }`}
+                        style={{
+                          left: `${LOCKER_MILESTONE_PERCENT}%`,
+                          ...(lockerFree
+                            ? {
+                                background:
+                                  "linear-gradient(135deg, var(--color-gold-dark), var(--color-gold))",
+                              }
+                            : {}),
+                        }}
+                        aria-hidden
+                      >
+                        {/* Bank of lockers — this milestone's reward */}
+                        <svg
+                          className="h-2.5 w-2.5"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth={1.8}
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <rect x="4" y="3" width="16" height="18" rx="1.5" />
+                          <path d="M4 9h16M4 15h16" />
+                        </svg>
+                      </div>
                     </div>
                     <div
                       className={`absolute right-0 top-1/2 -translate-y-1/2 flex h-7 w-7 items-center justify-center rounded-full border transition-all duration-500 ${
-                        isUnlocked
+                        doorFree
                           ? "border-transparent text-paper shadow-[0_2px_10px_rgba(201,168,76,0.45)]"
                           : "border-ink/20 bg-paper text-ink/35"
                       }`}
                       style={
-                        isUnlocked
+                        doorFree
                           ? {
                               background:
                                 "linear-gradient(135deg, var(--color-gold-dark), var(--color-gold))",
@@ -342,7 +413,7 @@ export default function CartDrawer() {
                       }
                       aria-hidden
                     >
-                      {/* Delivery van — the milestone's reward is shipping */}
+                      {/* Delivery van — the door-to-door tier (R700) */}
                       <svg
                         className="h-3.5 w-3.5"
                         viewBox="0 0 24 24"

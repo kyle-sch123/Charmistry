@@ -11,7 +11,7 @@
  */
 
 const PHRASES = [
-  "Free Shipping Over R700",
+  "Free Locker Delivery Over R500",
   "Live in it: Waterproof + Tarnish-Resistant",
   "Backed by the 12-Month Charmistry Guarantee",
   "Nationwide Shipping From R49",

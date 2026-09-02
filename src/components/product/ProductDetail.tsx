@@ -528,7 +528,7 @@ export default function ProductDetail({
             "Sensitive skin friendly",
             "Everyday durability",
             "Backed by the 12-month Charmistry Guarantee",
-            "Complimentary shipping on orders over R700",
+            "Complimentary locker delivery on orders over R500",
           ].map((point) => (
             <li key={point} className="flex items-center gap-3">
               <span
