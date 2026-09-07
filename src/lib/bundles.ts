@@ -12,7 +12,7 @@
  * Rewards come in two independent tracks, resolved separately:
  *   - a ZAR discount        — resolveBundleDiscount(). Slug bundles (the
  *     Everyday Edit's R175 per set) AND the category/mix stacks, which take
- *     10% off the qualifying lines. Whichever saves the most wins; they never
+ *     15% off the qualifying lines. Whichever saves the most wins; they never
  *     compound on each other.
  *   - a shipping perk       — resolveShippingPerk(). Slug bundles only: the
  *     Everyday Edit adds free delivery on any method on top of its ZAR
@@ -107,7 +107,7 @@ export interface CategoryStackDefinition {
 }
 
 /**
- * Stack & Save: any 3 rings → 10% off the rings. The 10% is taken off the ring
+ * Stack & Save: any 3 rings → 15% off the rings. The 15% is taken off the ring
  * subtotal only (never the whole cart), and unlocks once the cart holds 3+
  * rings. Keep the /shop rings banner copy driven off this config so the promo
  * shown and the discount charged can never drift.
@@ -117,7 +117,7 @@ export const RINGS_STACK: CategoryStackDefinition = {
   label: "Stack & Save · rings",
   category: "rings",
   minQuantity: 3,
-  percentOff: 10,
+  percentOff: 15,
 };
 
 export const CATEGORY_STACKS: CategoryStackDefinition[] = [RINGS_STACK];
@@ -142,7 +142,7 @@ export interface MixStackDefinition {
 }
 
 /**
- * Create Your Own Stack: a necklace + earrings + a bracelet → 10% off those
+ * Create Your Own Stack: a necklace + earrings + a bracelet → 15% off those
  * pieces, automatically at checkout. Keep the PDP StackBuilder copy driven off
  * this config so the promo shown and the discount charged can never drift.
  */
@@ -150,7 +150,7 @@ export const MIX_MATCH_STACK: MixStackDefinition = {
   code: "MIX-STACK",
   label: "Create Your Own Stack",
   categories: ["necklaces", "earrings", "bracelets"],
-  percentOff: 10,
+  percentOff: 15,
 };
 
 export const MIX_STACKS: MixStackDefinition[] = [MIX_MATCH_STACK];
