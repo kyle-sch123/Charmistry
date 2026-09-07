@@ -121,19 +121,19 @@ describe("RINGS_STACK config", () => {
   // Tripwire: the /shop rings banner and the PDP RingsStackBanner render their
   // promise straight from this config, and checkout honours it. Any edit here
   // must be deliberate.
-  it("rewards 3 rings with 10% off the rings", () => {
+  it("rewards 3 rings with 15% off the rings", () => {
     expect(RINGS_STACK.category).toBe("rings");
     expect(RINGS_STACK.minQuantity).toBe(3);
-    expect(RINGS_STACK.percentOff).toBe(10);
+    expect(RINGS_STACK.percentOff).toBe(15);
   });
 });
 
 describe("resolveBundleDiscount — rings Stack & Save", () => {
-  it("takes 10% off the ring subtotal once 3 rings are in the cart", () => {
+  it("takes 15% off the ring subtotal once 3 rings are in the cart", () => {
     const result = resolveBundleDiscount([ring(3, 500)]);
     expect(result).not.toBeNull();
     expect(result?.code).toBe(RINGS_STACK.code);
-    expect(result?.amount).toBe(150); // 10% of R1 500
+    expect(result?.amount).toBe(225); // 15% of R1 500
     expect(result?.sets).toBe(1);
   });
 
@@ -148,7 +148,7 @@ describe("resolveBundleDiscount — rings Stack & Save", () => {
       ring(1, 500),
     ]);
     expect(result?.code).toBe(RINGS_STACK.code);
-    expect(result?.amount).toBe(150); // 10% of R1 500
+    expect(result?.amount).toBe(225); // 15% of R1 500
   });
 
   it("discounts the rings only, never the rest of the cart", () => {
@@ -159,7 +159,7 @@ describe("resolveBundleDiscount — rings Stack & Save", () => {
       { slug: "a-necklace", category: "necklaces", price: 900, quantity: 1 },
     ]);
     expect(result?.code).toBe(RINGS_STACK.code);
-    expect(result?.amount).toBe(150);
+    expect(result?.amount).toBe(225);
   });
 
   it("ignores lines with no usable price", () => {
@@ -192,25 +192,25 @@ const trio = (price = 400): BundleLine[] =>
   MIX_MATCH_STACK.categories.map((c) => piece(c, price));
 
 describe("MIX_MATCH_STACK config", () => {
-  // Tripwire: the PDP StackBuilder renders its slots and its 10% promise
+  // Tripwire: the PDP StackBuilder renders its slots and its 15% promise
   // straight from this config. Changing it changes what checkout honours, so
   // any edit here must be deliberate.
-  it("requires one necklace, one earrings and one bracelet for 10% off", () => {
+  it("requires one necklace, one earrings and one bracelet for 15% off", () => {
     expect(MIX_MATCH_STACK.categories).toEqual([
       "necklaces",
       "earrings",
       "bracelets",
     ]);
-    expect(MIX_MATCH_STACK.percentOff).toBe(10);
+    expect(MIX_MATCH_STACK.percentOff).toBe(15);
   });
 });
 
 describe("resolveBundleDiscount — Create Your Own Stack", () => {
-  it("takes 10% off the trio once one of each category is in the cart", () => {
+  it("takes 15% off the trio once one of each category is in the cart", () => {
     const result = resolveBundleDiscount(trio(400));
     expect(result).not.toBeNull();
     expect(result?.code).toBe(MIX_MATCH_STACK.code);
-    expect(result?.amount).toBe(120); // 10% of R1 200
+    expect(result?.amount).toBe(180); // 15% of R1 200
   });
 
   it("does not apply while any category is missing", () => {
@@ -222,7 +222,7 @@ describe("resolveBundleDiscount — Create Your Own Stack", () => {
 
   it("discounts every listed-category line, not just one trio", () => {
     const result = resolveBundleDiscount([...trio(400), piece("necklaces", 200)]);
-    expect(result?.amount).toBe(140); // 10% of R1 400
+    expect(result?.amount).toBe(210); // 15% of R1 400
   });
 
   it("grants no shipping perk — the stack pays out as money off", () => {
@@ -230,11 +230,11 @@ describe("resolveBundleDiscount — Create Your Own Stack", () => {
   });
 
   it("returns the larger saving when both stacks qualify", () => {
-    // The trio saves R120; three R900 rings save R270. They never compound —
+    // The trio saves R180; three R900 rings save R405. They never compound —
     // the best single promo wins, same rule as bundle-vs-stack.
     const result = resolveBundleDiscount([...trio(400), ring(3, 900)]);
     expect(result?.code).toBe(RINGS_STACK.code);
-    expect(result?.amount).toBe(270);
+    expect(result?.amount).toBe(405);
   });
 });
 
