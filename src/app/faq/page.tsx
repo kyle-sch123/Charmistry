@@ -39,7 +39,7 @@ const faqGroups: FaqGroup[] = [
             <ul>
               <li>
                 <span className="font-medium text-ink">
-                  Locker-to-Locker — R49.
+                  Locker-to-Locker — R59.
                 </span>{" "}
                 Collect from a secure locker near you.
               </li>
@@ -261,7 +261,7 @@ const flatFaqs = faqGroups.flatMap((group) =>
 );
 
 const pills = [
-  "Shipping from R49",
+  "Shipping from R59",
   "Free locker over R500",
   "Tracked delivery",
   "Secure payments",

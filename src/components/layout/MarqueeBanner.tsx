@@ -14,7 +14,7 @@ const PHRASES = [
   "Free Locker Delivery Over R500",
   "Live in it: Waterproof + Tarnish-Resistant",
   "Backed by the 12-Month Charmistry Guarantee",
-  "Nationwide Shipping From R49",
+  "Nationwide Shipping From R59",
 ];
 
 // Repeat the phrases so a single sequence is wide enough to fill ultrawide

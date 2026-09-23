@@ -27,12 +27,12 @@ describe("resolveShippingMethod", () => {
 
 describe("shippingCostForMethod", () => {
   it("charges both methods below the locker threshold", () => {
-    expect(shippingCostForMethod("pudo_locker", 100)).toBe(49);
+    expect(shippingCostForMethod("pudo_locker", 100)).toBe(59);
     expect(shippingCostForMethod("courier_economy", 100)).toBe(79);
   });
 
   it("still charges one rand below the locker threshold", () => {
-    expect(shippingCostForMethod("pudo_locker", FREE_LOCKER_THRESHOLD - 1)).toBe(49);
+    expect(shippingCostForMethod("pudo_locker", FREE_LOCKER_THRESHOLD - 1)).toBe(59);
     expect(shippingCostForMethod("courier_economy", FREE_LOCKER_THRESHOLD - 1)).toBe(79);
   });
 
@@ -74,7 +74,7 @@ describe("shippingCostForMethod", () => {
   });
 
   it("treats an absent perk exactly like the pre-perk behaviour", () => {
-    expect(shippingCostForMethod("pudo_locker", 100, null)).toBe(49);
+    expect(shippingCostForMethod("pudo_locker", 100, null)).toBe(59);
     expect(shippingCostForMethod("pudo_locker", FREE_DOOR_THRESHOLD, null)).toBe(0);
   });
 
