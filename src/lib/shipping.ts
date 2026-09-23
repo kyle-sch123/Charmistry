@@ -3,7 +3,7 @@
  *
  * Charmistry offers two carrier options at checkout, both fulfilled under The
  * Courier Guy umbrella:
- *   - Locker-to-Locker (R49) — collect from a nearby locker. The customer tells
+ *   - Locker-to-Locker (R59) — collect from a nearby locker. The customer tells
  *     us their preferred locker in the order notes or by email; if none is
  *     given, we ship to the nearest available locker to their address.
  *   - Standard Economy (R79) — door-to-door delivery via The Courier Guy.
@@ -77,7 +77,7 @@ export const SHIPPING_METHODS: readonly ShippingMethodDef[] = [
     id: "pudo_locker",
     label: "Courier Guy Locker-to-Locker",
     carrier: "The Courier Guy",
-    price: 49,
+    price: 59,
     eta: "2–4 working days",
     blurb: "Collect from any locker nationwide",
   },
