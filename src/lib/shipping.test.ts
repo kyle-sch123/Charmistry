@@ -1,8 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_SHIPPING_RATES,
   FREE_DOOR_THRESHOLD,
   FREE_LOCKER_THRESHOLD,
   LOCKER_MILESTONE_PERCENT,
+  MAX_SHIPPING_PRICE,
+  isShippingMethodId,
+  parseShippingPrice,
+  ratesFromRows,
   resolveFreeShippingProgress,
   resolveShippingMethod,
   shippingCostForMethod,
@@ -167,5 +172,110 @@ describe("shippingMethodLabel", () => {
   });
   it("returns null for an unknown id", () => {
     expect(shippingMethodLabel("nope")).toBeNull();
+  });
+});
+
+describe("owner-set shipping rates", () => {
+  const custom = { pudo_locker: 65, courier_economy: 89.5 } as const;
+
+  it("defaults to the built-in prices", () => {
+    expect(DEFAULT_SHIPPING_RATES).toEqual({ pudo_locker: 59, courier_economy: 79 });
+  });
+
+  it("charges the supplied rates instead of the defaults", () => {
+    expect(shippingCostForMethod("pudo_locker", 100, null, custom)).toBe(65);
+    expect(shippingCostForMethod("courier_economy", 100, null, custom)).toBe(89.5);
+  });
+
+  it("still lets the thresholds and perks win over a custom rate", () => {
+    // Raising a price must never resurrect a charge the free tiers waive.
+    expect(shippingCostForMethod("pudo_locker", FREE_LOCKER_THRESHOLD, null, custom)).toBe(0);
+    expect(shippingCostForMethod("courier_economy", FREE_LOCKER_THRESHOLD, null, custom)).toBe(89.5);
+    expect(shippingCostForMethod("courier_economy", FREE_DOOR_THRESHOLD, null, custom)).toBe(0);
+    expect(shippingCostForMethod("courier_economy", 100, "all_methods", custom)).toBe(0);
+    expect(shippingCostForMethod("courier_economy", 0, null, custom)).toBe(0);
+  });
+});
+
+describe("parseShippingPrice", () => {
+  it("accepts positive amounts as numbers or numeric strings", () => {
+    expect(parseShippingPrice(59)).toBe(59);
+    expect(parseShippingPrice("79")).toBe(79);
+    expect(parseShippingPrice(" 65.5 ")).toBe(65.5);
+    expect(parseShippingPrice(MAX_SHIPPING_PRICE)).toBe(MAX_SHIPPING_PRICE);
+  });
+
+  it("rounds to cents", () => {
+    expect(parseShippingPrice(59.999)).toBe(60);
+    expect(parseShippingPrice("49.994")).toBe(49.99);
+  });
+
+  it("rejects zero — free delivery is the thresholds' job, not a R0 price", () => {
+    expect(parseShippingPrice(0)).toBeNull();
+    expect(parseShippingPrice("0")).toBeNull();
+    // Rounds to R0.00, so it's a zero price too.
+    expect(parseShippingPrice(0.001)).toBeNull();
+  });
+
+  it("rejects negatives, typos past the cap, and non-numbers", () => {
+    for (const bad of [
+      -1,
+      MAX_SHIPPING_PRICE + 0.01,
+      7900,
+      Number.NaN,
+      Number.POSITIVE_INFINITY,
+      "",
+      "   ",
+      "R59",
+      "abc",
+      null,
+      undefined,
+      true,
+      {},
+    ]) {
+      expect(parseShippingPrice(bad)).toBeNull();
+    }
+  });
+});
+
+describe("ratesFromRows", () => {
+  it("returns the defaults when there are no rows", () => {
+    expect(ratesFromRows([])).toEqual(DEFAULT_SHIPPING_RATES);
+    expect(ratesFromRows(null)).toEqual(DEFAULT_SHIPPING_RATES);
+  });
+
+  it("overlays stored prices on the defaults, method by method", () => {
+    expect(ratesFromRows([{ method_id: "courier_economy", price: 95 }])).toEqual({
+      pudo_locker: 59,
+      courier_economy: 95,
+    });
+  });
+
+  it("accepts numeric strings (how a numeric column can arrive)", () => {
+    expect(ratesFromRows([{ method_id: "pudo_locker", price: "62.50" }]).pudo_locker).toBe(62.5);
+  });
+
+  it("ignores unknown methods and unusable prices rather than charging them", () => {
+    const rates = ratesFromRows([
+      { method_id: "free_yacht", price: 1 },
+      { method_id: "pudo_locker", price: 0 },
+      { method_id: "courier_economy", price: "nope" },
+    ]);
+    expect(rates).toEqual(DEFAULT_SHIPPING_RATES);
+    expect(rates).not.toHaveProperty("free_yacht");
+  });
+
+  it("never mutates the shared defaults", () => {
+    ratesFromRows([{ method_id: "pudo_locker", price: 99 }]);
+    expect(DEFAULT_SHIPPING_RATES.pudo_locker).toBe(59);
+  });
+});
+
+describe("isShippingMethodId", () => {
+  it("recognises only catalogue method ids", () => {
+    expect(isShippingMethodId("pudo_locker")).toBe(true);
+    expect(isShippingMethodId("courier_economy")).toBe(true);
+    expect(isShippingMethodId("free_yacht")).toBe(false);
+    expect(isShippingMethodId(undefined)).toBe(false);
   });
 });

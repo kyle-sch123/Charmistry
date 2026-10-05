@@ -25,7 +25,7 @@ export default function CataloguePage() {
           <p className="mt-2 text-[13px] text-ink/55 font-body leading-relaxed">
             Edit prices, stock, sizes and descriptions; add or remove products
             and metal variants; upload product photos (auto-converted to WebP);
-            and manage categories.
+            manage categories; and set shipping prices.
           </p>
         </header>
         <CatalogueClient />

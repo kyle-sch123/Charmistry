@@ -34,6 +34,7 @@ import { createServerSupabase } from "@/lib/supabase-server";
 import { getVerifiedUser } from "@/lib/auth/server";
 import { buildPaymentRequest } from "@/lib/payfast";
 import { resolveShippingMethod, shippingCostForMethod } from "@/lib/shipping";
+import { loadShippingRates } from "@/lib/shipping-rates";
 import {
   consumeDiscount,
   refundDiscount,
@@ -294,15 +295,19 @@ export async function POST(request: Request) {
 
   // Resolve the chosen carrier. An unknown (tampered) id is rejected outright;
   // the cost is re-derived server-side so the client can never assert a price.
+  // The flat price is the owner's live rate (set in /admin/catalogue), read
+  // through the same loader the checkout page displays from.
   const shippingMethodDef = resolveShippingMethod(body.shippingMethod);
   if (!shippingMethodDef) {
     return Response.json({ error: "invalid_shipping_method" }, { status: 400 });
   }
   const shippingPerk = resolveShippingPerk(bundleLines);
+  const shippingRates = await loadShippingRates(supabase);
   const shippingCost = shippingCostForMethod(
     shippingMethodDef.id,
     discountedSubtotal,
     shippingPerk?.perk,
+    shippingRates,
   );
 
   const total = Number((discountedSubtotal + shippingCost).toFixed(2));

@@ -1,8 +1,14 @@
-/** Checkout page shell — wraps the client form with site chrome. */
+/**
+ * Checkout page shell — wraps the client form with site chrome, and reads the
+ * owner's live shipping prices (set in /admin/catalogue) so the delivery-method
+ * prices shown match what /api/checkout will charge.
+ */
 
 import type { Metadata } from "next";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import { supabase } from "@/lib/supabase";
+import { loadShippingRates } from "@/lib/shipping-rates";
 import CheckoutClient from "./CheckoutClient";
 
 export const metadata: Metadata = {
@@ -13,7 +19,8 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default function CheckoutPage() {
+export default async function CheckoutPage() {
+  const shippingRates = await loadShippingRates(supabase);
   return (
     <>
       <Navbar />
@@ -30,7 +37,7 @@ export default function CheckoutPage() {
               Your payment is processed securely by PayFast. We never see your card details.
             </p>
           </header>
-          <CheckoutClient />
+          <CheckoutClient shippingRates={shippingRates} />
         </div>
       </main>
       <Footer />

@@ -24,7 +24,7 @@ const TOOLS = [
     href: "/admin/catalogue",
     title: "Catalogue",
     description:
-      "Edit prices, stock, sizes and descriptions; manage products, metal variants, photos and categories.",
+      "Edit prices, stock, sizes and descriptions; manage products, metal variants, photos, categories and shipping prices.",
   },
 ];
 
