@@ -76,9 +76,9 @@ export function sizeLabel(size: string | number | null | undefined): string | nu
 
 // ---- Form primitives ------------------------------------------------------
 
-const labelCls =
+export const labelCls =
   "block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5";
-const inputCls =
+export const inputCls =
   "w-full border border-ink/15 bg-paper px-3 py-2.5 text-sm font-body focus:outline-none focus:border-ink transition-colors";
 
 export function AdminField({

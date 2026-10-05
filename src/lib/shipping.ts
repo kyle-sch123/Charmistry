@@ -3,13 +3,22 @@
  *
  * Charmistry offers two carrier options at checkout, both fulfilled under The
  * Courier Guy umbrella:
- *   - Locker-to-Locker (R59) — collect from a nearby locker. The customer tells
- *     us their preferred locker in the order notes or by email; if none is
- *     given, we ship to the nearest available locker to their address.
- *   - Standard Economy (R79) — door-to-door delivery via The Courier Guy.
+ *   - Locker-to-Locker (default R59) — collect from a nearby locker. The
+ *     customer tells us their preferred locker in the order notes or by email;
+ *     if none is given, we ship to the nearest available locker to their
+ *     address.
+ *   - Standard Economy (default R79) — door-to-door delivery via The Courier
+ *     Guy.
  *
  * Note: the `pudo_locker` method id is retained internally (the locker network
  * is PUDO under the hood) but is never surfaced to customers.
+ *
+ * Live prices: the owner edits each method's flat price in /admin/catalogue,
+ * stored in the `shipping_rates` table (migration 013) and loaded by
+ * loadShippingRates() in lib/shipping-rates.ts. The prices in SHIPPING_METHODS
+ * below are only the DEFAULTS, used when no row exists or the read fails —
+ * every price-taking function here accepts a ShippingRates map and falls back
+ * to DEFAULT_SHIPPING_RATES when it isn't given one.
  *
  * Pricing model — evaluated on the DISCOUNTED merchandise total (what the
  * customer actually pays for goods), not the pre-discount subtotal, so the
@@ -17,7 +26,7 @@
  *
  * Free shipping comes in TWO tiers, cheaper method first:
  * - discounted total >= R500 -> Locker-to-Locker is free. Standard Economy is
- *   NOT: door-to-door still costs its flat R79 in this band. The two tiers are
+ *   NOT: door-to-door still costs its flat price in this band. The two tiers are
  *   independent, not a credit — R500 buys the locker method, nothing else.
  * - discounted total >= R700 -> free on any method, door delivery included.
  *
@@ -64,7 +73,11 @@ export interface ShippingMethodDef {
   label: string;
   /** Fulfilment carrier, e.g. "The Courier Guy". */
   carrier: string;
-  /** Flat price in ZAR before the free-shipping threshold is applied. */
+  /**
+   * DEFAULT flat price in ZAR before the free-shipping threshold is applied.
+   * The live price is the owner's, from ShippingRates — read this only as the
+   * fallback (see DEFAULT_SHIPPING_RATES).
+   */
   price: number;
   /** Rough delivery window, shown as a sub-label. */
   eta: string;
@@ -92,6 +105,61 @@ export const SHIPPING_METHODS: readonly ShippingMethodDef[] = [
 ] as const;
 
 export const DEFAULT_SHIPPING_METHOD_ID: ShippingMethodId = "pudo_locker";
+
+/** The flat price of each method in ZAR, as currently set by the owner. */
+export type ShippingRates = Readonly<Record<ShippingMethodId, number>>;
+
+/** The built-in prices, used until the owner sets their own (or a read fails). */
+export const DEFAULT_SHIPPING_RATES: ShippingRates = Object.fromEntries(
+  SHIPPING_METHODS.map((m) => [m.id, m.price]),
+) as Record<ShippingMethodId, number>;
+
+/**
+ * Upper bound on a shipping price the admin may set — a typo guard (R790 for
+ * R79), not a business rule. Raise it here if a real rate ever needs more.
+ */
+export const MAX_SHIPPING_PRICE = 1000;
+
+/** True for a method id this catalogue knows about. */
+export function isShippingMethodId(value: unknown): value is ShippingMethodId {
+  return SHIPPING_METHODS.some((m) => m.id === value);
+}
+
+/**
+ * Validate an owner-entered shipping price. Returns the price rounded to cents,
+ * or null when it isn't a number in (0, MAX_SHIPPING_PRICE].
+ *
+ * Zero is rejected on purpose: the cart drawer's free-delivery bar judges
+ * "free" from the spend thresholds alone and never sees these prices, so a R0
+ * method would be free at checkout while the bar still told the shopper to
+ * spend more for it. Free delivery is the thresholds' job.
+ */
+export function parseShippingPrice(value: unknown): number | null {
+  if (value === null || value === "" || typeof value === "boolean") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(n)) return null;
+  const rounded = Number(n.toFixed(2));
+  if (rounded <= 0 || rounded > MAX_SHIPPING_PRICE) return null;
+  return rounded;
+}
+
+/**
+ * Build a full ShippingRates map from stored `shipping_rates` rows. Rows for
+ * unknown methods, and prices that fail parseShippingPrice, are ignored —
+ * that method keeps its default — so a bad row can never price a method at R0
+ * or NaN.
+ */
+export function ratesFromRows(
+  rows: readonly { method_id: unknown; price: unknown }[] | null | undefined,
+): ShippingRates {
+  const rates: Record<ShippingMethodId, number> = { ...DEFAULT_SHIPPING_RATES };
+  for (const row of rows ?? []) {
+    if (!isShippingMethodId(row.method_id)) continue;
+    const price = parseShippingPrice(row.price);
+    if (price !== null) rates[row.method_id] = price;
+  }
+  return rates;
+}
 
 function findMethod(
   id: string | null | undefined,
@@ -130,7 +198,10 @@ export function shippingMethodLabel(
  *   amount >= FREE_LOCKER_THRESHOLD   -> free for the LOCKER method only
  *   perk "all_methods"                -> free, any method
  *   perk "locker_only"                -> free for the locker method only
- *   otherwise                         -> the method's flat price
+ *   otherwise                         -> the method's flat price, from `rates`
+ *
+ * `rates` is the owner's live price list (loadShippingRates); omitted, the
+ * built-in defaults apply. Display and charge must pass the SAME map.
  *
  * Unknown ids resolve to 0 (the caller is expected to have validated the id).
  */
@@ -138,13 +209,14 @@ export function shippingCostForMethod(
   methodId: ShippingMethodId,
   amount: number,
   perk?: ShippingPerk | null,
+  rates: ShippingRates = DEFAULT_SHIPPING_RATES,
 ): number {
   if (amount <= 0) return 0;
   if (amount >= FREE_DOOR_THRESHOLD) return 0;
   if (amount >= FREE_LOCKER_THRESHOLD && methodId === "pudo_locker") return 0;
   if (perk === "all_methods") return 0;
   if (perk === "locker_only" && methodId === "pudo_locker") return 0;
-  return findMethod(methodId)?.price ?? 0;
+  return rates[methodId] ?? 0;
 }
 
 /** What the cart's free-shipping bar needs to know, derived in one place. */

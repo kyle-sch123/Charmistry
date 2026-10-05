@@ -8,9 +8,10 @@
  * Flow:
  *   1. Form mounts, waits for the cart to hydrate from localStorage.
  *   2. The shopper picks a delivery method (Locker-to-Locker or Standard
- *      Economy). Prices come from the shared lib/shipping catalogue, so the line
- *      updates instantly with no round-trip; /api/checkout re-derives the same
- *      cost server-side from the chosen method id.
+ *      Economy). The owner's live prices arrive as `shippingRates` from the
+ *      server page and are priced through the shared lib/shipping rules, so the
+ *      line updates instantly with no round-trip; /api/checkout re-derives the
+ *      same cost server-side from the chosen method id and the same rates.
  *   3. Discount code application calls /api/discount/validate, which
  *      requires the email — the form re-validates the discount if the
  *      email field changes after a code was applied.
@@ -49,6 +50,7 @@ import {
   shippingCostForMethod,
   shippingMethodLabel,
   type ShippingMethodId,
+  type ShippingRates,
 } from "@/lib/shipping";
 import type { CheckoutFormData, Profile } from "@/types";
 
@@ -85,7 +87,12 @@ const initialForm: CheckoutFormData = {
   notes: "",
 };
 
-export default function CheckoutClient() {
+export default function CheckoutClient({
+  shippingRates,
+}: {
+  /** The owner's live flat price per method, read by the server page. */
+  shippingRates: ShippingRates;
+}) {
   const router = useRouter();
   const hasHydrated = useCart((s) => s.hasHydrated);
   const lines = useCart((s) => s.lines);
@@ -152,8 +159,13 @@ export default function CheckoutClient() {
   // (100%-off) order, where shipping is free too.
   const shippingCost = useMemo(
     () =>
-      shippingCostForMethod(shippingMethod, discountedSubtotal, shippingPerk?.perk),
-    [shippingMethod, discountedSubtotal, shippingPerk],
+      shippingCostForMethod(
+        shippingMethod,
+        discountedSubtotal,
+        shippingPerk?.perk,
+        shippingRates,
+      ),
+    [shippingMethod, discountedSubtotal, shippingPerk, shippingRates],
   );
   const isFreeShipping = shippingCost === 0;
   const total = useMemo(
@@ -537,10 +549,12 @@ export default function CheckoutClient() {
               // Priced per method — a locker-only perk frees the locker while
               // Standard Economy keeps its flat price, so one shared
               // "free shipping" boolean would mislabel the other method.
+              const methodPrice = shippingRates[method.id];
               const methodCost = shippingCostForMethod(
                 method.id,
                 discountedSubtotal,
                 shippingPerk?.perk,
+                shippingRates,
               );
               return (
                 <div
@@ -588,12 +602,12 @@ export default function CheckoutClient() {
                           {methodCost === 0 ? (
                             <>
                               <span className="mr-1.5 text-ink/35 line-through">
-                                {formatPrice(method.price)}
+                                {formatPrice(methodPrice)}
                               </span>
                               Free
                             </>
                           ) : (
-                            formatPrice(method.price)
+                            formatPrice(methodPrice)
                           )}
                         </span>
                       </span>
@@ -833,10 +847,7 @@ export default function CheckoutClient() {
                 {isFreeShipping ? (
                   <>
                     <span className="mr-1.5 text-ink/35 line-through">
-                      {formatPrice(
-                        SHIPPING_METHODS.find((m) => m.id === shippingMethod)
-                          ?.price ?? 0,
-                      )}
+                      {formatPrice(shippingRates[shippingMethod])}
                     </span>
                     Free
                   </>

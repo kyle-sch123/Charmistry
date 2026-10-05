@@ -4,7 +4,8 @@
  * Auth mirrors the fulfilment page: the admin key is entered once, kept in
  * localStorage, and sent as `x-admin-key` on every request; a 401 clears it and
  * drops back to the gate. Loads all pieces + categories in one GET, then lets
- * the owner create products, edit them, manage photos, and manage categories.
+ * the owner create products, edit them, manage photos, manage categories, and
+ * set the shipping prices charged at checkout.
  */
 
 "use client";
@@ -14,6 +15,7 @@ import { KEY_STORAGE, type AdminCategory, type AdminPiece } from "./shared";
 import PieceEditor from "./PieceEditor";
 import NewProductForm from "./NewProductForm";
 import CategoryManager from "./CategoryManager";
+import ShippingManager from "./ShippingManager";
 
 type AdminRequest = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -139,6 +141,8 @@ export default function CatalogueClient() {
       <NewProductForm categories={categories} request={request} onCreated={loadData} />
 
       <CategoryManager request={request} onChanged={loadData} />
+
+      <ShippingManager request={request} />
 
       <div className="flex flex-wrap items-center gap-3 border-t border-ink/10 pt-5">
         <input

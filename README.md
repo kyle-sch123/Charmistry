@@ -207,7 +207,8 @@ src/
     meta-capi.ts               Meta Conversions API purchase events.
     payfast.ts                 Payment-request build + ITN signature + validate.
     queries.ts                 Anon-side Supabase reads.
-    shipping.ts                Shipping methods catalogue + pricing.
+    shipping.ts                Shipping methods catalogue + pricing rules (pure).
+    shipping-rates.ts          Loads the owner-set shipping prices (shipping_rates).
     supabase.ts                Anon Supabase client (catalogue reads; auth disabled).
     supabase-server.ts         Service-role Supabase client factory.
     utils.ts                   cn() + formatPrice().
@@ -386,6 +387,7 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `009_reviews.sql`                     | `reviews` (product ratings + text); public read RLS, writes service-role only via `/api/reviews` |
 | `011_open_reviews.sql`                | Drops the purchase gate from the `reviews` table comment — reviewing needs a sign-in, not an order |
 | `012_guest_reviews.sql`               | Drops the sign-in gate too: `reviews.user_id` becomes nullable so anyone can review. Writes stay service-role only |
+| `013_shipping_rates.sql`              | `shipping_rates` — the flat price per shipping method, edited in `/admin/catalogue` → Shipping prices. Seeded at R59 / R79; public read, writes service-role only. Until applied, checkout charges the code defaults |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
 enums, CREATE OR REPLACE for functions) so re-running them is safe.
@@ -804,6 +806,7 @@ uses that local copy.
    009_reviews.sql                     -- reviews, public read RLS
    011_open_reviews.sql                -- reviews: sign-in required, no purchase gate
    012_guest_reviews.sql               -- reviews: open to guests (user_id nullable)
+   013_shipping_rates.sql              -- shipping_rates: owner-editable shipping prices
    ```
    (You can also push them with `supabase db push` if you use the CLI.)
 3. Seed the catalogue. Easiest path: open Studio → Table Editor, insert a
