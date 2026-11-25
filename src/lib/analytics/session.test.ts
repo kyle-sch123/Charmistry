@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { accumulateEngaged, engagedSoFar, nextSession, pickAttribution } from "./session";
+import {
+  accumulateEngaged,
+  engagedSoFar,
+  nextSession,
+  pickAttribution,
+  type EngagedState,
+} from "./session";
 import type { Touch } from "./types";
 
 const T0 = Date.parse("2026-11-25T10:00:00Z");
@@ -51,7 +57,7 @@ describe("nextSession", () => {
 
 describe("engaged time", () => {
   it("counts visible time between marks, capped at 30s per gap", () => {
-    let s = { engagedMs: 0, lastMark: T0 };
+    let s: EngagedState = { engagedMs: 0, lastMark: T0 };
     s = accumulateEngaged(s, T0 + 10_000, true);
     expect(s.engagedMs).toBe(10_000);
     s = accumulateEngaged(s, T0 + 10_000 + 5 * MIN, true);
@@ -59,7 +65,7 @@ describe("engaged time", () => {
   });
 
   it("pauses while hidden", () => {
-    let s = { engagedMs: 0, lastMark: T0 };
+    let s: EngagedState = { engagedMs: 0, lastMark: T0 };
     s = accumulateEngaged(s, T0 + 5_000, false);
     expect(s).toEqual({ engagedMs: 5_000, lastMark: null });
     s = accumulateEngaged(s, T0 + 10 * MIN, true);
