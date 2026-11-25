@@ -26,6 +26,12 @@ const TOOLS = [
     description:
       "Edit prices, stock, sizes and descriptions; manage products, metal variants, photos, categories and shipping prices.",
   },
+  {
+    href: "/admin/analytics",
+    title: "Analytics",
+    description:
+      "See how people find the shop, what they look at and what they buy, and follow any visit from first page to paid order.",
+  },
 ];
 
 export default function AdminDashboardPage() {

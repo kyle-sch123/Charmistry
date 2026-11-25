@@ -7,16 +7,21 @@
  * the percentage are read from the RINGS_STACK config (the same object
  * /api/checkout honours) so the promise shown here can never drift from the
  * discount actually charged. The whole band links through to the rings
- * collection so a shopper can act on it in one tap.
+ * collection so a shopper can act on it in one tap. Taps are counted as a
+ * first-party `promo_click` for the Promotions section of the dashboard.
  */
+
+"use client";
 
 import Link from "next/link";
 import { RINGS_STACK } from "@/lib/bundles";
+import { track } from "@/lib/analytics/track";
 
 export default function RingsStackBanner() {
   return (
     <Link
       href={`/shop?category=${RINGS_STACK.category}`}
+      onClick={() => track("promo_click", { promo: "rings_stack_banner" })}
       className="group mt-8 flex items-center gap-3.5 border border-gold/40 bg-gold-muted px-4 py-3.5 transition-colors duration-300 hover:border-gold/70 hover:bg-gold/25 cursor-pointer"
       aria-label={`Stack & Save: add any ${RINGS_STACK.minQuantity} rings for ${RINGS_STACK.percentOff}% off. Shop the rings collection.`}
     >

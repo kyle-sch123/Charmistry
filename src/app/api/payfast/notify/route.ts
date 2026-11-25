@@ -38,6 +38,7 @@ import {
 } from "@/lib/payfast";
 import { trackKlaviyoEvent, isKlaviyoConfigured } from "@/lib/klaviyo";
 import { trackMetaPurchase, isMetaCapiConfigured } from "@/lib/meta-capi";
+import { readCapiContext } from "@/lib/analytics/server/attribution";
 import {
   merchantOrderNotificationHtml,
   orderConfirmationHtml,
@@ -293,8 +294,10 @@ async function sendConfirmationEmail(orderId: string): Promise<void> {
  * event_id is the order id — the exact value the browser pixel sends as its
  * `eventID` — so Meta dedupes the server event against the client pixel when
  * both fire. value is the authoritative server-priced order total (identical to
- * what the pixel reports), and the customer's hashed PII drives match quality
- * since the ITN has no browser IP / user-agent / _fbp cookie.
+ * what the pixel reports), and the customer's hashed PII drives match quality.
+ * The ITN has no browser of its own, so `_fbp`, `_fbc` and the user agent come
+ * from the attribution snapshot taken at checkout (readCapiContext), when one
+ * exists. No IP address is sent.
  */
 async function trackMetaCapiPurchase(
   order: Order,
@@ -304,6 +307,9 @@ async function trackMetaCapiPurchase(
   const eventTime = order.paid_at
     ? Math.floor(new Date(order.paid_at).getTime() / 1000)
     : Math.floor(Date.now() / 1000);
+  // Browser ids snapshotted at checkout (first-party analytics). Never throws,
+  // capped at 1.5s, and null before migration 014 or when tracking was off.
+  const browser = await readCapiContext(order.id);
 
   await trackMetaPurchase(
     {
@@ -330,6 +336,7 @@ async function trackMetaCapiPurchase(
       numItems: items.reduce((n, it) => n + it.quantity, 0),
       orderId: order.id,
     },
+    browser,
   );
 }
 

@@ -91,15 +91,24 @@ export function cartLinesToKlaviyoItems(lines: CartLine[]): KlaviyoItem[] {
  * Associate the current browser session with a profile by email. Required for
  * Started Checkout / Added to Cart to attach to a contact and drive flows.
  */
-export function identifyKlaviyo(profile: {
-  email: string;
-  firstName?: string;
-  lastName?: string;
-}) {
+/**
+ * `extra` carries optional profile properties, e.g. first-touch campaign data
+ * (charmistry_first_source ...). It is only ever sent with an email, so the
+ * properties reach identified profiles only.
+ */
+export function identifyKlaviyo(
+  profile: {
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  },
+  extra?: Record<string, string>,
+) {
   if (!profile.email) return;
   klPush([
     "identify",
     {
+      ...(extra ?? {}),
       $email: profile.email,
       $first_name: profile.firstName,
       $last_name: profile.lastName,

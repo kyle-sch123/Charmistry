@@ -24,6 +24,7 @@ import { useSearchParams } from "next/navigation";
 import { useCart } from "@/stores/cart";
 import { trackPurchase } from "@/lib/gtag";
 import { trackPurchase as fbTrackPurchase } from "@/lib/fpixel";
+import { flushAnalytics, track } from "@/lib/analytics/track";
 
 // Poll cadence: ~18s total. Long enough to catch a slightly-late ITN, short
 // enough that a never-arriving payment doesn't hang the tab indefinitely.
@@ -89,6 +90,10 @@ export default function SuccessClient() {
               trackPurchase(orderId, data.items, data.total);
               fbTrackPurchase(orderId, data.items, data.total);
             }
+            // First-party: the dashboard's revenue comes from paid orders in
+            // the database, so this is only a journey marker. Sent at once.
+            track("purchase_confirmed", { order_id: orderId, value: data.total });
+            flushAnalytics();
             return;
           }
           // Terminal non-paid states will never become paid — stop polling

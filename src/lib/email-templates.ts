@@ -14,10 +14,15 @@
  *
  * escapeHtml() runs on every user-supplied field; never inline an order
  * field without going through it.
+ *
+ * Links back to the shop carry campaign tags (SHOP_EMAIL_TAGS), so the
+ * analytics dashboard can tell these visits apart: the order confirmation's
+ * are transactional and never take credit for a sale.
  */
 
 import type { Order, OrderItem } from "@/types";
 import { shippingMethodLabel } from "@/lib/shipping";
+import { SHOP_EMAIL_TAGS, tagLink } from "@/lib/analytics/campaign-presets";
 
 function formatZar(amount: number): string {
   return `R${amount.toLocaleString("en-ZA", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -25,6 +30,7 @@ function formatZar(amount: number): string {
 
 export function orderConfirmationHtml(order: Order, items: OrderItem[]): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charmistry.co.za";
+  const shopLink = tagLink(siteUrl, SHOP_EMAIL_TAGS.orderConfirmation);
   const shortId = order.id.slice(0, 8).toUpperCase();
 
   const itemRows = items
@@ -120,7 +126,7 @@ export function orderConfirmationHtml(order: Order, items: OrderItem[]): string 
           </tr>
           <tr>
             <td style="padding:24px 48px;border-top:1px solid #E0DDD8;text-align:center;">
-              <a href="${siteUrl}" style="display:inline-block;padding:14px 36px;background:#0A0A0A;font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FAFAF8;text-decoration:none;">Continue Shopping</a>
+              <a href="${escapeHtml(shopLink)}" style="display:inline-block;padding:14px 36px;background:#0A0A0A;font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FAFAF8;text-decoration:none;">Continue Shopping</a>
             </td>
           </tr>
         </table>
@@ -323,6 +329,7 @@ function escapeHtml(value: string | number | null | undefined): string {
 
 export function welcomeEmailHtml(discountCode: string): string {
   const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://charmistry.co.za";
+  const shopLink = tagLink(siteUrl, SHOP_EMAIL_TAGS.welcome);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -381,7 +388,7 @@ export function welcomeEmailHtml(discountCode: string): string {
               <table cellpadding="0" cellspacing="0" role="presentation">
                 <tr>
                   <td style="background:#0A0A0A;">
-                    <a href="${siteUrl}" style="display:inline-block;padding:14px 36px;font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FAFAF8;text-decoration:none;">
+                    <a href="${escapeHtml(shopLink)}" style="display:inline-block;padding:14px 36px;font-family:'Outfit',sans-serif;font-size:11px;letter-spacing:0.2em;text-transform:uppercase;color:#FAFAF8;text-decoration:none;">
                       Shop Now
                     </a>
                   </td>

@@ -32,6 +32,7 @@ import {
   trackAddedToCart as klTrackAddedToCart,
   cartLinesToKlaviyoItems,
 } from "@/lib/klaviyo-client";
+import { trackAddToBag } from "@/lib/analytics/track";
 
 interface ProductCardProps {
   product: Product | ProductWithCategory;
@@ -101,6 +102,7 @@ export default function ProductCard({
       cartLinesToKlaviyoItems(cartState.lines),
       selectCartSubtotal(cartState),
     );
+    trackAddToBag([item], { source: "card" });
   };
 
   const soldOut = !product.in_stock || (product.quantity ?? 0) <= 0;

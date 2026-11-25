@@ -53,6 +53,12 @@ import {
   type ShippingRates,
 } from "@/lib/shipping";
 import type { CheckoutFormData, Profile } from "@/types";
+import {
+  flushAnalytics,
+  getCheckoutAttribution,
+  getKlaviyoFirstTouchProps,
+  track,
+} from "@/lib/analytics/track";
 
 // Where locker shoppers send their preferred locker (mirrors the address used
 // on the shipping / terms pages). Kept as a constant so the note and any future
@@ -66,6 +72,11 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 // the "Contact" section by name rather than saying "above".
 const EMAIL_FIRST_MESSAGE =
   "Enter your email in the Contact section first, then apply your code.";
+
+/** Welcome codes (CHARM-XXXXXX from the newsletter) vs any other code, for analytics. */
+function discountKind(code: string): "welcome" | "code" {
+  return code.trim().toUpperCase().startsWith("CHARM-") ? "welcome" : "code";
+}
 
 type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & {
   form?: string;
@@ -108,6 +119,9 @@ export default function CheckoutClient({
   // Klaviyo "Started Checkout" fires once per distinct email so we don't spam
   // the metric on every keystroke / re-render.
   const startedCheckoutEmail = useRef<string | null>(null);
+  // First-party "Entered email" fires once per distinct valid email (on blur,
+  // or just before Pay for prefilled accounts). The email itself is never sent.
+  const emailEnteredFor = useRef<string | null>(null);
 
   const [form, setForm] = useState<CheckoutFormData>(initialForm);
   const [errors, setErrors] = useState<FormErrors>({});
@@ -249,6 +263,13 @@ export default function CheckoutClient({
         email,
         eventId: `${cartUpdatedAt}-${email}`,
       });
+      // Additive: a second identify with the visitor's first-touch campaign
+      // (only in full privacy mode; never `_kx`). The calls above are unchanged.
+      const firstName = form.firstName.trim() || undefined;
+      const lastName = form.lastName.trim() || undefined;
+      void getKlaviyoFirstTouchProps().then((extra) => {
+        if (extra) identifyKlaviyo({ email, firstName, lastName }, extra);
+      });
     }, 600);
 
     return () => clearTimeout(handle);
@@ -290,6 +311,7 @@ export default function CheckoutClient({
     // so the user isn't stuck on a permanently disabled "Redirecting…"
     // state.
     const fallback = setTimeout(() => {
+      track("checkout_error", { reason: "redirect_blocked" });
       setSubmitting(false);
       setErrors({
         form:
@@ -299,6 +321,13 @@ export default function CheckoutClient({
     }, 4000);
     return () => clearTimeout(fallback);
   }, [pendingPayment]);
+
+  function markEmailEntered() {
+    const email = form.email.trim().toLowerCase();
+    if (!EMAIL_RE.test(email) || emailEnteredFor.current === email) return;
+    emailEnteredFor.current = email;
+    track("checkout_email_entered", {});
+  }
 
   function update<K extends keyof CheckoutFormData>(
     key: K,
@@ -341,6 +370,7 @@ export default function CheckoutClient({
     if (!code || discountLoading) return;
     if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
       setDiscountError(EMAIL_FIRST_MESSAGE);
+      track("discount_rejected", { reason: "email_required", kind: discountKind(code) });
       return;
     }
     setDiscountLoading(true);
@@ -356,10 +386,16 @@ export default function CheckoutClient({
         const reason: string = data?.error ?? "not_found";
         setDiscountError(discountErrorMessage(reason));
         setAppliedDiscount(null);
+        track("discount_rejected", { reason, kind: discountKind(code) });
         return;
       }
       setAppliedDiscount({ code: data.code, amount: Number(data.amount) });
       setDiscountInput(data.code);
+      track("discount_applied", {
+        code: String(data.code),
+        kind: discountKind(String(data.code)),
+        amount: Number(data.amount) || 0,
+      });
     } catch {
       setDiscountError("Network error. Try again.");
     } finally {
@@ -376,11 +412,29 @@ export default function CheckoutClient({
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (submitting) return;
-    if (!validate()) return;
+    if (!validate()) {
+      track("checkout_error", { reason: "validation" });
+      return;
+    }
     if (lines.length === 0) return;
 
     setSubmitting(true);
     setErrors({});
+
+    // First-party funnel: "Entered email" (if blur never fired, e.g. a
+    // prefilled account) then "Clicked Pay", sent straight away because the
+    // page is about to navigate to PayFast.
+    markEmailEntered();
+    track("checkout_submitted", {
+      value: total,
+      item_count: lines.reduce((n, l) => n + l.quantity, 0),
+      method: shippingMethod,
+      promo: bundle?.code ?? appliedDiscount?.code ?? null,
+    });
+    flushAnalytics();
+    // How this visitor found the shop, snapshotted onto the order by the
+    // server. Absent when tracking is off (opt-out, staff, admin).
+    const attribution = getCheckoutAttribution() ?? undefined;
 
     try {
       const res = await fetch("/api/checkout", {
@@ -393,6 +447,7 @@ export default function CheckoutClient({
           // sent, and only when no bundle is active.
           discountCode: bundle ? undefined : appliedDiscount?.code,
           shippingMethod,
+          attribution,
         }),
       });
 
@@ -415,6 +470,7 @@ export default function CheckoutClient({
           setAppliedDiscount(null);
           setDiscountError(discountErrorMessage(data?.reason ?? "not_found"));
         }
+        track("checkout_error", { reason: String(data?.error ?? "unknown").slice(0, 60) });
         setErrors({ form: msg });
         setSubmitting(false);
         return;
@@ -432,11 +488,13 @@ export default function CheckoutClient({
           fields: data.formData,
         });
       } else {
+        track("checkout_error", { reason: "unexpected_response" });
         setErrors({ form: "Unexpected response from payment server." });
         setSubmitting(false);
       }
     } catch (err) {
       console.error(err);
+      track("checkout_error", { reason: "network" });
       setErrors({ form: "Network error. Please try again." });
       setSubmitting(false);
     }
@@ -684,6 +742,7 @@ export default function CheckoutClient({
             label="Email"
             value={form.email}
             onChange={(v) => update("email", v)}
+            onBlur={markEmailEntered}
             type="email"
             error={errors.email}
             autoComplete="email"
@@ -790,7 +849,12 @@ export default function CheckoutClient({
                     type="button"
                     role="radio"
                     aria-checked={selected}
-                    onClick={() => setShippingMethod(method.id)}
+                    onClick={() => {
+                      if (method.id !== shippingMethod) {
+                        track("shipping_method_selected", { method: method.id });
+                      }
+                      setShippingMethod(method.id);
+                    }}
                     className="flex w-full items-start gap-4 px-4 py-4 text-left cursor-pointer"
                   >
                     {/* Radio indicator */}
@@ -956,6 +1020,7 @@ interface FieldProps {
   autoComplete?: string;
   required?: boolean;
   readOnly?: boolean;
+  onBlur?: () => void;
 }
 
 function Field({
@@ -967,6 +1032,7 @@ function Field({
   autoComplete,
   required,
   readOnly,
+  onBlur,
 }: FieldProps) {
   return (
     <label className="block">
@@ -977,6 +1043,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        onBlur={onBlur}
         autoComplete={autoComplete}
         required={required}
         readOnly={readOnly}

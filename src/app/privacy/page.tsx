@@ -6,6 +6,7 @@ import { Fragment, useRef } from "react";
 import { motion } from "framer-motion";
 import Navbar from "@/components/layout/Navbar";
 import Footer from "@/components/layout/Footer";
+import AnalyticsOptOut from "@/components/privacy/AnalyticsOptOut";
 
 const sections = [
   // — Refunds & Returns —
@@ -113,6 +114,51 @@ const sections = [
   },
   {
     num: "06",
+    title: "Visit Statistics",
+    content: (
+      <>
+        <p>
+          When you browse the shop we record which pages you view, how long
+          each one is open and in view, what you add to your bag, and which
+          link or website brought you here (for example an Instagram post or a
+          Google search). We use this to understand which pieces people like
+          and which posts and emails bring visitors, so we can improve the
+          shop. Our lawful basis is our legitimate interest in running and
+          improving the shop.
+        </p>
+        <p>
+          We use a random identifier stored in your browser. We don&apos;t
+          record your name, email address, phone number or IP address with
+          these statistics. We record your country, and your city where your
+          connection reveals it. If you place an order, the order keeps a note
+          of how you found us. If you arrived from a Facebook or Instagram
+          link, we share Meta&apos;s browser identifier with Meta when you
+          order, so Meta can measure its ads.
+        </p>
+        <p>
+          We keep visit statistics for 13 months, then delete them. If your
+          browser sends a Global Privacy Control or Do Not Track signal, we
+          keep the identifier only until you close the tab, and we don&apos;t
+          share Meta&apos;s browser identifier.
+        </p>
+        <p>
+          You can object at any time: switch on &ldquo;Don&apos;t record my
+          visits&rdquo; below and we&apos;ll stop recording visits from this
+          browser. To ask us to delete statistics linked to your orders, email{" "}
+          <a
+            href="mailto:charmistryza@gmail.com"
+            className="underline underline-offset-4 decoration-ink/30 hover:decoration-ink transition-all duration-200"
+          >
+            charmistryza@gmail.com
+          </a>
+          . You can also complain to the Information Regulator.
+        </p>
+        <AnalyticsOptOut />
+      </>
+    ),
+  },
+  {
+    num: "07",
     title: "Third-Party Services",
     content: (
       <>

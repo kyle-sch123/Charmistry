@@ -28,6 +28,9 @@
  * Connects to:
  * - /api/payfast/notify — flips status from pending -> paid on ITN receipt.
  * - /checkout/success — the redirectUrl returned for R0 orders.
+ * - analytics/server/attribution — after step 6, a best-effort snapshot of how
+ *   the customer found the shop (never throws, capped at 1.5s, awaited before
+ *   each response; it can't change a response body or status).
  */
 
 import { createServerSupabase } from "@/lib/supabase-server";
@@ -42,6 +45,7 @@ import {
 } from "@/lib/discounts";
 import { resolveBundleDiscount, resolveShippingPerk } from "@/lib/bundles";
 import { decrementProductStock } from "@/lib/inventory";
+import { recordOrderAttribution } from "@/lib/analytics/server/attribution";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,6 +77,8 @@ interface CheckoutBody {
   lines?: ClientCartLine[];
   discountCode?: string;
   shippingMethod?: string;
+  /** First-party analytics claim; re-validated server side, never trusted. */
+  attribution?: unknown;
 }
 
 function str(value: unknown): string {
@@ -390,6 +396,18 @@ export async function POST(request: Request) {
     }
   }
 
+  // First-party analytics: snapshot how this customer found the shop onto the
+  // order. Started only now that the order is committed, it runs alongside the
+  // steps below and is awaited before each response (Workers may cancel work
+  // left running after a response). It never throws and gives up after 1.5s,
+  // so responses are identical whether attribution is present, absent or fails.
+  const attribution = recordOrderAttribution({
+    supabase,
+    orderId: order.id,
+    raw: body.attribution,
+    request,
+  });
+
   // Zero-total orders are done — no payment provider call needed. They are
   // created paid (no ITN will ever fire), so decrement stock here, once.
   if (isZeroTotal) {
@@ -397,6 +415,7 @@ export async function POST(request: Request) {
       supabase,
       orderLines.map((l) => ({ product_id: l.product_id, quantity: l.quantity })),
     );
+    await attribution;
     return Response.json(
       {
         success: true,
@@ -439,6 +458,7 @@ export async function POST(request: Request) {
       .from("orders")
       .update({ status: "failed" })
       .eq("id", order.id);
+    await attribution;
     return Response.json({ error: "payment_misconfigured" }, { status: 500 });
   }
 
@@ -451,6 +471,7 @@ export async function POST(request: Request) {
     .update({ payfast_payment_id: order.id })
     .eq("id", order.id);
 
+  await attribution;
   return Response.json(
     {
       success: true,

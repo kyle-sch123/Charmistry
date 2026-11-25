@@ -17,12 +17,15 @@
  * same event_id AND event_name, so a customer whose browser pixel DID fire is
  * counted once, not twice.
  *
- * Match quality caveat:
- * The ITN is a server-to-server callback from PayFast, so we do NOT have the
- * shopper's browser IP / user-agent / `_fbp`/`_fbc` cookies here. Matching
- * therefore relies on hashed PII (email, phone, name, city, zip, country),
- * which Meta requires to be SHA-256 hex of normalized values. That is the
- * standard trade-off for webhook-fired CAPI and is still a strong signal.
+ * Match quality:
+ * The ITN is a server-to-server callback from PayFast, so the shopper's browser
+ * isn't on the request. Matching relies on hashed PII (email, phone, name,
+ * city, zip, country), which Meta requires to be SHA-256 hex of normalized
+ * values. When first-party analytics snapshotted the order at checkout, the
+ * ITN also passes the browser's `_fbp`, `_fbc` (or one built from the ad's
+ * fbclid) and user agent (`MetaCapiBrowserContext`); Meta wants these as plain
+ * strings, unhashed. They are absent under GPC / Do Not Track. No IP address is
+ * ever stored or sent.
  *
  * Opt-in: when META_CAPI_ACCESS_TOKEN (or the pixel id) is unset,
  * isMetaCapiConfigured() returns false and the ITN handler skips this.
@@ -119,6 +122,13 @@ export interface MetaCapiPurchase {
   orderId: string;
 }
 
+/** Browser identifiers captured at checkout (see analytics/server/attribution.ts). */
+export interface MetaCapiBrowserContext {
+  fbp?: string | null;
+  fbc?: string | null;
+  clientUserAgent?: string | null;
+}
+
 /**
  * POST a single Purchase event to the Conversions API. Best-effort: throws on a
  * non-2xx so the ITN handler can log it via Promise.allSettled, but never blocks
@@ -127,6 +137,7 @@ export interface MetaCapiPurchase {
 export async function trackMetaPurchase(
   customer: MetaCapiCustomer,
   purchase: MetaCapiPurchase,
+  browser?: MetaCapiBrowserContext | null,
 ): Promise<void> {
   const pixelId = getPixelId();
   const accessToken = getAccessToken();
@@ -142,9 +153,9 @@ export async function trackMetaPurchase(
     hashField(customer.country, COUNTRY),
   ]);
 
-  // Meta expects each user_data field as an array of hashes. Only include the
-  // ones we actually have.
-  const userData: Record<string, string[]> = {};
+  // Meta expects each PII user_data field as an array of hashes. Only include
+  // the ones we actually have.
+  const userData: Record<string, string[] | string> = {};
   if (em) userData.em = [em];
   if (ph) userData.ph = [ph];
   if (fn) userData.fn = [fn];
@@ -152,6 +163,10 @@ export async function trackMetaPurchase(
   if (ct) userData.ct = [ct];
   if (zp) userData.zp = [zp];
   if (country) userData.country = [country];
+  // Browser identifiers are plain strings and must NOT be hashed.
+  if (browser?.fbp) userData.fbp = browser.fbp;
+  if (browser?.fbc) userData.fbc = browser.fbc;
+  if (browser?.clientUserAgent) userData.client_user_agent = browser.clientUserAgent;
 
   const eventData = {
     event_name: "Purchase",

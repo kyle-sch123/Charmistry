@@ -9,6 +9,7 @@ import CartDrawer from "@/components/cart/CartDrawer";
 import GoogleAnalytics from "@/components/analytics/GoogleAnalytics";
 import MetaPixel from "@/components/analytics/MetaPixel";
 import Klaviyo from "@/components/analytics/Klaviyo";
+import JourneyTracker from "@/components/analytics/JourneyTracker";
 import "./globals.css";
 
 const cormorant = Cormorant_Garamond({
@@ -62,6 +63,7 @@ export default function RootLayout({
         <GoogleAnalytics />
         <MetaPixel />
         <Klaviyo />
+        <JourneyTracker />
         {children}
         <CartDrawer />
       </body>

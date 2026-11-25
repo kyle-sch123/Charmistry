@@ -37,6 +37,7 @@ import {
 } from "@/lib/klaviyo-client";
 import { metalLabels, metalSwatch } from "@/lib/metals";
 import PaymentIcons from "@/components/icons/PaymentIcons";
+import { track, trackAddToBag, trackRemoveFromBag } from "@/lib/analytics/track";
 
 /** Small gold tick used by the free-shipping bar's unlocked states. */
 function UnlockTick() {
@@ -63,6 +64,21 @@ export default function CartDrawer() {
   const updateQuantity = useCart((s) => s.updateQuantity);
   const removeItem = useCart((s) => s.removeItem);
   const addItem = useCart((s) => s.addItem);
+
+  // First-party analytics: one `view_cart` each time the drawer opens. The ref
+  // keeps it to the closed-to-open transition; the cart is read from the store
+  // so the effect depends on `isOpen` alone.
+  const wasOpen = useRef(false);
+  useEffect(() => {
+    if (isOpen && !wasOpen.current) {
+      const s = useCart.getState();
+      track("view_cart", {
+        item_count: s.lines.reduce((n, l) => n + l.quantity, 0),
+        value: selectCartSubtotal(s),
+      });
+    }
+    wasOpen.current = isOpen;
+  }, [isOpen]);
 
   // "Frequently bought with" — up to 3 best-selling pieces not already in the
   // bag. Keyed on the cart's slug set (not `lines`) so quantity taps don't
@@ -157,6 +173,7 @@ export default function CartDrawer() {
       cartLinesToKlaviyoItems(cartState.lines),
       selectCartSubtotal(cartState),
     );
+    trackAddToBag([item], { source: "cart_suggestion" });
   };
 
   // Cart-aware bundle (e.g. the Everyday Edit). Same pure resolver the checkout
@@ -482,6 +499,14 @@ export default function CartDrawer() {
                                 price: line.price,
                                 quantity: line.quantity,
                               });
+                              trackRemoveFromBag({
+                                item_id: line.id,
+                                item_name: line.name,
+                                item_variant: line.metal ?? undefined,
+                                price: line.price,
+                                quantity: line.quantity,
+                                slug: line.slug,
+                              });
                               removeItem(line.id);
                             }}
                             className="text-ink/40 hover:text-ink transition-colors cursor-pointer shrink-0"
@@ -721,6 +746,10 @@ export default function CartDrawer() {
                       }));
                       trackBeginCheckout(items, subtotal);
                       fbTrackInitiateCheckout(items, subtotal);
+                      track("begin_checkout", {
+                        item_count: lines.reduce((n, l) => n + l.quantity, 0),
+                        value: subtotal,
+                      });
                       closeCart();
                     }}
                     className="block w-full py-4 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors text-center cursor-pointer"
