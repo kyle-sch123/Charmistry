@@ -388,6 +388,7 @@ in numerical order via the Supabase SQL editor or `supabase db push`:
 | `011_open_reviews.sql`                | Drops the purchase gate from the `reviews` table comment — reviewing needs a sign-in, not an order |
 | `012_guest_reviews.sql`               | Drops the sign-in gate too: `reviews.user_id` becomes nullable so anyone can review. Writes stay service-role only |
 | `013_shipping_rates.sql`              | `shipping_rates` — the flat price per shipping method, edited in `/admin/catalogue` → Shipping prices. Seeded at R59 / R79; public read, writes service-role only. Until applied, checkout charges the code defaults |
+| `014_analytics.sql`                   | First-party journey analytics: `analytics_visitors`, `analytics_sessions`, `analytics_touches`, `analytics_page_views`, `analytics_events`, `analytics_order_attribution`, `analytics_meta`, plus one `analytics_*(p jsonb)` function per `/admin/analytics` section. RLS on with no policies; functions are service-role only. Until applied, tracking is silently dropped and the dashboard shows "Analytics isn't set up yet" (see [Analytics](#analytics)) |
 
 The migrations are idempotent (CREATE / ADD IF NOT EXISTS, DO blocks for
 enums, CREATE OR REPLACE for functions) so re-running them is safe.
@@ -577,6 +578,40 @@ Row-lock the code, decrement `uses_count` if it's > 0.
 Bucket name from `S3_BUCKET_NAME` (defaults to `Charmistry Assets`). The
 PDP calls `getProductImages(name)` which lists files matching the product
 slug and returns their public URLs.
+
+### Analytics
+
+GA4, Meta and Klaviyo can send data but can't hand back per-visitor
+journeys, so journeys are recorded first-party (migration `014_analytics.sql`)
+and shown at `/admin/analytics`.
+
+- **Browser** — `components/analytics/JourneyTracker.tsx` starts
+  `lib/analytics/tracker.ts` when the page is idle. It records page views
+  (engaged time, scroll depth), shop events (`lib/analytics/events.ts`) and
+  campaign touches (UTM tags, ad click ids, the referrer; read on a full page
+  load only, never Klaviyo's `_kx`), and sends them by `sendBeacon` to
+  `/api/analytics/collect`, which re-validates and classifies everything and
+  always answers 204.
+- **Sessions** follow GA4: 30 minutes of inactivity ends one; a new campaign
+  mid-visit is a touch, not a new session. Orders are credited to the last
+  non-direct touch within 90 days (snapshotted at `/api/checkout` into
+  `analytics_order_attribution`), with the first touch alongside.
+- **One traffic-source classifier** (`lib/analytics/channel.ts`: Charmistry
+  overlay rules, then GA4's default channel group) is shared by the server and
+  the admin link builder.
+- **Privacy (POPIA)** — no email, name, phone or IP in analytics tables;
+  country (and city where Cloudflare gives it) only. Off for admin pages and
+  any browser that has used the admin key; ids per tab under GPC / Do Not
+  Track; a "Don't record my visits" switch on `/privacy`. Sessions, touches
+  and events are purged after 13 months (`analytics_purge`, run at most daily
+  by the overview). To honour a deletion request, run
+  `select public.analytics_forget('customer@example.com');` in the SQL editor.
+- **Meta Conversions API** — the PayFast ITN reads the order's snapshot so the
+  server-side Purchase carries `_fbp`, `_fbc` and the user agent (never an IP).
+- **SQL tests** — `supabase/tests/analytics/` runs against any throwaway
+  Postgres (PGlite works): `00_fixture.sql`, then the migration (twice, to prove
+  it is idempotent), then `01_analytics.test.sql`. Never run the fixture
+  against the real project.
 
 ---
 
@@ -807,6 +842,7 @@ uses that local copy.
    011_open_reviews.sql                -- reviews: sign-in required, no purchase gate
    012_guest_reviews.sql               -- reviews: open to guests (user_id nullable)
    013_shipping_rates.sql              -- shipping_rates: owner-editable shipping prices
+   014_analytics.sql                   -- first-party journey analytics (/admin/analytics)
    ```
    (You can also push them with `supabase db push` if you use the CLI.)
 3. Seed the catalogue. Easiest path: open Studio → Table Editor, insert a
