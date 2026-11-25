@@ -20,6 +20,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useWishlist } from "@/stores/wishlist";
 import { cn } from "@/lib/utils";
+import { track } from "@/lib/analytics/track";
 
 interface WishlistButtonProps {
   productId: string;
@@ -47,6 +48,10 @@ export default function WishlistButton({
     const result = await toggle(productId);
     if (result === "unauthenticated") {
       router.push(`/login?next=${encodeURIComponent(pathname)}`);
+    } else if (result === "added") {
+      track("wishlist_add", { product_id: productId });
+    } else if (result === "removed") {
+      track("wishlist_remove", { product_id: productId });
     }
   }
 

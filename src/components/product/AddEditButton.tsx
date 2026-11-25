@@ -20,6 +20,7 @@ import { useState } from "react";
 import type { ProductWithCategory } from "@/types";
 import { useCart, selectCartSubtotal } from "@/stores/cart";
 import { trackAddToCart } from "@/lib/gtag";
+import { trackAddToBag, type TrackedItem } from "@/lib/analytics/track";
 import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
 import {
   trackAddedToCart as klTrackAddedToCart,
@@ -84,6 +85,7 @@ export default function AddEditButton({
     products.every((p) => !p.in_stock || (p.quantity ?? 0) <= 0);
 
   const handleAdd = () => {
+    const tracked: TrackedItem[] = [];
     for (const product of products) {
       addItem(product, 1);
       const item = {
@@ -98,7 +100,9 @@ export default function AddEditButton({
       };
       trackAddToCart(item);
       fbTrackAddToCart(item);
+      tracked.push(item);
     }
+    trackAddToBag(tracked, { source: "bundle" });
 
     // One Klaviyo "Added to Cart" for the whole edit — getState() reflects
     // every line just added (Zustand updates synchronously).

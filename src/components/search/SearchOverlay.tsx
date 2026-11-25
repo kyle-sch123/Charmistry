@@ -9,7 +9,7 @@
 
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
@@ -18,6 +18,7 @@ import { searchProducts } from "@/lib/queries";
 import { formatPrice } from "@/lib/utils";
 import { trackSearch } from "@/lib/gtag";
 import { trackSearch as fbTrackSearch } from "@/lib/fpixel";
+import { track } from "@/lib/analytics/track";
 
 interface Props {
   open: boolean;
@@ -38,6 +39,36 @@ export default function SearchOverlay({ open, onClose }: Props) {
   const displayResults = shouldSearch ? results : [];
   const displayLoading = shouldSearch ? loading : false;
   const displayError = shouldSearch ? error : null;
+
+  // First-party analytics records one `search` per settled term, not one per
+  // keystroke: the latest term waits in a ref and is committed 1.5s after the
+  // last new result, when a result is opened, or when the overlay closes. The
+  // same term is never recorded twice in one opening.
+  const pendingSearch = useRef<{ term: string; results: number } | null>(null);
+  const committedTerms = useRef<Set<string>>(new Set());
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commitSearch = useCallback(() => {
+    if (commitTimer.current) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    const pending = pendingSearch.current;
+    pendingSearch.current = null;
+    if (!pending) return;
+    const key = pending.term.toLowerCase();
+    if (committedTerms.current.has(key)) return;
+    committedTerms.current.add(key);
+    track("search", { term: pending.term, results: pending.results });
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const committed = committedTerms.current;
+    return () => {
+      commitSearch();
+      committed.clear();
+    };
+  }, [open, commitSearch]);
 
   // Focus input + lock scroll on open
   useEffect(() => {
@@ -76,6 +107,9 @@ export default function SearchOverlay({ open, onClose }: Props) {
           setResults(data);
           trackSearch(trimmedTerm);
           fbTrackSearch(trimmedTerm);
+          pendingSearch.current = { term: trimmedTerm, results: data.length };
+          if (commitTimer.current) clearTimeout(commitTimer.current);
+          commitTimer.current = setTimeout(commitSearch, 1500);
         }
       } catch (err) {
         if (!cancelled) {
@@ -91,7 +125,7 @@ export default function SearchOverlay({ open, onClose }: Props) {
       cancelled = true;
       clearTimeout(handle);
     };
-  }, [trimmedTerm, shouldSearch]);
+  }, [trimmedTerm, shouldSearch, commitSearch]);
 
   return (
     <AnimatePresence>

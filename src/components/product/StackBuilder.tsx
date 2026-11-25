@@ -39,6 +39,7 @@ import { MIX_MATCH_STACK, resolveBundleDiscount } from "@/lib/bundles";
 import { pickPieceRepresentatives } from "@/lib/pieces";
 import { metalLabels, metalSwatch } from "@/lib/metals";
 import { trackAddToCart } from "@/lib/gtag";
+import { trackAddToBag, type TrackedItem } from "@/lib/analytics/track";
 import { trackAddToCart as fbTrackAddToCart } from "@/lib/fpixel";
 import {
   trackAddedToCart as klTrackAddedToCart,
@@ -170,6 +171,7 @@ export default function StackBuilder({ product, candidates }: Props) {
 
   const handleAddStack = () => {
     if (selection.length === 0) return;
+    const tracked: TrackedItem[] = [];
     for (const p of selection) {
       addItem(p, 1);
       const item = {
@@ -192,7 +194,10 @@ export default function StackBuilder({ product, candidates }: Props) {
         cartLinesToKlaviyoItems(cartState.lines),
         selectCartSubtotal(cartState),
       );
+      tracked.push(item);
     }
+    // One first-party add per piece, grouped so the stack reads as one action.
+    trackAddToBag(tracked, { source: "stack_builder" });
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };

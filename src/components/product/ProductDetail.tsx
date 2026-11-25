@@ -42,6 +42,8 @@ import MixStackBanner from "@/components/product/MixStackBanner";
 import ProductLightbox from "@/components/product/ProductLightbox";
 import StickyAddToBag from "@/components/product/StickyAddToBag";
 import { RINGS_STACK, MIX_MATCH_STACK } from "@/lib/bundles";
+import { trackAddToBag, trackProductView } from "@/lib/analytics/track";
+import type { AddToBagSource } from "@/lib/analytics/events";
 
 interface Props {
   product: ProductWithCategory;
@@ -190,6 +192,7 @@ export default function ProductDetail({
     trackViewItem(item);
     fbTrackViewContent(item);
     trackViewedProduct(item);
+    trackProductView({ ...item, size: formattedSize });
   }, [
     selectedVariant.id,
     selectedVariant.name,
@@ -198,9 +201,12 @@ export default function ProductDetail({
     selectedVariant.price,
     selectedVariant.slug,
     selectedVariant.image_url,
+    formattedSize,
   ]);
 
-  const handleAdd = () => {
+  // `source` tells first-party analytics which button was used: the inline
+  // row ("pdp") or the sticky bar on phones and tablets ("pdp_sticky").
+  const handleAdd = (source: AddToBagSource = "pdp") => {
     if (disabled) return;
     addItem(selectedVariant, quantity);
     const item = {
@@ -223,6 +229,7 @@ export default function ProductDetail({
       cartLinesToKlaviyoItems(cartState.lines),
       selectCartSubtotal(cartState),
     );
+    trackAddToBag([{ ...item, size: formattedSize }], { source });
     setJustAdded(true);
     setTimeout(() => setJustAdded(false), 1600);
   };
@@ -498,7 +505,7 @@ export default function ProductDetail({
           </div>
 
           <button
-            onClick={handleAdd}
+            onClick={() => handleAdd("pdp")}
             disabled={disabled}
             className="relative flex-1 bg-ink text-paper text-xs tracking-[0.2em] uppercase font-body hover:bg-ink-secondary transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer overflow-hidden"
           >
@@ -569,7 +576,7 @@ export default function ProductDetail({
           justAdded={justAdded}
           onDecrement={decrement}
           onIncrement={increment}
-          onAdd={handleAdd}
+          onAdd={() => handleAdd("pdp_sticky")}
         />
       </div>
     </div>

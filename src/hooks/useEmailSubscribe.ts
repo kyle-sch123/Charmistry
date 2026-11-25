@@ -8,6 +8,7 @@
 "use client";
 
 import { useState } from "react";
+import { track } from "@/lib/analytics/track";
 
 export type SubscribeStatus = "idle" | "loading" | "success" | "error" | "duplicate";
 
@@ -40,6 +41,10 @@ export function useEmailSubscribe() {
       result = "error";
     }
     setStatus(result);
+    // Outcome only: the email address never goes to analytics.
+    track("newsletter_signup", {
+      outcome: result === "success" ? "success" : result === "duplicate" ? "duplicate" : "error",
+    });
     return result;
   }
 

@@ -14,6 +14,7 @@
 
 import { useState } from "react";
 import { StarRatingInput } from "./Stars";
+import { track } from "@/lib/analytics/track";
 import {
   ANONYMOUS_AUTHOR,
   REVIEW_BODY_MAX,
@@ -91,6 +92,7 @@ export default function ReviewForm({
         setSaveState("idle");
         return;
       }
+      track("review_submitted", { product_id: productId, rating });
       if (data?.review) onSaved(data.review);
     } catch {
       setError("Could not submit your review. Please try again.");
