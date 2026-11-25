@@ -663,7 +663,10 @@ export default function CheckoutClient({
   }
 
   return (
-    <div className="grid lg:grid-cols-[1.3fr_1fr] gap-12 lg:gap-16">
+    // `grid-cols-1` (minmax(0, 1fr)) below `lg`: without it the implicit
+    // column sizes to its widest item's min-content, and the summary's
+    // discount row pushed the page 15px past a 375px screen.
+    <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-12 lg:gap-16">
       {/* Order summary, mobile and tablet slot. Placed first so the visual
           order, DOM order and Tab order all agree below `lg`. */}
       <div className="lg:hidden">{renderSummary("top")}</div>
