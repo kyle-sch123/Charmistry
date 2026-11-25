@@ -94,6 +94,16 @@ function deviceHint(): DeviceClass | null {
   const ua = navigator.userAgent;
   // iPadOS 13+ Safari reports a Mac user agent; touch support gives it away.
   if (/iPad/.test(ua) || (/Macintosh/.test(ua) && navigator.maxTouchPoints > 1)) return "tablet";
+  // A touch screen's size settles phone vs tablet when the user agent is vague.
+  try {
+    if (window.matchMedia("(pointer: coarse)").matches) {
+      const short = Math.min(window.screen.width, window.screen.height);
+      if (short > 0 && short < 600) return "mobile";
+      if (short >= 600 && short < 1100) return "tablet";
+    }
+  } catch {
+    // no matchMedia: fall back to the user agent on the server
+  }
   return null;
 }
 

@@ -1058,7 +1058,9 @@ begin
   from analytics_order_attribution a join orders o on o.id = a.order_id
   where a.visitor_id = any(v_visitors);
 
-  select coalesce(jsonb_agg(item order by (item ->> 'at')::timestamptz, item ->> 'kind'), '[]'::jsonb)
+  -- Same-second ties: the arrival (touch) first, then the page, its actions, the order.
+  select coalesce(jsonb_agg(item order by (item ->> 'at')::timestamptz,
+    case item ->> 'kind' when 'touch' then 0 when 'page' then 1 when 'event' then 2 else 3 end), '[]'::jsonb)
   into v_timeline
   from (
     select item from (

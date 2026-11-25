@@ -16,11 +16,13 @@ export interface ParsedAgent {
 
 export function parseUserAgent(ua: string | null | undefined, hint: DeviceClass | null): ParsedAgent {
   const s = ua ?? "";
+  // The browser's touch-screen hint wins: iPads send a Mac user agent.
   const tablet =
     hint === "tablet" ||
-    /iPad|Tablet|PlayBook|Silk/i.test(s) ||
-    (/Android/i.test(s) && !/Mobile/i.test(s));
-  const mobile = !tablet && /Mobi|iPhone|iPod|Android|Windows Phone|BlackBerry/i.test(s);
+    (hint !== "mobile" &&
+      (/iPad|Tablet|PlayBook|Silk/i.test(s) || (/Android/i.test(s) && !/Mobile/i.test(s))));
+  const mobile =
+    !tablet && (hint === "mobile" || /Mobi|iPhone|iPod|Android|Windows Phone|BlackBerry/i.test(s));
   const device: DeviceClass = tablet ? "tablet" : mobile ? "mobile" : "desktop";
 
   let browser: string | null = null;

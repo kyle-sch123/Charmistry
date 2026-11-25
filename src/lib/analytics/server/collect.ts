@@ -25,14 +25,24 @@ function requestUrl(request: Request): URL | null {
   }
 }
 
-/** Same-origin only: the Origin host must match, or (no usable Origin) Sec-Fetch-Site must say so. */
+/**
+ * Same-origin only: the Origin host must match the host the browser asked for
+ * (the Host header; behind Cloudflare and in `next dev` bound to 0.0.0.0 the
+ * request URL's own host can differ), or, with no usable Origin, Sec-Fetch-Site
+ * must say same-origin.
+ */
 export function isSameOrigin(request: Request): boolean {
   const url = requestUrl(request);
   if (!url) return false;
+  const hosts = new Set(
+    [request.headers.get("x-forwarded-host"), request.headers.get("host"), url.host]
+      .filter((h): h is string => Boolean(h))
+      .map((h) => h.split(",")[0].trim().toLowerCase()),
+  );
   const origin = request.headers.get("origin");
   if (origin && origin !== "null") {
     try {
-      return new URL(origin).host === url.host;
+      return hosts.has(new URL(origin).host.toLowerCase());
     } catch {
       return false;
     }

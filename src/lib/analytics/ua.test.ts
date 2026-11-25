@@ -38,6 +38,15 @@ describe("parseUserAgent", () => {
   });
 });
 
+describe("touch-screen hint", () => {
+  it("lets the browser's hint override a vague user agent", () => {
+    const desktopUa = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/130.0 Safari/537.36";
+    expect(parseUserAgent(desktopUa, "mobile").device).toBe("mobile");
+    expect(parseUserAgent(desktopUa, "tablet").device).toBe("tablet");
+    expect(parseUserAgent(desktopUa, null).device).toBe("desktop");
+  });
+});
+
 describe("isBotUserAgent", () => {
   it.each([
     ["", true],
