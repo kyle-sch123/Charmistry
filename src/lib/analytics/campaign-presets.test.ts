@@ -1,12 +1,15 @@
 import { describe, expect, it } from "vitest";
 import {
   CAMPAIGN_RE,
+  SHOP_EMAIL_TAGS,
   buildCampaignUrl,
   campaignPrefix,
   defaultMediumFor,
   slugifyTag,
+  tagLink,
+  type LinkTags,
 } from "./campaign-presets";
-import { classify } from "./channel";
+import { classify, isAttributable } from "./channel";
 
 describe("defaultMediumFor", () => {
   it.each([
@@ -72,6 +75,57 @@ describe("buildCampaignUrl", () => {
         content: "",
       }),
     ).toBe("http://localhost:3000/shop?utm_source=klaviyo&utm_medium=email&utm_campaign=flow_welcome");
+  });
+});
+
+describe("tagLink", () => {
+  it("tags a bare origin", () => {
+    expect(tagLink("https://charmistry.co.za", SHOP_EMAIL_TAGS.orderConfirmation)).toBe(
+      "https://charmistry.co.za/?utm_source=transactional&utm_medium=email&utm_campaign=order-confirmation&utm_content=continue-shopping_btn",
+    );
+  });
+  it("keeps the path and any query already there", () => {
+    expect(
+      tagLink("https://charmistry.co.za/shop?sort=new", {
+        source: "resend",
+        medium: "email",
+        campaign: "flow_welcome",
+      }),
+    ).toBe(
+      "https://charmistry.co.za/shop?sort=new&utm_source=resend&utm_medium=email&utm_campaign=flow_welcome",
+    );
+  });
+  it("returns a malformed base unchanged instead of throwing", () => {
+    expect(tagLink("charmistry.co.za", SHOP_EMAIL_TAGS.welcome)).toBe("charmistry.co.za");
+    expect(tagLink("", SHOP_EMAIL_TAGS.welcome)).toBe("");
+  });
+});
+
+describe("the shop's own email links", () => {
+  const classifyTags = (t: LinkTags) =>
+    classify({
+      utmSource: t.source,
+      utmMedium: t.medium,
+      utmCampaign: t.campaign,
+      clickIdType: null,
+      referrerHost: null,
+      inApp: null,
+    });
+
+  it("files the order confirmation as Transactional and never credits it", () => {
+    const c = classifyTags(SHOP_EMAIL_TAGS.orderConfirmation);
+    expect(c.channel).toBe("Transactional");
+    expect(isAttributable(c)).toBe(false);
+  });
+  it("files the welcome email as Email, which can take credit", () => {
+    const c = classifyTags(SHOP_EMAIL_TAGS.welcome);
+    expect(c.channel).toBe("Email");
+    expect(isAttributable(c)).toBe(true);
+  });
+  it("uses campaign names the link builder would accept", () => {
+    for (const t of Object.values(SHOP_EMAIL_TAGS)) {
+      expect(CAMPAIGN_RE.test(t.campaign)).toBe(true);
+    }
   });
 });
 

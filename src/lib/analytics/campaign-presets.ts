@@ -1,5 +1,6 @@
 /**
- * Presets and helpers for the admin campaign link builder.
+ * Presets and helpers for the admin campaign link builder, and the tags on
+ * the links in the emails the shop sends itself.
  *
  * Why this exists: tagged links only group cleanly if every post, story and
  * email uses the same lowercase source and medium values. The builder offers
@@ -75,19 +76,60 @@ export function campaignPrefix(now: Date): string {
   return `${y}-${m}_`;
 }
 
-export function buildCampaignUrl(i: {
-  origin: string;
-  path: string;
+export interface LinkTags {
   source: string;
   medium: string;
   campaign: string;
   content?: string | null;
-}): string {
+}
+
+function setTags(url: URL, tags: LinkTags): void {
+  url.searchParams.set("utm_source", tags.source);
+  url.searchParams.set("utm_medium", tags.medium);
+  url.searchParams.set("utm_campaign", tags.campaign);
+  if (tags.content) url.searchParams.set("utm_content", tags.content);
+}
+
+export function buildCampaignUrl(i: LinkTags & { origin: string; path: string }): string {
   const path = i.path.startsWith("/") ? i.path : `/${i.path}`;
   const url = new URL(path, i.origin);
-  url.searchParams.set("utm_source", i.source);
-  url.searchParams.set("utm_medium", i.medium);
-  url.searchParams.set("utm_campaign", i.campaign);
-  if (i.content) url.searchParams.set("utm_content", i.content);
+  setTags(url, i);
   return url.toString();
+}
+
+/**
+ * Tags for the links back to the shop in the emails it sends through Resend.
+ * The order confirmation is `transactional`: the dashboard shows those visits
+ * but never credits them with a sale, so a "Continue shopping" click can't
+ * take the credit from the campaign that won the customer. The welcome email
+ * carries the 10% code, so it is marketing and files under Email.
+ */
+export const SHOP_EMAIL_TAGS = {
+  orderConfirmation: {
+    source: "transactional",
+    medium: "email",
+    campaign: "order-confirmation",
+    content: "continue-shopping_btn",
+  },
+  welcome: {
+    source: "resend",
+    medium: "email",
+    campaign: "flow_welcome",
+    content: "shop-now_btn",
+  },
+} as const satisfies Record<string, LinkTags>;
+
+/**
+ * Add campaign tags to an absolute link. Never throws: a malformed base comes
+ * back unchanged, so a bad NEXT_PUBLIC_SITE_URL can never stop an order email
+ * going out.
+ */
+export function tagLink(href: string, tags: LinkTags): string {
+  try {
+    const url = new URL(href);
+    setTags(url, tags);
+    return url.toString();
+  } catch {
+    return href;
+  }
 }

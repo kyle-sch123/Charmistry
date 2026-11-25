@@ -599,6 +599,11 @@ and shown at `/admin/analytics`.
 - **One traffic-source classifier** (`lib/analytics/channel.ts`: Charmistry
   overlay rules, then GA4's default channel group) is shared by the server and
   the admin link builder.
+- **Tagged links** follow the Charmistry convention in
+  `lib/analytics/campaign-presets.ts`: lowercase `source / medium`, campaigns
+  named `yyyy-mm_theme`. The shop's own emails use it too. The order
+  confirmation's link is `transactional / email`, shown but never credited
+  with a sale; the welcome email's is `resend / email / flow_welcome`.
 - **Privacy (POPIA)** — no email, name, phone or IP in analytics tables;
   country (and city where Cloudflare gives it) only. Off for admin pages and
   any browser that has used the admin key; ids per tab under GPC / Do Not
