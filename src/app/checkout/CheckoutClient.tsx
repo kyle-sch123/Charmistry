@@ -61,6 +61,12 @@ const SUPPORT_EMAIL = "charmistryza@gmail.com";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// Shown when a code is applied before an email exists. The order summary sits
+// above the form on mobile and beside it on desktop, so the wording points at
+// the "Contact" section by name rather than saying "above".
+const EMAIL_FIRST_MESSAGE =
+  "Enter your email in the Contact section first, then apply your code.";
+
 type FormErrors = Partial<Record<keyof CheckoutFormData, string>> & {
   form?: string;
 };
@@ -334,7 +340,7 @@ export default function CheckoutClient({
     const emailValue = form.email.trim().toLowerCase();
     if (!code || discountLoading) return;
     if (!emailValue || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailValue)) {
-      setDiscountError("Enter your email above before applying a code.");
+      setDiscountError(EMAIL_FIRST_MESSAGE);
       return;
     }
     setDiscountLoading(true);
@@ -448,8 +454,223 @@ export default function CheckoutClient({
     return null;
   }
 
+  // The order summary is rendered in two slots (see the layout below): above
+  // the form below `lg`, and in the sticky right-hand column from `lg` up.
+  // It is a plain function call, not a nested component, so React keeps one
+  // component identity and all state stays in this component. Only one slot
+  // is ever visible (the other is `display:none`), so anything inside that
+  // needs a unique id takes the slot name.
+  function renderSummary(slot: "top" | "side") {
+    return (
+      <div className="bg-paper-warm border border-ink/10 p-6 lg:p-8">
+        <h2 className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body mb-6">
+          Your Order
+        </h2>
+        <ul className="divide-y divide-ink/10">
+          {lines.map((line) => (
+            <li
+              key={line.id}
+              className="flex gap-4 py-4 first:pt-0 last:pb-0"
+            >
+              <div className="relative w-16 h-20 shrink-0 overflow-hidden bg-stone">
+                {line.image_url && (
+                  <Image
+                    src={line.image_url}
+                    alt={line.name}
+                    fill
+                    sizes="64px"
+                    className="object-cover"
+                  />
+                )}
+                <span className="absolute top-1 right-1 bg-ink text-paper text-[10px] font-body w-5 h-5 rounded-full flex items-center justify-center">
+                  {line.quantity}
+                </span>
+              </div>
+              <div className="flex-1 min-w-0 flex flex-col gap-1">
+                <p className="font-display text-sm leading-snug">
+                  {line.name}
+                </p>
+                {line.description && (
+                  <p
+                    className="text-ink/45 line-clamp-2 leading-snug"
+                    style={{
+                      fontFamily: "var(--font-body)",
+                      fontSize: "11px",
+                      letterSpacing: "0.04em",
+                    }}
+                  >
+                    {line.description}
+                  </p>
+                )}
+                <span className="mt-auto text-sm font-body">
+                  {formatPrice(line.price * line.quantity)}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+
+        {bundle ? (
+          <div className="mt-6 pt-6 border-t border-ink/10">
+            <p className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
+              Bundle
+            </p>
+            <div className="flex items-center gap-3 border border-gold/40 bg-gold-muted px-4 py-3.5">
+              <svg
+                className="w-4 h-4 shrink-0 text-gold-dark"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2}
+                viewBox="0 0 24 24"
+                aria-hidden
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M4.5 12.75l6 6 9-13.5"
+                />
+              </svg>
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-body text-ink truncate">
+                  {bundle.label}
+                </span>
+                <span className="text-[11px] text-ink/55">
+                  −{formatPrice(bundleAmount)}
+                  {shippingPerk?.code === bundle.code &&
+                  shippingPerk.perk === "all_methods"
+                    ? " + free delivery"
+                    : ""}{" "}
+                  applied automatically
+                </span>
+              </div>
+            </div>
+          </div>
+        ) : (
+        <div className="mt-6 pt-6 border-t border-ink/10">
+          <label
+            htmlFor={`discount-code-${slot}`}
+            className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5"
+          >
+            Discount code
+          </label>
+          {appliedDiscount ? (
+            <div className="flex items-center justify-between gap-3 border border-ink/15 bg-paper px-4 py-3">
+              <div className="flex flex-col min-w-0">
+                <span className="text-sm font-body truncate">
+                  {appliedDiscount.code}
+                </span>
+                <span className="text-[11px] text-ink/55">
+                  −{formatPrice(appliedDiscount.amount)} applied
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={removeDiscount}
+                className="text-[11px] tracking-[0.15em] uppercase text-ink/55 hover:text-ink transition-colors cursor-pointer"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <input
+                id={`discount-code-${slot}`}
+                type="text"
+                value={discountInput}
+                onChange={(e) => {
+                  setDiscountInput(e.target.value.toUpperCase());
+                  if (discountError) setDiscountError(null);
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    applyDiscount();
+                  }
+                }}
+                placeholder="CHARM-XXXXXX"
+                className="flex-1 min-w-0 border border-ink/15 bg-paper px-4 py-3 text-sm font-body tracking-[0.1em] focus:outline-none focus:border-ink transition-colors"
+              />
+              <button
+                type="button"
+                onClick={applyDiscount}
+                disabled={!discountInput.trim() || discountLoading}
+                className="px-5 border border-ink text-ink text-[11px] tracking-[0.2em] uppercase font-body hover:bg-ink hover:text-paper transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {discountLoading ? "…" : "Apply"}
+              </button>
+            </div>
+          )}
+          {discountError && (
+            <p className="mt-2 text-[11px] text-red-600">{discountError}</p>
+          )}
+        </div>
+        )}
+
+        <div className="mt-6 pt-6 border-t border-ink/10 space-y-2">
+          <div className="flex justify-between text-sm text-ink/60">
+            <span>Subtotal</span>
+            <span>{formatPrice(subtotal)}</span>
+          </div>
+          {bundle ? (
+            <div className="flex justify-between text-sm text-ink/60">
+              <span>{bundle.label}</span>
+              <span>−{formatPrice(bundleAmount)}</span>
+            </div>
+          ) : appliedDiscount ? (
+            <div className="flex justify-between text-sm text-ink/60">
+              <span>Discount ({appliedDiscount.code})</span>
+              <span>−{formatPrice(appliedDiscount.amount)}</span>
+            </div>
+          ) : null}
+          <div className="flex justify-between gap-4 text-sm text-ink/60">
+            <span className="min-w-0">
+              Shipping
+              <span className="block text-[11px] text-ink/40 truncate">
+                {shippingMethodLabel(shippingMethod)}
+              </span>
+            </span>
+            <span className="shrink-0 text-right">
+              {isFreeShipping ? (
+                <>
+                  <span className="mr-1.5 text-ink/35 line-through">
+                    {formatPrice(shippingRates[shippingMethod])}
+                  </span>
+                  Free
+                </>
+              ) : (
+                formatPrice(shippingCost)
+              )}
+            </span>
+          </div>
+          <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
+            <span className="text-[11px] tracking-[0.2em] uppercase font-body">
+              Total
+            </span>
+            <span className="font-display text-2xl">
+              {formatPrice(total)}
+            </span>
+          </div>
+        </div>
+
+        <Link
+          href="/shop"
+          className="mt-6 block text-center text-[11px] tracking-[0.15em] uppercase text-ink/55 hover:text-ink transition-colors"
+        >
+          Continue Shopping
+        </Link>
+      </div>
+    );
+  }
+
   return (
-    <div className="grid lg:grid-cols-[1.3fr_1fr] gap-12 lg:gap-16">
+    // `grid-cols-1` (minmax(0, 1fr)) below `lg`: without it the implicit
+    // column sizes to its widest item's min-content, and the summary's
+    // discount row pushed the page 15px past a 375px screen.
+    <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-12 lg:gap-16">
+      {/* Order summary, mobile and tablet slot. Placed first so the visual
+          order, DOM order and Tab order all agree below `lg`. */}
+      <div className="lg:hidden">{renderSummary("top")}</div>
+
       {/* Customer form */}
       <form onSubmit={onSubmit} noValidate className="space-y-10">
         <Section title="Contact">
@@ -678,201 +899,11 @@ export default function CheckoutClient({
         </p>
       </form>
 
-      {/* Summary */}
-      <aside className="lg:sticky lg:top-32 h-fit">
-        <div className="bg-paper-warm border border-ink/10 p-6 lg:p-8">
-          <h2 className="text-[11px] tracking-[0.3em] uppercase text-ink/55 font-body mb-6">
-            Your Order
-          </h2>
-          <ul className="divide-y divide-ink/10">
-            {lines.map((line) => (
-              <li
-                key={line.id}
-                className="flex gap-4 py-4 first:pt-0 last:pb-0"
-              >
-                <div className="relative w-16 h-20 shrink-0 overflow-hidden bg-stone">
-                  {line.image_url && (
-                    <Image
-                      src={line.image_url}
-                      alt={line.name}
-                      fill
-                      sizes="64px"
-                      className="object-cover"
-                    />
-                  )}
-                  <span className="absolute top-1 right-1 bg-ink text-paper text-[10px] font-body w-5 h-5 rounded-full flex items-center justify-center">
-                    {line.quantity}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <p className="font-display text-sm leading-snug">
-                    {line.name}
-                  </p>
-                  {line.description && (
-                    <p
-                      className="text-ink/45 line-clamp-2 leading-snug"
-                      style={{
-                        fontFamily: "var(--font-body)",
-                        fontSize: "11px",
-                        letterSpacing: "0.04em",
-                      }}
-                    >
-                      {line.description}
-                    </p>
-                  )}
-                  <span className="mt-auto text-sm font-body">
-                    {formatPrice(line.price * line.quantity)}
-                  </span>
-                </div>
-              </li>
-            ))}
-          </ul>
-
-          {bundle ? (
-            <div className="mt-6 pt-6 border-t border-ink/10">
-              <p className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
-                Bundle
-              </p>
-              <div className="flex items-center gap-3 border border-gold/40 bg-gold-muted px-4 py-3.5">
-                <svg
-                  className="w-4 h-4 shrink-0 text-gold-dark"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth={2}
-                  viewBox="0 0 24 24"
-                  aria-hidden
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M4.5 12.75l6 6 9-13.5"
-                  />
-                </svg>
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-body text-ink truncate">
-                    {bundle.label}
-                  </span>
-                  <span className="text-[11px] text-ink/55">
-                    −{formatPrice(bundleAmount)}
-                    {shippingPerk?.code === bundle.code &&
-                    shippingPerk.perk === "all_methods"
-                      ? " + free delivery"
-                      : ""}{" "}
-                    applied automatically
-                  </span>
-                </div>
-              </div>
-            </div>
-          ) : (
-          <div className="mt-6 pt-6 border-t border-ink/10">
-            <label className="block text-[10px] tracking-[0.2em] uppercase text-ink/55 font-body mb-1.5">
-              Discount code
-            </label>
-            {appliedDiscount ? (
-              <div className="flex items-center justify-between gap-3 border border-ink/15 bg-paper px-4 py-3">
-                <div className="flex flex-col min-w-0">
-                  <span className="text-sm font-body truncate">
-                    {appliedDiscount.code}
-                  </span>
-                  <span className="text-[11px] text-ink/55">
-                    −{formatPrice(appliedDiscount.amount)} applied
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={removeDiscount}
-                  className="text-[11px] tracking-[0.15em] uppercase text-ink/55 hover:text-ink transition-colors cursor-pointer"
-                >
-                  Remove
-                </button>
-              </div>
-            ) : (
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={discountInput}
-                  onChange={(e) => {
-                    setDiscountInput(e.target.value.toUpperCase());
-                    if (discountError) setDiscountError(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      e.preventDefault();
-                      applyDiscount();
-                    }
-                  }}
-                  placeholder="CHARM-XXXXXX"
-                  className="flex-1 min-w-0 border border-ink/15 bg-paper px-4 py-3 text-sm font-body tracking-[0.1em] focus:outline-none focus:border-ink transition-colors"
-                />
-                <button
-                  type="button"
-                  onClick={applyDiscount}
-                  disabled={!discountInput.trim() || discountLoading}
-                  className="px-5 border border-ink text-ink text-[11px] tracking-[0.2em] uppercase font-body hover:bg-ink hover:text-paper transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {discountLoading ? "…" : "Apply"}
-                </button>
-              </div>
-            )}
-            {discountError && (
-              <p className="mt-2 text-[11px] text-red-600">{discountError}</p>
-            )}
-          </div>
-          )}
-
-          <div className="mt-6 pt-6 border-t border-ink/10 space-y-2">
-            <div className="flex justify-between text-sm text-ink/60">
-              <span>Subtotal</span>
-              <span>{formatPrice(subtotal)}</span>
-            </div>
-            {bundle ? (
-              <div className="flex justify-between text-sm text-ink/60">
-                <span>{bundle.label}</span>
-                <span>−{formatPrice(bundleAmount)}</span>
-              </div>
-            ) : appliedDiscount ? (
-              <div className="flex justify-between text-sm text-ink/60">
-                <span>Discount ({appliedDiscount.code})</span>
-                <span>−{formatPrice(appliedDiscount.amount)}</span>
-              </div>
-            ) : null}
-            <div className="flex justify-between gap-4 text-sm text-ink/60">
-              <span className="min-w-0">
-                Shipping
-                <span className="block text-[11px] text-ink/40 truncate">
-                  {shippingMethodLabel(shippingMethod)}
-                </span>
-              </span>
-              <span className="shrink-0 text-right">
-                {isFreeShipping ? (
-                  <>
-                    <span className="mr-1.5 text-ink/35 line-through">
-                      {formatPrice(shippingRates[shippingMethod])}
-                    </span>
-                    Free
-                  </>
-                ) : (
-                  formatPrice(shippingCost)
-                )}
-              </span>
-            </div>
-            <div className="flex justify-between items-center pt-3 mt-3 border-t border-ink/15">
-              <span className="text-[11px] tracking-[0.2em] uppercase font-body">
-                Total
-              </span>
-              <span className="font-display text-2xl">
-                {formatPrice(total)}
-              </span>
-            </div>
-          </div>
-
-          <Link
-            href="/shop"
-            className="mt-6 block text-center text-[11px] tracking-[0.15em] uppercase text-ink/55 hover:text-ink transition-colors"
-          >
-            Continue Shopping
-          </Link>
-        </div>
+      {/* Order summary, desktop slot. `hidden` below `lg` removes it from the
+          layout, the accessibility tree and the tab order, so desktop keeps
+          the original form-then-summary focus order. */}
+      <aside className="hidden lg:block lg:sticky lg:top-32 h-fit">
+        {renderSummary("side")}
       </aside>
     </div>
   );
@@ -893,7 +924,7 @@ function discountErrorMessage(reason: string): string {
     case "email_mismatch":
       return "Code is tied to a different email";
     case "email_required":
-      return "Enter your email above before applying a code.";
+      return EMAIL_FIRST_MESSAGE;
     default:
       return "Code is invalid";
   }
