@@ -11,11 +11,16 @@
  * "0" → "Adjustable" (rings/bracelets), "-1" → "9x10cm" (jewellery boxes).
  * Plain numeric values are unit-less in the DB and rendered in cm (the
  * attribute is surfaced to shoppers as "Length").
+ *
+ * On phones and tablets a StickyAddToBag bar mirrors the quantity stepper and
+ * add button whenever the inline CTA row (`ctaRef`) is scrolled out of view. It
+ * reads the same `quantity` / `justAdded` state and calls the same `handleAdd`,
+ * so the two stay in step and tracking fires exactly once per add.
  */
 
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import type { MetalType, ProductWithCategory } from "@/types";
@@ -35,6 +40,7 @@ import {
 import RingsStackBanner from "@/components/product/RingsStackBanner";
 import MixStackBanner from "@/components/product/MixStackBanner";
 import ProductLightbox from "@/components/product/ProductLightbox";
+import StickyAddToBag from "@/components/product/StickyAddToBag";
 import { RINGS_STACK, MIX_MATCH_STACK } from "@/lib/bundles";
 
 interface Props {
@@ -150,6 +156,14 @@ export default function ProductDetail({
   const addItem = useCart((s) => s.addItem);
   const maxQty = selectedVariant.quantity ?? 0;
   const disabled = !selectedVariant.in_stock || maxQty <= 0;
+
+  // The inline row watched by the sticky bar: it hides while this is on screen.
+  const ctaRef = useRef<HTMLDivElement>(null);
+
+  // Shared by the inline stepper and the sticky bar so both clamp identically.
+  const decrement = () => setQuantity((q) => Math.max(1, q - 1));
+  const increment = () =>
+    setQuantity((q) => (maxQty > 0 ? Math.min(maxQty, q + 1) : q));
 
   // The Stack & Save promo is a rings-only, category-based discount, so surface
   // it only on ring pages. Category is stable across metal variants.
@@ -460,10 +474,10 @@ export default function ProductDetail({
           </dd>
         </dl>
 
-        <div className="mt-10 flex items-stretch gap-3">
+        <div ref={ctaRef} className="mt-10 flex items-stretch gap-3">
           <div className="flex items-center border border-ink/15">
             <button
-              onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+              onClick={decrement}
               className="w-11 h-12 flex items-center justify-center text-ink/70 hover:text-ink cursor-pointer disabled:opacity-30"
               disabled={quantity <= 1 || disabled}
               aria-label="Decrease quantity"
@@ -474,9 +488,7 @@ export default function ProductDetail({
               {quantity}
             </span>
             <button
-              onClick={() =>
-                setQuantity((q) => (maxQty > 0 ? Math.min(maxQty, q + 1) : q))
-              }
+              onClick={increment}
               className="w-11 h-12 flex items-center justify-center text-ink/70 hover:text-ink cursor-pointer disabled:opacity-30"
               disabled={disabled || quantity >= maxQty}
               aria-label="Increase quantity"
@@ -539,6 +551,26 @@ export default function ProductDetail({
             </li>
           ))}
         </ul>
+
+        {/* Phones and tablets: keeps quantity + add in reach once the inline
+            row above has scrolled away. Fixed-position, so its place in the
+            column is irrelevant; it shares this component's state. */}
+        <StickyAddToBag
+          watchRef={ctaRef}
+          name={selectedVariant.name}
+          variantLabel={
+            selectedVariant.metal ? metalLabels[selectedVariant.metal] : null
+          }
+          price={Number(selectedVariant.price)}
+          imageUrl={gallery[0] ?? selectedVariant.image_url ?? null}
+          quantity={quantity}
+          maxQty={maxQty}
+          soldOut={disabled}
+          justAdded={justAdded}
+          onDecrement={decrement}
+          onIncrement={increment}
+          onAdd={handleAdd}
+        />
       </div>
     </div>
   );
