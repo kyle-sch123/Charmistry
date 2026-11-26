@@ -3,7 +3,7 @@
 E-commerce storefront for **Charmistry** — a South-African jewellery brand
 selling water-resistant, tarnish-resistant stainless-steel pieces.
 
-> **At a glance.** Next.js 15 (App Router) + React 19 site, deployed to
+> **At a glance.** Next.js 16 (App Router) + React 19 site, deployed to
 > Cloudflare via OpenNext. Supabase is the catalogue + order database and
 > the auth provider (customer accounts: Google OAuth + email OTP), PayFast
 > handles payments, Resend sends transactional email, Klaviyo tracks
@@ -32,7 +32,7 @@ selling water-resistant, tarnish-resistant stainless-steel pieces.
 
 | Concern                | Choice                                         |
 |------------------------|------------------------------------------------|
-| Framework              | Next.js 15.5 (App Router, Server Components)   |
+| Framework              | Next.js 16.4 (App Router, Server Components)   |
 | UI                     | React 19, Tailwind v4, Framer Motion           |
 | State (client)         | Zustand 5, localStorage persist with TTL       |
 | Database / Storage     | Supabase (Postgres + Storage buckets)          |
@@ -45,7 +45,8 @@ selling water-resistant, tarnish-resistant stainless-steel pieces.
 | Deployment target      | Cloudflare Workers via `@opennextjs/cloudflare` |
 | Lint / typecheck       | ESLint 9 + `eslint-config-next`, TS 5          |
 
-Node 20+ is required (matches `@types/node` in package.json).
+Node 22.12+ is required: Next 16 needs 20.9+, and Wrangler (used by
+`build:cf`, `preview` and `deploy`) needs 22.12+. CI runs Node 22.
 
 ---
 
@@ -1083,11 +1084,21 @@ re-fetch on next add) or force-expire by bumping the persist `name` in
 `src/stores/cart.ts`.
 
 **`npm install` fails with ERESOLVE peer dependency conflict**
-Shouldn't happen on this branch (Next 15.5.15+ satisfies the OpenNext
-peer-dep range). If it does, you've bumped Next or OpenNext to versions
-that don't agree — check `@opennextjs/cloudflare`'s required Next range
-and pin accordingly. As an emergency unblock, `npm install --legacy-peer-deps`
-works but masks the underlying mismatch.
+Shouldn't happen on this branch (Next 16.4.6 satisfies the peer range of
+`@opennextjs/cloudflare` 1.20, `>=15.5.29 <16 || >=16.4.5`). If it does,
+you've bumped Next or OpenNext to versions that don't agree — check
+`@opennextjs/cloudflare`'s required Next range and pin accordingly. As an
+emergency unblock, `npm install --legacy-peer-deps` works but masks the
+underlying mismatch.
+
+**`build:cf` fails with "Next.js version … is not supported by the Next.js team"**
+OpenNext refuses to build a Next.js major that is past its two-year support
+window. Next 15 (released 21 October 2024) aged out in October 2026, and every
+deploy after that failed this way until the upgrade to 16. The fix is to
+upgrade Next (and OpenNext alongside it); Next 16 was released on 21 October
+2025, so expect the same error around October 2027. The
+`--dangerouslyUseUnsupportedNextVersion` flag bypasses the check, but only as
+a short emergency measure: an unsupported major no longer gets security fixes.
 
 **`wrangler deploy` fails with "Authentication error"**
 You need to authenticate this machine first: `npx wrangler login`. The

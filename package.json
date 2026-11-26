@@ -19,24 +19,24 @@
     "@supabase/supabase-js": "^2.101.1",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",
-    "next": "^15.5.15",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "next": "^16.4.6",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
     "resend": "^6.10.0",
     "tailwind-merge": "^3.5.0",
     "zustand": "^5.0.12"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.19.1",
+    "@opennextjs/cloudflare": "^1.20.19",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
+    "@types/react": "^19.3.3",
+    "@types/react-dom": "^19.3.0",
     "eslint": "^9",
-    "eslint-config-next": "16.2.1",
+    "eslint-config-next": "16.4.6",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.10",
-    "wrangler": "^4.81.1"
+    "wrangler": "^4.168.0"
   }
 }

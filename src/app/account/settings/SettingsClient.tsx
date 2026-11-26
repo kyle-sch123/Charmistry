@@ -146,6 +146,9 @@ export default function SettingsClient({ email, profile }: SettingsClientProps) 
       if (!res.ok) throw new Error(String(res.status));
       // The server has deleted the user; clear the local session and leave.
       await getAuthBrowserClient().auth.signOut();
+      // A full page load on purpose (not router.push): the app restarts with
+      // nothing left over from the deleted account's session.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.assign("/");
     } catch {
       setDeleteBusy(false);
