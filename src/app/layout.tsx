@@ -45,8 +45,13 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
+    // data-scroll-behavior: globals.css sets `scroll-behavior: smooth` on
+    // <html> for in-page anchors (e.g. #stack-builder). Since Next 16 the router
+    // only suspends it during page navigations when this attribute is present;
+    // without it every route change would glide to the top instead of jumping.
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${cormorant.variable} ${outfit.variable} ${gilda.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
